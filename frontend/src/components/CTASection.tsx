@@ -44,16 +44,16 @@ const CTASection = () => {
   }, []);
 
   const benefits = [
-    { text: "Setup in under 2 minutes", icon: Zap },
-    { text: "Zero platform fees", icon: CheckCircle },
-    { text: "Bank-grade security", icon: CheckCircle },
-    { text: "24/7 customer support", icon: CheckCircle }
+    { text: "EMI payments in APT tokens", icon: CreditCard },
+    { text: "NFT rewards & collectibles", icon: CheckCircle },
+    { text: "Real-time INR conversion", icon: TrendingUp },
+    { text: "UPI-crypto bridging", icon: Zap }
   ];
 
   const stats = [
-    { value: "10K+", label: "Active Users" },
-    { value: "500+", label: "Merchants" },
-    { value: "99.9%", label: "Uptime" }
+    { value: "EMI", label: "Crypto Payments" },
+    { value: "NFT", label: "Collectibles" },
+    { value: "INR", label: "Integration" }
   ];
 
   return (    <section 
@@ -77,13 +77,13 @@ const CTASection = () => {
               </div>
               
               <h2 className="text-3xl md:text-5xl lg:text-6xl font-medium tracking-tighter text-foreground mb-6">
-                Join the Payment
-                <span className="text-primary block">Revolution Today</span>
+                Experience Smart Wallet
+                <span className="text-primary block">Innovation Today</span>
               </h2>
               
               <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-balance mb-8">
-                Experience the future of digital payments. Create your wallet, start accepting crypto, 
-                and join thousands of users who've already made the switch.
+                The first wallet to blend DeFi + RWA + Indian payments. Start with EMI options, 
+                collect NFT rewards, and enjoy seamless UPI-crypto bridging.
               </p>
             </div>
 
@@ -110,8 +110,8 @@ const CTASection = () => {
                 className="bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground text-lg h-14 px-8 transition-all duration-200 group"
                 onClick={() => navigate('/auth-type')}
               >
-                <Smartphone className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
-                Create Wallet Now
+                <Wallet className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                Start Your Smart Wallet
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Button>
             </div>
@@ -143,7 +143,7 @@ const CTASection = () => {
               <span>4.9/5 rating</span>
             </div>
             <div className="h-4 w-px bg-border"></div>
-            <span>Trusted by 10,000+ users</span>
+            <span>Built on Aptos blockchain</span>
             <div className="h-4 w-px bg-border"></div>
             <span>24/7 support</span>
           </div>

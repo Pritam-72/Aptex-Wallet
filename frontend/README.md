@@ -1,112 +1,67 @@
-# 🚀 Modern React UI Template
+# Aptos Wallet with EMI, NFT & INR Integration
 
-A beautiful, lightweight frontend template built with React, TypeScript, and Tailwind CSS. Perfect for building modern web applications with stunning UI components.
+## 🔑 Core Wallet (Baseline Features)
 
-## ✨ Features
+-   **Account Management**: Create, import, and manage Aptos wallets
+    (mnemonic / hardware wallet integration).
+-   **Transactions**: Send/receive crypto seamlessly cross-borders.
 
-- **Modern Tech Stack**: React 18, TypeScript, Tailwind CSS
-- **Beautiful Components**: Pre-built UI components using Radix UI
-- **Responsive Design**: Mobile-first responsive design
-- **Animation Library**: Smooth animations with Framer Motion
-- **Form Handling**: Advanced form management with React Hook Form
-- **Navigation**: Client-side routing with React Router
-- **Theme Support**: Light/dark theme switching
-- **Type Safety**: Full TypeScript support
+------------------------------------------------------------------------
 
-## 🛠️ Tech Stack
+## 💡 Differentiators (Your Add-ons)`
 
-- **React 18** - Modern React with hooks
-- **TypeScript** - Type-safe development  
-- **Tailwind CSS** - Utility-first CSS framework
-- **Radix UI** - Accessible component primitives
-- **Vite** - Fast build tool and dev server
-- **Framer Motion** - Animation library
-- **React Router** - Client-side routing
-- **React Hook Form** - Form management
-- **Zod** - Schema validation
+### 1. **EMI Option (Crypto-based EMI)**
 
-## 🚀 Getting Started
+-   Users can buy products/services and pay in **monthly installments**
+    (in Aptos tokens).
+-   Smart contract tracks installment schedule + auto-debits from
+    wallet.
+-   Merchants receive upfront payment via liquidity pool / protocol.
+-   Add **credit score logic on-chain** (track timely repayments, reward
+    system for good repayment).
 
-### Prerequisites
+### 2. **NFT Collectibles**
 
-- Node.js 18+ 
-- npm or yarn
+-   Wallet doubles as an **NFT showcase**.
+-   Users can view, store, and trade their Aptos-based NFT
+    collectibles.
+-   Merchants or partners can issue NFTs as loyalty rewards or
+    proof-of-participation.
 
-### Installation
+### 3. **Fiat INR Integration (via UPI Mapping & API Price Feed)**
 
-1. Clone the repository
-```bash
-git clone <your-repo-url>
-cd ui-template
-```
+-   Map **UPI ID ↔ Aptos public key**.
+-   When a user enters an amount in INR, the wallet fetches the
+    **real-time INR↔APT rate** via an API.
+-   Example: User types ₹1,000 → wallet auto-calculates equivalent APT
+    and sends/receives that.
+-   Receiver sees both **APT value + INR equivalent**.
+-   Bridges **on/off ramps** through UPI payments, but keeps APT as the
+    settlement layer.
+-   No need for INR stablecoins --- just **price mapping with live
+    rates**.
 
-2. Install dependencies
-```bash
-npm install
-```
+------------------------------------------------------------------------
 
-3. Start the development server
-```bash
-npm run dev
-```
+## 🌍 Extended Features
 
-4. Open your browser and visit `http://localhost:8080`
+-   **Salary Streaming in Aptos**: Employers can stream salaries in APT,
+    while employees see their balance in INR equivalent (real-time
+    conversion).
+-   **Cross-border Remittance**: User abroad sends USDT/USDC → converted
+    to APT → recipient in India sees INR value and withdraws via UPI.
+-   **Subscriptions & Smart Payments**: Recurring payments set in INR
+    but executed in APT (auto-converted at current rate).
+-   **Merchant Support**: Merchants list prices in INR, customers pay in
+    APT (conversion handled automatically).
+-   **Payment Splits**: Enable group bill payments or EMI splits where
+    amounts are shown in INR but settled in APT.
 
-## 📁 Project Structure
+------------------------------------------------------------------------
 
-```
-src/
-├── components/          # Reusable UI components
-│   ├── ui/             # Base UI components (buttons, cards, etc.)
-│   └── ...             # Feature components
-├── pages/              # Page components
-├── contexts/           # React contexts
-├── hooks/              # Custom hooks
-├── lib/                # Utility functions
-└── main.tsx            # App entry point
-```
+## 🔮 Pitchable Angle
 
-## 🎨 Components Included
-
-- **Landing Page** - Hero section with features and testimonials
-- **Dashboard** - Clean dashboard layout with stats and cards
-- **Navigation** - Responsive navbar with dropdown menus
-- **Forms** - Beautiful form components with validation
-- **Cards** - Various card layouts and styles
-- **Buttons** - Multiple button variants and states
-- **Modals** - Accessible modal dialogs
-- **Settings** - User settings and preferences panels
-
-## 📝 Available Scripts
-
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
-
-## 🎯 Usage
-
-This template provides a solid foundation for building modern web applications. The components are designed to be:
-
-- **Accessible** - Built with accessibility in mind
-- **Customizable** - Easy to theme and customize
-- **Responsive** - Works on all device sizes
-- **Performant** - Optimized for speed and efficiency
-
-## 🚀 Deployment
-
-Build the project for production:
-
-```
-
-The built files will be in the `dist` directory, ready to deploy to any static hosting service.
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
-## � Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
----
+> *"We're building a smart wallet on Aptos that makes money move like
+> messages. With UPI--crypto bridging, EMI options, and NFT-backed
+> loyalty, it's the first wallet to blend DeFi + RWA + Indian payments
+> in one place."*

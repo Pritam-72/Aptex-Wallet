@@ -29,33 +29,33 @@ const HowItWorksSection = () => {
     {
       icon: UserPlus,
       number: "01",
-      title: "Create Your Wallet",
-      description: "Sign up and create your secure, non-custodial wallet in under 2 minutes. Your private keys remain under your control.",
-      features: ["Secure seed phrase", "Private key control", "Instant setup"],
+      title: "Create Aptos Wallet",
+      description: "Set up your secure Aptos wallet with mnemonic backup. Link your UPI ID for seamless INR-APT bridging.",
+      features: ["Aptos wallet creation", "UPI ID mapping", "Secure backup"],
       delay: "delay-200"
     },
     {
       icon: Wallet,
       number: "02", 
-      title: "Fund Your Account",
-      description: "Add Ethereum to your wallet through various methods. Start with as little as you want.",
-      features: ["Multiple funding options", "Real-time balance", "Secure transfers"],
+      title: "Fund with APT",
+      description: "Add Aptos tokens to your wallet. View balance in both APT and real-time INR equivalent.",
+      features: ["APT token funding", "Live INR rates", "Balance tracking"],
       delay: "delay-400"
     },
     {
-      icon: Scan,
+      icon: CreditCard,
       number: "03",
-      title: "Scan & Pay",
-      description: "Find merchants displaying CrypPal QR codes and scan to pay instantly. No conversion needed.",
-      features: ["QR code scanning", "Instant payments", "Transaction history"],
+      title: "Shop with EMI",
+      description: "Buy products with monthly EMI in APT tokens. Smart contracts handle installment tracking and payments.",
+      features: ["EMI payments", "Smart contracts", "Credit scoring"],
       delay: "delay-600"
     },
     {
       icon: CheckCircle,
       number: "04",
-      title: "Enjoy Freedom",
-      description: "Experience borderless payments, complete privacy, and full control over your digital assets.",
-      features: ["Global acceptance", "Zero intermediaries", "Complete privacy"],
+      title: "Collect NFT Rewards",
+      description: "Earn NFT collectibles as loyalty rewards. Showcase your collection and trade Aptos-based NFTs.",
+      features: ["NFT rewards", "Loyalty program", "Trading platform"],
       delay: "delay-800"
     }
   ];
@@ -122,13 +122,13 @@ const HowItWorksSection = () => {
           </div>
           
           <h2 className="text-3xl md:text-5xl lg:text-6xl font-medium tracking-tighter text-foreground mb-6">
-            Get Started in 
-            <span className="text-primary block">4 Simple Steps</span>
+            Your Smart Wallet
+            <span className="text-primary block">Journey Starts Here</span>
           </h2>
           
           <p className="hidden md:block text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-balance">
-            Join the crypto payment revolution in minutes. No technical knowledge required, 
-            just download, setup, and start spending your digital assets.
+            From wallet creation to NFT rewards - experience the future of payments with EMI options, 
+            real-time INR conversion, and seamless UPI integration.
           </p>
         </div>
 

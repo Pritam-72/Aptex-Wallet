@@ -14,74 +14,74 @@ import {
 const FAQSection = () => {
   const faqs = [
     {
-      category: "Getting Started",
-      icon: Users,
-      questions: [
-        {
-          question: "How do I create a CrypPal wallet?",
-          answer: "Creating a CrypPal wallet is simple and takes less than 2 minutes. Click 'Get Started', follow our secure setup process, and safely store your seed phrase. Your wallet is immediately ready for use with full self-custody."
-        },
-        {
-          question: "Is CrypPal safe to use?",
-          answer: "Yes, CrypPal is built with enterprise-grade security. We use non-custodial wallets, meaning you control your private keys. All transactions are secured by the Ethereum blockchain, and we never have access to your funds."
-        },
-        {
-          question: "What cryptocurrencies does CrypPal support?",
-          answer: "Currently, CrypPal supports Ethereum (ETH) and ERC-20 tokens. We're actively working on expanding support for Bitcoin, Polygon, and other major cryptocurrencies based on community demand."
-        }
-      ]
-    },
-    {
-      category: "Payments & Fees",
+      category: "EMI & Payments",
       icon: CreditCard,
       questions: [
         {
-          question: "Are there any fees for using CrypPal?",
-          answer: "CrypPal charges zero platform fees. You only pay the standard Ethereum network gas fees for blockchain transactions. There are no monthly fees, setup costs, or hidden charges."
+          question: "How does crypto-based EMI work?",
+          answer: "You can buy products/services and pay in monthly installments using Aptos tokens. Smart contracts automatically track your installment schedule and handle auto-debits from your wallet. Merchants receive upfront payment via our liquidity pool."
         },
         {
-          question: "How fast are payments processed?",
-          answer: "Payments are processed instantly on the Ethereum network, typically confirming within 15 seconds to 2 minutes depending on network congestion. You'll see immediate confirmation in the CrypPal interface."
+          question: "What is on-chain credit scoring?",
+          answer: "Our smart contracts track your timely repayments and build a credit score on the Aptos blockchain. Good repayment history unlocks better EMI terms and rewards through our loyalty system."
         },
         {
-          question: "Can I receive payments from any wallet?",
-          answer: "Yes, merchants can receive payments from any Ethereum-compatible wallet including MetaMask, Trust Wallet, Coinbase Wallet, and hardware wallets like Ledger. CrypPal is completely interoperable."
+          question: "How does INR integration work?",
+          answer: "We map your UPI ID to your Aptos public key. When you enter an amount in INR, the wallet fetches real-time INR↔APT rates and auto-calculates the equivalent APT for transactions. You see both APT value and INR equivalent."
         }
       ]
     },
     {
-      category: "For Merchants",
+      category: "NFT & Rewards",
+      icon: Zap,
+      questions: [
+        {
+          question: "How do NFT collectibles work in the wallet?",
+          answer: "Your wallet doubles as an NFT showcase where you can view, store, and trade Aptos-based NFT collectibles. Merchants and partners can issue NFTs as loyalty rewards or proof-of-participation tokens."
+        },
+        {
+          question: "What kind of NFT rewards can I earn?",
+          answer: "Merchants can issue NFT loyalty rewards, proof-of-purchase tokens, or special collectibles. These NFTs can unlock special discounts, exclusive access, or serve as tradeable digital assets within the Aptos ecosystem."
+        },
+        {
+          question: "Can I trade my NFTs?",
+          answer: "Yes! The wallet includes built-in NFT trading capabilities. You can view your collection, trade with other users, and showcase your Aptos-based NFTs all within the same interface."
+        }
+      ]
+    },
+    {
+      category: "Cross-Border & UPI",
       icon: Globe,
       questions: [
         {
-          question: "How do I integrate CrypPal into my business?",
-          answer: "Integration is simple: create a merchant account, generate QR codes for your products/services, or use our API for online stores. We provide comprehensive documentation and support throughout the process."
+          question: "How does cross-border remittance work?",
+          answer: "Users abroad can send USDT/USDC which gets converted to APT. Recipients in India see the INR value in real-time and can withdraw via UPI integration, making international money transfers seamless."
         },
         {
-          question: "Do I need technical knowledge to use CrypPal?",
-          answer: "No technical knowledge required! Our interface is designed for everyone. Simply create an account, generate QR codes, and start accepting payments. For advanced integrations, our API documentation is developer-friendly."
+          question: "What is salary streaming in APT?",
+          answer: "Employers can stream salaries continuously in APT tokens while employees see their balance in INR equivalent with real-time conversion rates. This enables innovative payroll solutions with crypto benefits."
         },
         {
-          question: "Can I convert received crypto to fiat currency?",
-          answer: "While CrypPal doesn't provide fiat conversion directly, you maintain full control of your received crypto and can use any exchange or service of your choice to convert to traditional currency if needed."
+          question: "How do subscriptions work?",
+          answer: "Set up recurring payments in INR that are automatically executed in APT at current conversion rates. Perfect for subscriptions, bills, and regular payments with the benefits of crypto settlement."
         }
       ]
     },
     {
-      category: "Security & Support",
+      category: "Security & Setup",
       icon: Shield,
       questions: [
         {
-          question: "What happens if I lose my seed phrase?",
-          answer: "Your seed phrase is the only way to recover your wallet. CrypPal cannot recover lost seed phrases as we don't store them. We strongly recommend backing up your seed phrase in multiple secure locations during setup."
+          question: "How secure is the Aptos wallet?",
+          answer: "Built on Aptos blockchain with enterprise-grade security. You control your private keys with mnemonic backup. Smart contracts are audited and all transactions benefit from Aptos' built-in security features."
         },
         {
-          question: "Is customer support available?",
-          answer: "Yes, we offer 24/7 customer support through multiple channels including live chat, email, and our comprehensive help center. Our team is always ready to assist with any questions or issues."
+          question: "How do I set up UPI integration?",
+          answer: "During wallet setup, you'll link your UPI ID to your Aptos public key. This enables seamless INR-APT conversion and allows you to bridge traditional payments with crypto seamlessly."
         },
         {
-          question: "How does CrypPal protect my privacy?",
-          answer: "CrypPal is built with privacy-first principles. We use minimal data collection, all transactions are pseudonymous on the blockchain, and we never track your spending patterns or personal financial information."
+          question: "What if I lose access to my wallet?",
+          answer: "Your mnemonic phrase is your backup key. Store it securely during setup. With your mnemonic, you can recover your wallet, APT balance, and NFT collection on any device. We cannot recover lost mnemonics."
         }
       ]
     }
@@ -153,13 +153,13 @@ const FAQSection = () => {
           </div>
           
           <h2 className="text-3xl md:text-5xl lg:text-6xl font-medium tracking-tighter text-foreground mb-6">
-            Frequently Asked
-            <span className="text-primary block">Questions</span>
+            Everything About
+            <span className="text-primary block">Smart Wallet Features</span>
           </h2>
           
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-balance">
-            Get instant answers to common questions about CrypPal. 
-            Can't find what you're looking for? Our support team is here to help.
+            Learn about EMI payments, NFT rewards, INR integration, and more. 
+            Your guide to the future of digital payments on Aptos.
           </p>
         </div>
 

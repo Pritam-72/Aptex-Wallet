@@ -46,7 +46,7 @@ const HeroSection = () => {
   // Get user's dashboard route based on account type
   const getDashboardRoute = () => {
     if (!user) return '/user-dashboard';
-    const userMetadata = user.user_metadata || {};
+    const userMetadata = (user as any).user_metadata || {};
     const accountType = userMetadata.account_type || 'individual';
     return accountType === 'merchant' ? '/merchant-dashboard' : '/user-dashboard';
   };
@@ -104,26 +104,25 @@ const HeroSection = () => {
         <div className="flex justify-center">
           <span className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-[8px] sm:text-[10px] font-medium rounded-full bg-muted text-white">
             <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
-            <span className="hidden sm:inline">Revolutionizing Digital Finance</span>
-            <span className="sm:hidden">Digital Finance Revolution</span>
+            <span className="hidden sm:inline">Smart Wallet with EMI & NFT Integration</span>
+            <span className="sm:hidden">Smart Wallet Innovation</span>
             <Zap className="h-2.5 w-2.5 text-primary" />
           </span>
         </div>
 
         {/* Main Headline */}
         <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-medium tracking-tighter text-foreground leading-none">
-          <span className="text-primary">CrypPal Solutions</span>
+          <span className="text-primary">Aptos Wallet</span>
           <span className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl block mt-1 sm:mt-2">
-            <span className="block sm:inline">Bridging Traditional</span>
-            <span className="block sm:inline sm:ml-2">& Digital Finance</span>
-            <span className="block sm:inline sm:ml-2">Leveraging Crypto</span>
+            <span className="block sm:inline">EMI, NFT &</span>
+            <span className="block sm:inline sm:ml-2">INR Integration</span>
           </span>
         </h1>
 
         {/* Subheading */}
         <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl sm:max-w-3xl mx-auto text-balance leading-relaxed px-2 sm:px-0">
-          Empowering users to spend their crypto assets directly without converting to fiat. 
-          <span className="hidden sm:inline"> Seamlessly bridge the gap between digital assets and real-world transactions for merchants and individuals alike.</span>
+          We're building a smart wallet on Aptos that makes money move like messages. 
+          <span className="hidden sm:inline"> With UPI-crypto bridging, EMI options, and NFT-backed loyalty, it's the first wallet to blend DeFi + RWA + Indian payments in one place.</span>
         </p>
 
         {/* CTA Buttons */}
@@ -159,11 +158,11 @@ const HeroSection = () => {
 
         {/* Trust Indicator */}
         <div className="pt-6 text-xs sm:text-sm text-muted-foreground text-center">
-          <span className="block sm:inline">Trusted by 10,000+ users</span>
+          <span className="block sm:inline">Built on Aptos blockchain</span>
           <span className="hidden sm:inline"> • </span>
-          <span className="block sm:inline">Enterprise-grade security</span>
+          <span className="block sm:inline">Smart contract security</span>
           <span className="hidden sm:inline"> • </span>
-          <span className="block sm:inline">24/7 support</span>
+          <span className="block sm:inline">UPI integration ready</span>
         </div>
       </div>
 
@@ -180,21 +179,21 @@ const HeroSection = () => {
                     <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-slate-700/40 flex items-center justify-center">
                       <Users className="h-6 w-6 sm:h-7 sm:w-7 text-slate-300" />
                     </div>
-                    <div>
-                      <h3 className="text-lg sm:text-xl font-semibold text-white mb-1">For Individuals</h3>
-                      <p className="text-sm text-slate-400">Spend crypto assets directly</p>
-                    </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-semibold text-white mb-1">For Individuals</h3>
+                    <p className="text-sm text-slate-400">EMI, NFT & INR Integration</p>
                   </div>
+                </div>
 
                   {/* Stats Grid */}
                   <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
                     <div className="space-y-2">
-                      <div className="text-2xl sm:text-3xl font-bold text-slate-200">Direct</div>
-                      <div className="text-xs text-slate-400 leading-relaxed">Crypto Spending</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-slate-200">EMI</div>
+                      <div className="text-xs text-slate-400 leading-relaxed">Crypto Payments</div>
                     </div>
                     <div className="space-y-2">
-                      <div className="text-2xl sm:text-3xl font-bold text-slate-200">No</div>
-                      <div className="text-xs text-slate-400 leading-relaxed">Conversion Needed</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-slate-200">INR</div>
+                      <div className="text-xs text-slate-400 leading-relaxed">Live Conversion</div>
                     </div>
                   </div>
 
@@ -202,19 +201,17 @@ const HeroSection = () => {
                   <div className="space-y-3 sm:space-y-4 flex-1">
                     <div className="flex items-center gap-3 sm:gap-4">
                       <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0" />
-                      <span className="text-slate-300 text-sm">Direct crypto spending</span>
+                      <span className="text-slate-300 text-sm">Monthly EMI in APT tokens</span>
                     </div>
                     <div className="flex items-center gap-3 sm:gap-4">
                       <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0" />
-                      <span className="text-slate-300 text-sm">No fiat conversion needed</span>
+                      <span className="text-slate-300 text-sm">NFT collectibles & rewards</span>
                     </div>
                     <div className="flex items-center gap-3 sm:gap-4">
                       <Users className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0" />
-                      <span className="text-slate-300 text-sm">Seamless transactions</span>
+                      <span className="text-slate-300 text-sm">UPI-APT bridging</span>
                     </div>
-                  </div>
-
-                  {/* Status Indicator */}
+                  </div>                  {/* Status Indicator */}
                   <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-700/30">
                     <div className="flex items-center gap-3">
                       <div className="size-3 rounded-full bg-green-500 animate-pulse" />
@@ -242,21 +239,21 @@ const HeroSection = () => {
                     <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-slate-700/40 flex items-center justify-center">
                       <Building2 className="h-6 w-6 sm:h-7 sm:w-7 text-slate-300" />
                     </div>
-                    <div>
-                      <h3 className="text-lg sm:text-xl font-semibold text-white mb-1">For Merchants</h3>
-                      <p className="text-sm text-slate-400">Accept crypto payments instantly</p>
-                    </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-semibold text-white mb-1">For Merchants</h3>
+                    <p className="text-sm text-slate-400">Accept APT payments with INR pricing</p>
                   </div>
+                </div>
 
                   {/* Stats Grid */}
                   <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
                     <div className="space-y-2">
-                      <div className="text-2xl sm:text-3xl font-bold text-slate-200">0%</div>
-                      <div className="text-xs text-slate-400 leading-relaxed">Third-party fees</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-slate-200">Real-time</div>
+                      <div className="text-xs text-slate-400 leading-relaxed">INR-APT Rate</div>
                     </div>
                     <div className="space-y-2">
-                      <div className="text-2xl sm:text-3xl font-bold text-slate-200">Instant</div>
-                      <div className="text-xs text-slate-400 leading-relaxed">ETH Payments</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-slate-200">NFT</div>
+                      <div className="text-xs text-slate-400 leading-relaxed">Loyalty Rewards</div>
                     </div>
                   </div>
 
@@ -264,19 +261,17 @@ const HeroSection = () => {
                   <div className="space-y-3 sm:space-y-4 flex-1">
                     <div className="flex items-center gap-3 sm:gap-4">
                       <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0" />
-                      <span className="text-slate-300 text-sm">Zero third-party fees</span>
+                      <span className="text-slate-300 text-sm">Price in INR, settle in APT</span>
                     </div>
                     <div className="flex items-center gap-3 sm:gap-4">
                       <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0" />
-                      <span className="text-slate-300 text-sm">Instant ETH payments</span>
+                      <span className="text-slate-300 text-sm">NFT loyalty program</span>
                     </div>
                     <div className="flex items-center gap-3 sm:gap-4">
                       <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0" />
-                      <span className="text-slate-300 text-sm">QR code generation</span>
+                      <span className="text-slate-300 text-sm">Instant APT settlement</span>
                     </div>
-                  </div>
-
-                  {/* Status Indicator */}
+                  </div>                  {/* Status Indicator */}
                   <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-700/30">
                     <div className="flex items-center gap-3">
                       <div className="size-3 rounded-full bg-green-500 animate-pulse" />
@@ -307,15 +302,15 @@ const HeroSection = () => {
                   </div>
                   <div>
                     <h3 className="text-base font-semibold text-foreground">For Individuals</h3>
-                    <p className="text-xs text-muted-foreground">Spend crypto assets directly</p>
+                    <p className="text-xs text-muted-foreground">EMI, NFT & INR Integration</p>
                   </div>
                 </div>
-                <div className="text-sm text-foreground font-medium">Direct crypto spending, no conversion needed.</div>
+                <div className="text-sm text-foreground font-medium">Buy with EMI in APT tokens, collect NFTs, see INR values.</div>
                 {/* Feature List */}
                 <ul className="mt-2 space-y-2 w-full">
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Shield className="h-4 w-4" /> Direct crypto spending</li>
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Zap className="h-4 w-4" /> No fiat conversion needed</li>
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Users className="h-4 w-4" /> Seamless transactions</li>
+                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Shield className="h-4 w-4" /> Monthly EMI in APT tokens</li>
+                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Zap className="h-4 w-4" /> NFT collectibles & rewards</li>
+                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Users className="h-4 w-4" /> UPI-APT bridging</li>
                 </ul>
                 <Button
                   size="sm"
@@ -333,15 +328,15 @@ const HeroSection = () => {
                   </div>
                   <div>
                     <h3 className="text-base font-semibold text-foreground">For Merchants</h3>
-                    <p className="text-xs text-muted-foreground">Accept crypto payments instantly</p>
+                    <p className="text-xs text-muted-foreground">Accept APT payments with INR pricing</p>
                   </div>
                 </div>
-                <div className="text-sm text-foreground font-medium">0% fees, instant ETH payments, QR code ready.</div>
+                <div className="text-sm text-foreground font-medium">Price in INR, receive APT instantly, issue NFT rewards.</div>
                 {/* Feature List */}
                 <ul className="mt-2 space-y-2 w-full">
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Shield className="h-4 w-4" /> Zero third-party fees</li>
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Zap className="h-4 w-4" /> Instant ETH payments</li>
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Building2 className="h-4 w-4" /> QR code generation</li>
+                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Shield className="h-4 w-4" /> Price in INR, settle in APT</li>
+                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Zap className="h-4 w-4" /> NFT loyalty program</li>
+                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Building2 className="h-4 w-4" /> Instant APT settlement</li>
                 </ul>
                 <Button
                   size="sm"

@@ -50,50 +50,50 @@ const TestimonialsSection = () => {
 
   const testimonials = [
     {
-      name: "Sarah Chen",
-      role: "Coffee Shop Owner",
-      company: "Bean & Brew",
-      content: "CrypPal transformed how we accept payments. Zero fees means more profit, and customers love the instant transactions. Setup took less than 10 minutes!",
+      name: "Priya Sharma",
+      role: "Electronics Store Owner",
+      company: "Tech Hub Mumbai",
+      content: "The INR integration is a game-changer! I list prices in INR, customers see familiar pricing, but I receive APT instantly. The NFT loyalty program increased repeat customers by 60%.",
       rating: 5,
       delay: "delay-200"
     },
     {
-      name: "Marcus Rodriguez",
-      role: "Freelance Designer",
-      company: "Independent",
-      content: "Finally, I can spend my crypto earnings directly without converting to fiat. The mobile experience is seamless and the security gives me peace of mind.",
+      name: "Rahul Patel",
+      role: "Software Developer",
+      company: "Freelancer",
+      content: "EMI payments in APT tokens helped me buy my new laptop! The smart contract handled everything automatically. Plus, I'm building a nice NFT collection from my purchases.",
       rating: 5,
       delay: "delay-400"
     },
     {
-      name: "Jennifer Walsh",
-      role: "E-commerce Manager",
-      company: "TechGear Inc",
-      content: "Our online store saw a 40% increase in international sales after integrating CrypPal. Global customers can now pay instantly without currency conversion hassles.",
+      name: "Anjali Gupta",
+      role: "Fashion Boutique Owner",
+      company: "Style Studio Delhi",
+      content: "UPI-APT bridging is brilliant! Customers can pay in rupees mindset but I receive crypto. The real-time conversion rates are always accurate. My revenue increased 45%.",
       rating: 5,
       delay: "delay-600"
     },
     {
-      name: "David Kim",
-      role: "Restaurant Owner",
-      company: "Seoul Kitchen",
-      content: "The QR code generation is brilliant. Customers scan and pay in seconds. Our average transaction time decreased by 70% compared to traditional payment methods.",
+      name: "Vikram Singh",
+      role: "Restaurant Chain Owner",
+      company: "Spice Route",
+      content: "Our loyalty NFTs became collector items! Customers love earning unique NFTs with each visit. The Aptos blockchain makes transactions super fast and secure.",
       rating: 5,
       delay: "delay-800"
     },
     {
-      name: "Emily Foster",
-      role: "Crypto Enthusiast",
-      company: "Early Adopter",
-      content: "I've been waiting for a solution like this. Non-custodial, secure, and actually usable in real stores. CrypPal makes crypto payments feel natural.",
+      name: "Meera Krishnan",
+      role: "IT Professional",
+      company: "TechCorp Bangalore",
+      content: "Salary streaming in APT is amazing! I see my earnings in INR equivalent but benefit from crypto appreciation. The wallet makes managing both views effortless.",
       rating: 5,
       delay: "delay-1000"
     },
     {
-      name: "Alex Thompson",
-      role: "Tech Startup Founder",
-      company: "InnovateCorp",
-      content: "We integrated CrypPal's API for our B2B payments. The developer experience is excellent, and our clients love the transparency of blockchain transactions.",
+      name: "Arjun Mehta",
+      role: "Cross-border Trader",
+      company: "Global Commerce",
+      content: "Cross-border payments are now instant! My clients abroad send USDC, I receive APT, and can withdraw INR via UPI. This wallet solved my biggest business challenge.",
       rating: 5,
       delay: "delay-1200"
     }
@@ -109,10 +109,10 @@ const TestimonialsSection = () => {
   }, [carouselApi, testimonials.length]);
 
   const stats = [
-    { value: "10,000+", label: "Active Users" },
-    { value: "500+", label: "Merchants" },
-    { value: "$2M+", label: "Processed" },
-    { value: "99.9%", label: "Uptime" }
+    { value: "EMI", label: "Payments" },
+    { value: "NFT", label: "Rewards" },
+    { value: "INR", label: "Integration" },
+    { value: "UPI", label: "Bridging" }
   ];
 
   return (    <section 
@@ -133,13 +133,13 @@ const TestimonialsSection = () => {
           </div>
           
           <h2 className="text-3xl md:text-5xl lg:text-6xl font-medium tracking-tighter text-foreground mb-6">
-            Loved by Users 
-            <span className="text-primary block">Worldwide</span>
+            Real Stories from 
+            <span className="text-primary block">Smart Wallet Users</span>
           </h2>
           
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-balance">
-            Discover how CrypPal is transforming businesses and empowering individuals 
-            to embrace the future of digital payments.
+            See how EMI payments, NFT rewards, and INR integration are transforming 
+            the way Indians interact with digital assets.
           </p>
         </div>
 

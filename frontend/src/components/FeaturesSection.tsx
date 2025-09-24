@@ -27,51 +27,51 @@ const FeaturesSection = () => {
   // Move features array to the top so it's available to all hooks
   const features = [
     {
-      icon: Shield,
-      title: "Enterprise Security",
-      description: "Non-custodial wallets with military-grade encryption and private key protection",
+      icon: CreditCard,
+      title: "EMI Option (Crypto-based EMI)",
+      description: "Buy products/services with monthly installments in Aptos tokens. Smart contracts track payments with on-chain credit scoring.",
       delay: "delay-200"
     },
     {
-      icon: Zap,
-      title: "Instant Transactions",
-      description: "Lightning-fast Ethereum payments with real-time confirmation and settlement",
+      icon: Shield,
+      title: "NFT Collectibles",
+      description: "Wallet doubles as NFT showcase. Store, trade Aptos-based NFTs and receive loyalty rewards from merchants.",
       delay: "delay-300"
     },
     {
-      icon: CreditCard,
-      title: "Zero Fees",
-      description: "No third-party fees, no monthly charges, only network gas fees apply",
+      icon: Globe,
+      title: "Fiat INR Integration",
+      description: "UPI ID ↔ Aptos public key mapping with real-time INR↔APT rates. Price in INR, settle in APT.",
       delay: "delay-400"
     },
     {
-      icon: Globe,
-      title: "Global Reach",
-      description: "Accept payments from anywhere in the world, 24/7 availability",
+      icon: Zap,
+      title: "Salary Streaming",
+      description: "Employers stream salaries in APT while employees see INR equivalent with real-time conversion.",
       delay: "delay-500"
     },
     {
-      icon: Lock,
-      title: "Self-Custody",
-      description: "You control your private keys, we never have access to your funds",
+      icon: Building2,
+      title: "Cross-border Remittance",
+      description: "Send USDT/USDC abroad, convert to APT, recipient sees INR value and withdraws via UPI.",
       delay: "delay-600"
     },
     {
       icon: TrendingUp,
-      title: "Real-time Analytics",
-      description: "Comprehensive dashboard with transaction history and performance metrics",
+      title: "Smart Payments",
+      description: "Recurring payments set in INR but executed in APT with automatic conversion at current rates.",
       delay: "delay-700"
     },
     {
-      icon: Smartphone,
-      title: "Mobile First",
-      description: "Optimized for mobile devices with QR code scanning and NFC support",
+      icon: Users,
+      title: "Merchant Support",
+      description: "Merchants list prices in INR, customers pay in APT with conversion handled automatically.",
       delay: "delay-800"
     },
     {
-      icon: Building2,
-      title: "Business Ready",
-      description: "Enterprise-grade tools for merchants of all sizes with API access",
+      icon: Smartphone,
+      title: "Payment Splits",
+      description: "Group bill payments and EMI splits shown in INR but settled in APT tokens.",
       delay: "delay-900"
     }
   ];
@@ -131,17 +131,17 @@ const FeaturesSection = () => {
           <div className="flex justify-center mb-6">
             <span className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-[8px] sm:text-[10px] font-medium rounded-full bg-muted text-white">
               <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
-              Advanced Features
+              Core Differentiators
               <Zap className="h-2.5 w-2.5 text-primary" />
             </span>
           </div>
           <h2 className="text-3xl md:text-5xl lg:text-6xl font-medium tracking-tighter text-foreground mb-6">
-            Built for the Future of
-            <span className="text-primary block">Digital Payments</span>
+            DeFi + RWA +
+            <span className="text-primary block">Indian Payments</span>
           </h2>
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-balance">
-            Every feature designed with security, simplicity, and scalability in mind. 
-            Experience the next generation of financial technology.
+            The first smart wallet to blend DeFi capabilities with real-world assets and Indian payment systems. 
+            EMI options, NFT rewards, and seamless INR integration.
           </p>
         </div>
         {/* Features Carousel (Mobile Only) */}
