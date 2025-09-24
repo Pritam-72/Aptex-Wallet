@@ -158,8 +158,8 @@ const FAQSection = () => {
           </div>
           
           <h2 className="text-3xl md:text-5xl lg:text-6xl font-medium tracking-tighter text-foreground mb-6">
-            Everything About
-            <span className="text-primary block">Smart Wallet Features</span>
+            <span className="text-cyan-200">Everything About</span>
+            <span className="text-white block">Smart Wallet Features</span>
           </h2>
           
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-balance">

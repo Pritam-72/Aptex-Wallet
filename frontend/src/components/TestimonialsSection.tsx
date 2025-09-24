@@ -133,8 +133,8 @@ const TestimonialsSection = () => {
           </div>
           
           <h2 className="text-3xl md:text-5xl lg:text-6xl font-medium tracking-tighter text-foreground mb-6">
-            Real Stories from 
-            <span className="text-primary block">Smart Wallet Users</span>
+            <span className="text-cyan-200">Real Stories from</span> 
+            <span className="text-white block">Smart Wallet Users</span>
           </h2>
           
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-balance">

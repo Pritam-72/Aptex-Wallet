@@ -77,12 +77,12 @@ const CTASection = () => {
               </div>
               
               <h2 className="text-3xl md:text-5xl lg:text-6xl font-medium tracking-tighter text-foreground mb-6">
-                Experience Smart Wallet
-                <span className="text-primary block">Innovation Today</span>
+                <span className="text-cyan-200">Experience Smart Wallet</span>
+                <span className="text-white block">Innovation Today</span>
               </h2>
               
               <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-balance mb-8">
-                The first wallet to blend DeFi + RWA + Indian payments. Start with EMI options, 
+                The first wallet to blend <span className="text-cyan-200">DeFi + RWA +</span> Indian payments. Start with EMI options, 
                 collect NFT rewards, and enjoy seamless UPI-crypto bridging.
               </p>
             </div>
