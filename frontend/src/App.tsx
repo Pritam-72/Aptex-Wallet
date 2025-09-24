@@ -7,9 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import LandingPage from "./pages/LandingPage";
 import UserPage from "./pages/UserPage";
-import MerchantPage from "./pages/MerchantPage";
 import SimpleDashboard from "./pages/SimpleDashboard";
-import AuthTypePage from "./pages/AuthTypePage";
 import SupabaseAuthPage from "./pages/SupabaseAuthPage";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
@@ -23,10 +21,8 @@ const Layout = () => {
   const hideNavbarRoutes = ['/auth', '/reset-password'];
   // Also hide Navbar on dashboard pages
   const dashboardRoutes = [
-    '/user-dashboard',
-    '/merchant-dashboard',
-    '/enhanced-user-dashboard',
-    '/enhanced-merchant-dashboard'
+    '/dashboard',
+    '/user-dashboard'
   ];
   const shouldShowNavbar = !hideNavbarRoutes.some(route => location.pathname.startsWith(route)) &&
     !dashboardRoutes.some(route => location.pathname.startsWith(route));
@@ -60,7 +56,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }: { children: JSX.Element
 
   // If specific roles are required, check if user has any of them
   if (allowedRoles.length > 0) {
-    const userRole = user.account_type || 'individual';
+    const userRole = user.account_type || 'user';
     if (!allowedRoles.includes(userRole)) {
       return <Navigate to="/unauthorized" replace />;
     }
@@ -83,8 +79,7 @@ const PublicRoute = ({ children }: { children: JSX.Element }) => {
   }
 
   if (user) {
-    const accountType = user.account_type || 'individual';
-    const dashboard = accountType === 'merchant' ? '/merchant-dashboard' : '/user-dashboard';
+    const dashboard = '/dashboard';
     const from = location.state?.from?.pathname || dashboard;
     return <Navigate to={from} replace />;
   }
@@ -112,32 +107,21 @@ const AppContent = () => {
         {/* Landing page route that all users can access */}
         <Route path="/home" element={<LandingPage />} />
         <Route path="/market" element={<Index />} />
-        {/* Make /user and /merchant public routes */}
+        {/* Make /user public route */}
         <Route path="/user" element={<UserPage />} />
-        <Route path="/merchant" element={<MerchantPage />} />
         {/* Auth routes */}
         <Route element={<PublicRoute><Outlet /></PublicRoute>}>
           <Route path="/auth" element={<SupabaseAuthPage />} />
-          <Route path="/auth-type" element={<AuthTypePage />} />
         </Route>
         {/* Protected routes */}
         <Route element={<ProtectedRoute><Outlet /></ProtectedRoute>}>
           {/* Dashboard routes */}
-          <Route path="/user-dashboard" element={
-            <ProtectedRoute allowedRoles={['user', 'individual']}>
-              <SimpleDashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/merchant-dashboard" element={
-            <ProtectedRoute allowedRoles={['merchant']}>
-              <SimpleDashboard />
-            </ProtectedRoute>
-          } />
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <SimpleDashboard />
             </ProtectedRoute>
           } />
+          <Route path="/user-dashboard" element={<Navigate to="/dashboard" replace />} />
         </Route>
         {/* 404 route */}
         <Route path="*" element={

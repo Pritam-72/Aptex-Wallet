@@ -43,12 +43,9 @@ const HeroSection = () => {
     }
   }, [user]);
 
-  // Get user's dashboard route based on account type
+  // Get user's dashboard route
   const getDashboardRoute = () => {
-    if (!user) return '/user-dashboard';
-    const userMetadata = (user as any).user_metadata || {};
-    const accountType = userMetadata.account_type || 'individual';
-    return accountType === 'merchant' ? '/merchant-dashboard' : '/user-dashboard';
+    return '/dashboard';
   };
 
   return (
@@ -141,7 +138,7 @@ const HeroSection = () => {
             <>
               <Button
                 className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full text-sm font-medium h-11 px-7 flex items-center justify-center mr-2"
-                onClick={() => window.location.href = '/auth-type'}
+                onClick={() => window.location.href = '/auth'}
               >
                 Get Started <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
@@ -231,66 +228,7 @@ const HeroSection = () => {
                   </div>
                 </div>
               </PinContainer>
-              {/* Merchant Solutions Card (3D) */}
-              <PinContainer title="Accept Crypto Payments" href="/merchant">
-                <div className="flex flex-col p-6 sm:p-8 tracking-tight text-slate-100/50 w-full max-w-[22rem] sm:w-[24rem] h-auto min-h-[24rem] sm:h-[26rem] bg-gradient-to-b from-slate-800/50 to-slate-800/0 backdrop-blur-sm border border-slate-700/50 rounded-2xl">
-                  {/* Header */}
-                  <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
-                    <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-slate-700/40 flex items-center justify-center">
-                      <Building2 className="h-6 w-6 sm:h-7 sm:w-7 text-slate-300" />
-                    </div>
-                  <div>
-                    <h3 className="text-lg sm:text-xl font-semibold text-white mb-1">For Merchants</h3>
-                    <p className="text-sm text-slate-400">Accept APT payments with INR pricing</p>
-                  </div>
-                </div>
 
-                  {/* Stats Grid */}
-                  <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
-                    <div className="space-y-2">
-                      <div className="text-2xl sm:text-3xl font-bold text-slate-200">Real-time</div>
-                      <div className="text-xs text-slate-400 leading-relaxed">INR-APT Rate</div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="text-2xl sm:text-3xl font-bold text-slate-200">NFT</div>
-                      <div className="text-xs text-slate-400 leading-relaxed">Loyalty Rewards</div>
-                    </div>
-                  </div>
-
-                  {/* Features */}
-                  <div className="space-y-3 sm:space-y-4 flex-1">
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0" />
-                      <span className="text-slate-300 text-sm">Price in INR, settle in APT</span>
-                    </div>
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0" />
-                      <span className="text-slate-300 text-sm">NFT loyalty program</span>
-                    </div>
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0" />
-                      <span className="text-slate-300 text-sm">Instant APT settlement</span>
-                    </div>
-                  </div>                  {/* Status Indicator */}
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-700/30">
-                    <div className="flex items-center gap-3">
-                      <div className="size-3 rounded-full bg-green-500 animate-pulse" />
-                      <div className="text-xs text-slate-400">Ready to Accept</div>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs px-4 py-2 transition-all duration-200 min-h-[36px]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.location.href = '/merchant';
-                      }}
-                    >
-                      Start Now
-                      <ArrowRight className="ml-1 h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              </PinContainer>
             </>
           ) : (
             <>
@@ -320,32 +258,7 @@ const HeroSection = () => {
                   Get Started <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               </div>
-              {/* Minimal Merchant Card */}
-              <div className="w-full max-w-xs bg-background border border-border rounded-xl p-5 flex flex-col items-start gap-4 shadow-sm">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-                    <Building2 className="h-5 w-5 text-foreground" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-foreground">For Merchants</h3>
-                    <p className="text-xs text-muted-foreground">Accept APT payments with INR pricing</p>
-                  </div>
-                </div>
-                <div className="text-sm text-foreground font-medium">Price in INR, receive APT instantly, issue NFT rewards.</div>
-                {/* Feature List */}
-                <ul className="mt-2 space-y-2 w-full">
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Shield className="h-4 w-4" /> Price in INR, settle in APT</li>
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Zap className="h-4 w-4" /> NFT loyalty program</li>
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Building2 className="h-4 w-4" /> Instant APT settlement</li>
-                </ul>
-                <Button
-                  size="sm"
-                  className="w-full bg-primary text-primary-foreground rounded-lg mt-2"
-                  onClick={() => window.location.href = '/merchant'}
-                >
-                  Start Now <ArrowRight className="ml-1 h-4 w-4" />
-                </Button>
-              </div>
+
             </>
           )}
         </div>

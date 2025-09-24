@@ -397,7 +397,7 @@ const SupabaseAuthPage = () => {
           <Button
             variant="outline"
             className="bg-black/20 border-gray-700 text-white hover:bg-gray-900/50 rounded-full text-sm font-medium h-10 px-6"
-            onClick={() => navigate('/auth-type')}
+            onClick={() => navigate('/auth')}
           >
             Back to Account Type
           </Button>

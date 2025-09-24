@@ -4,7 +4,7 @@ interface User {
   id: string;
   email: string;
   full_name?: string;
-  account_type?: 'individual' | 'merchant' | 'admin';
+  account_type?: 'user' | 'admin';
 }
 
 interface AuthContextType {
@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: Math.random().toString(36),
       email,
       full_name: 'Demo User',
-      account_type: 'individual'
+      account_type: 'user'
     };
     setUser(mockUser);
     setLoading(false);

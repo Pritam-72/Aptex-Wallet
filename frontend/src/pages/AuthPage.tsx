@@ -24,8 +24,7 @@ const AuthPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
-  const accountType = searchParams.get('type') || 'individual';
-  const isIndividual = accountType === 'individual';
+  // Single wallet dashboard for all users
 
   const [loginData, setLoginData] = useState({
     email: '',
@@ -54,35 +53,23 @@ const AuthPage = () => {
     e.preventDefault();
     // Handle login logic here
     console.log('Login:', loginData);
-    // Navigate to appropriate dashboard
-    if (isIndividual) {
-      navigate('/user-dashboard');
-    } else {
-      navigate('/merchant-dashboard');
-    }
+    // Navigate to dashboard
+    navigate('/dashboard');
   };
 
   const handleSignup = (e: React.FormEvent) => {
     e.preventDefault();
     // Handle signup logic here
     console.log('Signup:', signupData);
-    // Navigate to appropriate dashboard
-    if (isIndividual) {
-      navigate('/user-dashboard');
-    } else {
-      navigate('/merchant-dashboard');
-    }
+    // Navigate to dashboard
+    navigate('/dashboard');
   };
 
   const handleGoogleAuth = () => {
     // Handle Google authentication logic here
-    console.log('Google Auth for:', accountType);
-    // Navigate to appropriate dashboard after Google auth
-    if (isIndividual) {
-      navigate('/user-dashboard');
-    } else {
-      navigate('/merchant-dashboard');
-    }
+    console.log('Google Auth');
+    // Navigate to dashboard after Google auth
+    navigate('/dashboard');
   };
 
   return (
@@ -102,17 +89,8 @@ const AuthPage = () => {
           <div className="flex justify-center">
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-muted text-white">
               <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
-              {isIndividual ? (
-                <>
-                  <Users className="h-3 w-3 text-primary" />
-                  <span>Individual Account</span>
-                </>
-              ) : (
-                <>
-                  <Building2 className="h-3 w-3 text-primary" />
-                  <span>Merchant Account</span>
-                </>
-              )}
+              <Users className="h-3 w-3 text-primary" />
+              <span>Wallet Account</span>
             </span>
           </div>
           
@@ -120,10 +98,7 @@ const AuthPage = () => {
             Welcome to CrypPal
           </h1>
           <p className="text-muted-foreground">
-            {isIndividual 
-              ? "Sign in to start spending your crypto assets directly"
-              : "Sign in to start accepting crypto payments for your business"
-            }
+            Sign in to access your crypto wallet and manage your assets
           </p>
         </div>
 
@@ -268,37 +243,7 @@ const AuthPage = () => {
                     </div>
                   </div>
                   
-                  {!isIndividual && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="businessName">Business Name</Label>
-                        <div className="relative">
-                          <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            id="businessName"
-                            type="text"
-                            placeholder="Enter your business name"
-                            value={signupData.businessName}
-                            onChange={(e) => setSignupData({...signupData, businessName: e.target.value})}
-                            className="pl-10"
-                            required
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="businessType">Business Type</Label>
-                        <Input
-                          id="businessType"
-                          type="text"
-                          placeholder="e.g., Retail, Restaurant, E-commerce"
-                          value={signupData.businessType}
-                          onChange={(e) => setSignupData({...signupData, businessType: e.target.value})}
-                          required
-                        />
-                      </div>
-                    </>
-                  )}
+
                   
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
@@ -379,7 +324,7 @@ const AuthPage = () => {
           <Button 
             variant="outline" 
             className="bg-black/20 border-gray-700 text-white hover:bg-gray-900/50 rounded-full text-sm font-medium h-10 px-6"
-            onClick={() => navigate('/auth-type')}
+            onClick={() => navigate('/auth')}
           >
             Back to Account Type
           </Button>

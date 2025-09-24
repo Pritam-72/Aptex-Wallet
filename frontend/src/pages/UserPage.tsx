@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import UserDemoDashboard from '@/components/UserDemoDashboard';
+import HeroSection from '@/components/HeroSection';
 import HowItWorksSection from '@/components/HowItWorksSection';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,13 +30,13 @@ const UserPage: React.FC = () => {
 
   return (
     <div className="min-h-screen">
-      <UserDemoDashboard />
+      <HeroSection />
       <HowItWorksSection />
       <Footer />
       <WelcomeBackDialog
         isOpen={showWelcomeDialog}
         onOpenChange={setShowWelcomeDialog}
-        dashboardPath="/user-dashboard"
+        dashboardPath="/dashboard"
       />
     </div>
   );

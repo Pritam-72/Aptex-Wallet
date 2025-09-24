@@ -171,10 +171,10 @@ const DemoPage = () => {
                 </div>
                 
                 <Button 
-                  onClick={() => navigate('/enhanced-merchant-dashboard')}
+                  onClick={() => navigate('/dashboard')}
                   className="w-full bg-green-600 hover:bg-green-700"
                 >
-                  Try Merchant Dashboard
+                  Try Dashboard
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </div>
@@ -281,12 +281,12 @@ const DemoPage = () => {
                 Try User Dashboard
               </Button>
               <Button 
-                onClick={() => navigate('/enhanced-merchant-dashboard')}
+                onClick={() => navigate('/dashboard')}
                 className="bg-green-600 hover:bg-green-700"
                 size="lg"
               >
-                <Store className="h-5 w-5 mr-2" />
-                Try Merchant Dashboard
+                <Wallet className="h-5 w-5 mr-2" />
+                Try Dashboard
               </Button>
             </div>
           </CardContent>

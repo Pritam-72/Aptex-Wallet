@@ -356,7 +356,7 @@ export const Navbar = () => { // Renamed from HeroHeader
                                         </DropdownMenuPortal>
                                     </DropdownMenu>
                                 ) : (
-                                    <Button onClick={() => navigate('/auth-type')} variant="ghost">
+                                    <Button onClick={() => navigate('/auth')} variant="ghost">
                                         Sign In
                                     </Button>
                                 )}
@@ -484,7 +484,7 @@ export const Navbar = () => { // Renamed from HeroHeader
                                                 'font-semibold rounded-lg h-10 group border border-white/[0.12] text-sm',
                                                 'transition-all duration-300 hover:border-white/[0.18]'
                                             )}
-                                            onClick={() => { setMenuState(false); navigate('/auth-type'); }}
+                                            onClick={() => { setMenuState(false); navigate('/auth'); }}
                                         >
                                             Sign In
                                         </Button>

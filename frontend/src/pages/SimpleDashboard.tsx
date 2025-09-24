@@ -90,7 +90,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
   const [address, setAddress] = useState('');
   const [balance, setBalance] = useState('0.00 ETH');
 
-  const isMerchant = user?.account_type === 'merchant';
+  // Single wallet dashboard for all users
 
   // Persist sidebar state
   useEffect(() => {
@@ -135,10 +135,8 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
             setActiveSection('security');
             break;
           case '5':
-            if (isMerchant) {
-              event.preventDefault();
-              setActiveSection('overview');
-            }
+            event.preventDefault();
+            setActiveSection('settings');
             break;
         }
       }
@@ -146,7 +144,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isMerchant]);
+  }, []);
 
   useEffect(() => {
     // Check if wallet exists and show appropriate modal
@@ -271,7 +269,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
     {
       id: 'tx_001',
       type: 'sent',
-      merchant: 'Coffee Shop',
+      description: 'Coffee Shop',
       amount: '0.05',
       fiatAmount: '₹125.50',
       status: 'completed',
@@ -281,7 +279,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
     {
       id: 'tx_002', 
       type: 'received',
-      merchant: 'Salary Credit',
+      description: 'Salary Credit',
       amount: '0.5',
       fiatAmount: '₹1,255.00',
       status: 'completed',
@@ -291,7 +289,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
     {
       id: 'tx_003',
       type: 'sent',
-      merchant: 'Online Store',
+      description: 'Online Store',
       amount: '0.12',
       fiatAmount: '₹301.20',
       status: 'pending',
@@ -305,7 +303,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
       const exportData = transactions.map(transaction => ({
         'ID': transaction.id,
         'Type': transaction.type,
-        'Merchant': transaction.merchant,
+        'Description': transaction.description,
         'Amount_ETH': transaction.amount,
         'Amount_INR': transaction.fiatAmount,
         'Status': transaction.status,
@@ -336,7 +334,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
       transactions: 'View and track your transaction history',
       portfolio: 'Monitor your investment performance',
       security: 'Configure security settings and preferences',
-      overview: 'Merchant dashboard and business analytics'
+      overview: 'Dashboard overview and analytics'
     };
     return descriptions[section as keyof typeof descriptions] || 'Dashboard';
   };
@@ -381,17 +379,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
       onClick: () => handleSectionChange('security'),
       isActive: activeSection === 'security',
       shortcut: '⌘4'
-    },
-    ...(isMerchant ? [
-      {
-        label: 'Overview',
-        href: '#overview',
-        icon: <Store className="h-7 w-7 flex-shrink-0" />,
-        onClick: () => handleSectionChange('overview'),
-        isActive: activeSection === 'overview',
-        shortcut: '⌘5'
-      }
-    ] : [])
+    }
   ];
 
   return (
@@ -428,7 +416,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
               </div>
               <div className="flex flex-col">
                 <span className="font-bold text-xl text-foreground tracking-tight">CrypPal</span>
-                <span className="text-xs text-muted-foreground/70">{isMerchant ? 'Merchant' : 'Personal'}</span>
+                <span className="text-xs text-muted-foreground/70">Wallet</span>
               </div>
             </motion.div>
 
@@ -607,30 +595,6 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
               </div>
             </div>
           </div>
-          
-          {!isConnected && (
-            <div className="mb-6 border border-border/50 bg-card/50 backdrop-blur-sm rounded-lg p-4 flex items-start gap-3 cosmic-glow">
-              <div className="mt-0.5 h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                <Wallet className="h-3 w-3 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-foreground font-medium mb-1">
-                  Wallet Connection Required
-                </p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Connect your wallet to access all dashboard features and manage your digital assets.
-                </p>
-              </div>
-              <Button
-                onClick={() => setShowWalletConnect(true)}
-                variant="outline"
-                size="sm"
-                className="border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-xs px-3 py-1.5 h-auto flex-shrink-0 cosmic-glow"
-              >
-                Connect
-              </Button>
-            </div>
-          )}
 
           {/* Wallet Section */}
           {activeSection === 'wallet' && (
@@ -777,7 +741,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
                             )}
                           </div>
                           <div>
-                            <div className="font-medium text-sm text-foreground">{tx.merchant}</div>
+                            <div className="font-medium text-sm text-foreground">{tx.description}</div>
                             <div className="text-xs text-muted-foreground">{tx.time}</div>
                           </div>
                         </div>
@@ -829,7 +793,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
                             )}
                           </div>
                           <div>
-                            <div className="font-medium text-foreground">{tx.merchant}</div>
+                            <div className="font-medium text-foreground">{tx.description}</div>
                             <div className="text-sm text-muted-foreground">{tx.time}</div>
                             <div className="text-xs text-muted-foreground font-mono">{tx.hash}</div>
                           </div>
@@ -919,72 +883,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
             </div>
           )}
 
-          {/* Overview Section for Merchants */}
-          {activeSection === 'overview' && isMerchant && (
-            <div className="space-y-6">
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card className="cosmic-glow bg-card/50 backdrop-blur-sm border-border/50">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Today's Revenue</p>
-                        <p className="text-2xl font-bold text-foreground">₹0</p>
-                      </div>
-                      <TrendingUp className="h-8 w-8 text-green-400" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="cosmic-glow bg-card/50 backdrop-blur-sm border-border/50">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Transactions</p>
-                        <p className="text-2xl font-bold text-foreground">0</p>
-                      </div>
-                      <History className="h-8 w-8 text-blue-400" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="cosmic-glow bg-card/50 backdrop-blur-sm border-border/50">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Active Payments</p>
-                        <p className="text-2xl font-bold text-foreground">0</p>
-                      </div>
-                      <QrCode className="h-8 w-8 text-purple-400" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="cosmic-glow bg-card/50 backdrop-blur-sm border-border/50">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Pending Payments</p>
-                        <p className="text-2xl font-bold text-foreground">0</p>
-                      </div>
-                      <RefreshCw className="h-8 w-8 text-orange-400" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
 
-              {/* Recent Activity */}
-              <Card className="cosmic-glow bg-card/50 backdrop-blur-sm border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-foreground">Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-12">
-                    <History className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-foreground mb-2">No Recent Activity</h3>
-                    <p className="text-muted-foreground">Your merchant transactions will appear here.</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
         </div>
       </div>
 
