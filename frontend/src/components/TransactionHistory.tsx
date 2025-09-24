@@ -243,7 +243,7 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
       const worksheet = XLSX.utils.json_to_sheet(exportData);
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
 
-      const filename = `cryppal-transactions-${new Date().toISOString().split('T')[0]}.xlsx`;
+      const filename = `aptex-wallet-transactions-${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(workbook, filename);
     } catch (error) {
       console.error('Export failed:', error);
@@ -312,7 +312,7 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           <div>
             <CardTitle className="text-lg md:text-xl font-medium text-foreground">Transaction History</CardTitle>
-            <CardDescription className="text-muted-foreground">Your on-chain CrypPal transactions.</CardDescription>
+            <CardDescription className="text-muted-foreground">Your on-chain Aptex wallet transactions.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Button 

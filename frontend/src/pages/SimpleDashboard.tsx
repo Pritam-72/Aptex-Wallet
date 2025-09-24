@@ -341,7 +341,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
               </div>
               {sidebarOpen && (
                 <div className="flex flex-col">
-                  <span className="font-bold text-xl text-foreground tracking-tight">CrypPal</span>
+                  <span className="font-bold text-xl text-foreground tracking-tight">Aptex wallet</span>
                   <span className="text-xs text-muted-foreground/70">Wallet</span>
                 </div>
               )}

@@ -116,7 +116,7 @@ export const UserSettings: React.FC = () => {
     const dataStr = JSON.stringify(exportData, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
     
-    const exportFileDefaultName = `cryppal-settings-${new Date().toISOString().split('T')[0]}.json`;
+    const exportFileDefaultName = `aptex-wallet-settings-${new Date().toISOString().split('T')[0]}.json`;
     
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);

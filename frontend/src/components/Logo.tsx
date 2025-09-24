@@ -19,7 +19,7 @@ export const Logo = ({ uniColor = false, className }: LogoProps) => {
         "text-xl font-bold",
         uniColor ? "text-white" : "text-foreground"
       )}>
-        CrypPal
+        Aptex wallet
       </span>
     </div>
   )

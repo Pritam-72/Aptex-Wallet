@@ -1,6 +1,6 @@
-# CrypPal QR Scanner and Transaction Components
+# Aptex wallet QR Scanner and Transaction Components
 
-Complete collection of QR scanning, QR code generation, and transaction files from your crypPal cryptocurrency wallet dashboard.
+Complete collection of QR scanning, QR code generation, and transaction files from your Aptex wallet cryptocurrency wallet dashboard.
 
 ## QR Scanner Components
 
@@ -787,7 +787,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, onPayment
   // Mock QR data for demonstration
   const mockQRData = [
     'ethereum:0x742C1C4C8DbE2b0De8B15976Da9F6bB7F3D15C5d?amount=0.001',
-    'cryppal://pay?to=0x9aaDd7805d4bf47Ea3cc8E3571524a84024840ee&amount=0.005&memo=Coffee%20Payment',
+    'aptexwallet://pay?to=0x9aaDd7805d4bf47Ea3cc8E3571524a84024840ee&amount=0.005&memo=Coffee%20Payment',
     'ethereum:0x123456789abcdef123456789abcdef123456789a?amount=0.01&gas=21000'
   ];
 

@@ -82,7 +82,7 @@ const CTASection = () => {
               </h2>
               
               <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-balance mb-8">
-                The first wallet to blend <span className="text-cyan-200">DeFi + RWA +</span> Indian payments. Start with EMI options, 
+                The first wallet to blend <span className="text-cyan-200">DeFi + RWA + Global</span> payments. Start with EMI options, 
                 collect NFT rewards, and enjoy seamless UPI-crypto bridging.
               </p>
             </div>

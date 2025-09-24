@@ -136,11 +136,11 @@ const FeaturesSection = () => {
             </span>
           </div>
           <h2 className="text-3xl md:text-5xl lg:text-6xl font-medium tracking-tighter text-foreground mb-6">
-            <span className="text-cyan-200">DeFi + RWA +</span>
-            <span className="text-white block">Indian Payments</span>
+            <span className="text-cyan-200">DeFi + RWA + Global</span>
+            <span className="text-white block"> Payments</span>
           </h2>
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-balance">
-            The first smart wallet to blend DeFi capabilities with real-world assets and Indian payment systems. 
+            The first smart wallet to blend DeFi capabilities with real-world assets and global payment systems. 
             EMI options, NFT rewards, and seamless INR integration.
           </p>
         </div>

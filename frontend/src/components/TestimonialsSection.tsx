@@ -284,7 +284,7 @@ const TestimonialsSection = () => {
               </h3>
               <p className="text-muted-foreground max-w-2xl mx-auto">
                 Be part of the payment revolution. Every day, more businesses and individuals 
-                choose CrypPal for their digital payment needs.
+                choose Aptex wallet for their digital payment needs.
               </p>
               
               <div className="flex items-center justify-center gap-2 pt-4">

@@ -262,7 +262,7 @@ const FAQSection = () => {
               
               <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
                 <a 
-                  href="https://mail.google.com/mail/?view=cm&fs=1&to=Cryppal9@gmail.com"
+                  href="https://mail.google.com/mail/?view=cm&fs=1&to=support@aptexwallet.com"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center px-6 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/80 transition-colors"
