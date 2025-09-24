@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Copy, Eye, EyeOff, Wallet, Send, QrCode, RefreshCw, Settings, History, Shield, CreditCard, BarChart3, ExternalLink, Menu, TrendingUp, Lock, Plus, Minus, ArrowUpDown, X, Bug, LogOut, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,10 +13,40 @@ import { SendTransaction } from '@/components/SendTransaction';
 import { ReceiveTransaction } from '@/components/ReceiveTransaction';
 import { TransactionHistory } from '@/components/TransactionHistory';
 import * as XLSX from 'xlsx';
-import WalletInfo from '@/components/WalletInfo';
+// import WalletInfo from '@/components/WalletInfo';
+import { 
+  getStoredWallet, 
+  getAccountCount, 
+  createNewWallet, 
+  getCurrentAccount, 
+  getAccountBalance, 
+  getAccountTransactions,
+  fundAccount,
+  clearWalletData,
+  type WalletAccount,
+  type StoredWallet 
+} from '@/utils/walletUtils';
+
+interface Transaction {
+  version: string;
+  timestamp: string;
+  type: string;
+  success: boolean;
+  hash?: string;
+}
 
 // Enhanced Sidebar Link with active state support
-const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: boolean }) => {
+interface SidebarLinkProps {
+  label: string;
+  href: string;
+  icon: React.ReactNode;
+  onClick?: () => void;
+  isActive?: boolean;
+  shortcut?: string;
+  isAction?: boolean;
+}
+
+const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; isCollapsed: boolean }) => {
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (link.onClick) {
@@ -92,12 +122,14 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
   });
   const [showSendTransaction, setShowSendTransaction] = useState(false);
   const [showReceiveQR, setShowReceiveQR] = useState(false);
-  // Built-in wallet - always connected
-  const [isConnected, setIsConnected] = useState(true);
-  const [address, setAddress] = useState('0x742d35Cc6663C0532d8c5E9C4267B53A0D7C9b1F');
-  const [balance, setBalance] = useState('12.5623 APT');
-
-  // Single wallet dashboard for all users
+  const [showCreateWallet, setShowCreateWallet] = useState(false);
+  
+  // Real wallet state
+  const [wallet, setWallet] = useState<StoredWallet | null>(null);
+  const [currentAccount, setCurrentAccount] = useState<WalletAccount | null>(null);
+  const [balance, setBalance] = useState('0');
+  const [isLoading, setIsLoading] = useState(true);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   // Persist sidebar state
   useEffect(() => {
@@ -153,24 +185,100 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Built-in wallet initialization
-  useEffect(() => {
-    // Initialize wallet with default values
-    setIsConnected(true);
-    setAddress('0x742d35Cc6663C0532d8c5E9C4267B53A0D7C9b1F');
-    setBalance('12.5623 APT');
+  const initializeWallet = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const storedWallet = getStoredWallet();
+      const accountCount = getAccountCount();
+      
+      if (accountCount === 0 || !storedWallet) {
+        // No wallet exists, show create wallet UI
+        setWallet(null);
+        setCurrentAccount(null);
+        setShowCreateWallet(true);
+      } else {
+        // Wallet exists, load it
+        setWallet(storedWallet);
+        const account = getCurrentAccount();
+        setCurrentAccount(account);
+        
+        if (account) {
+          await loadWalletData(account);
+        }
+      }
+    } catch (error) {
+      console.error('Error initializing wallet:', error);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
+  const loadWalletData = async (account: WalletAccount) => {
+    try {
+      // Load balance
+      const accountBalance = await getAccountBalance(account.address);
+      setBalance(accountBalance);
+      
+      // Load transactions
+      const accountTransactions = await getAccountTransactions(account.address, 10);
+      // Map the Aptos SDK transaction response to our interface
+      const mappedTransactions: Transaction[] = accountTransactions.map((tx: any) => ({
+        version: tx.version || 'N/A',
+        timestamp: tx.timestamp || Date.now().toString(),
+        type: tx.type || 'transaction',
+        success: tx.success !== false,
+        hash: tx.hash
+      }));
+      setTransactions(mappedTransactions);
+    } catch (error) {
+      console.error('Error loading wallet data:', error);
+    }
+  };
+
+  const refreshWalletData = useCallback(async () => {
+    if (currentAccount) {
+      await loadWalletData(currentAccount);
+    }
+  }, [currentAccount]);
+
+  // Initialize wallet on component mount
   useEffect(() => {
-    // Refresh balance periodically if connected
-    if (isConnected) {
+    initializeWallet();
+  }, [initializeWallet]);
+
+  // Refresh balance and transactions periodically
+  useEffect(() => {
+    if (currentAccount) {
       const interval = setInterval(() => {
-        refreshBalance();
+        refreshWalletData();
       }, 30000); // Every 30 seconds
 
       return () => clearInterval(interval);
     }
-  }, [isConnected]);
+  }, [currentAccount, refreshWalletData]);
+
+  const handleCreateWallet = async () => {
+    setIsLoading(true);
+    try {
+      const newWallet = createNewWallet();
+      setWallet(newWallet);
+      
+      const account = getCurrentAccount();
+      setCurrentAccount(account);
+      setShowCreateWallet(false);
+      
+      if (account) {
+        // Fund the account on devnet for testing
+        await fundAccount(account.address);
+        // Wait a bit and then load the wallet data
+        setTimeout(() => loadWalletData(account), 2000);
+      }
+    } catch (error) {
+      console.error('Error creating wallet:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -184,8 +292,14 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
 
   const handleLogout = async () => {
     try {
-      // Built-in wallet stays connected, just sign out user
-      // Then sign out from authentication
+      // Clear wallet data
+      clearWalletData();
+      setWallet(null);
+      setCurrentAccount(null);
+      setBalance('0');
+      setTransactions([]);
+      
+      // Sign out from authentication
       await signOut();
     } catch (error) {
       console.error('Error during logout:', error);
@@ -194,11 +308,9 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
     }
   };
 
-  const refreshBalance = () => {
-    if (isConnected) {
-      // Mock balance refresh
-      const newBalance = (parseFloat(balance) + Math.random() * 0.01).toFixed(8);
-      setBalance(newBalance + ' APT');
+  const refreshBalance = async () => {
+    if (currentAccount) {
+      await refreshWalletData();
     }
   };
 
@@ -348,7 +460,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
             </motion.div>
 
             {/* Quick Stats */}
-            {isConnected && (
+            {currentAccount && (
               <motion.div
                 className={`mb-4 p-3 bg-card/30 rounded-lg border border-border/30 ${
                   !sidebarOpen ? 'hidden' : ''
@@ -372,7 +484,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
           
           {/* Sidebar Footer */}
           <div className="pt-6 space-y-4">
-            {isConnected ? (
+            {currentAccount ? (
               <motion.div
                 className={`space-y-4 ${!sidebarOpen ? 'hidden' : ''}`}
                 initial={{ opacity: 0 }}
@@ -396,7 +508,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-sm font-mono flex-1 text-foreground">
-                      {address && formatAddress(address)}
+                      {currentAccount?.address && formatAddress(currentAccount.address)}
                     </div>
                     <div className="flex gap-1">
                       <Button
@@ -411,7 +523,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => copyToClipboard(address || '')}
+                        onClick={() => copyToClipboard(currentAccount?.address || '')}
                         className="h-7 w-7 p-1 hover:bg-muted/50"
                         title="Copy Address"
                       >
@@ -478,7 +590,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
             {/* Collapsed state: Show minimal connection status */}
             {!sidebarOpen && (
               <div className="flex flex-col items-center space-y-3">
-                {isConnected ? (
+                {currentAccount ? (
                   <div className="flex flex-col items-center space-y-2">
                     {/* Connected wallet indicator */}
                     <div className="relative">
@@ -580,7 +692,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {isConnected && (
+              {currentAccount && (
                 <>
                   <Button
                     variant="outline"
@@ -617,19 +729,50 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
             </div>
           </div>
 
+          {/* Loading State */}
+          {isLoading && (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-muted-foreground">Loading wallet...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Create Wallet Section */}
+          {!isLoading && !currentAccount && (
+            <div className="flex items-center justify-center h-64">
+              <Card className="w-full max-w-md cosmic-glow bg-card/50 backdrop-blur-sm border-border/50">
+                <CardHeader className="text-center">
+                  <CardTitle className="flex items-center justify-center gap-2 text-foreground">
+                    <Wallet className="h-6 w-6 text-primary" />
+                    Welcome to CrypPal
+                  </CardTitle>
+                  <CardDescription>
+                    Create your first wallet to get started with Aptos
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    You'll get a secure wallet with seed phrase backup and 1 APT on devnet for testing.
+                  </p>
+                  <Button
+                    onClick={handleCreateWallet}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                    disabled={isLoading}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Wallet
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           {/* Wallet Section */}
-          {activeSection === 'wallet' && (
+          {activeSection === 'wallet' && currentAccount && !isLoading && (
             <div className="space-y-6">
-              {/* Enhanced Wallet Information */}
-              {isConnected && address && (
-                <WalletInfo
-                  address={address}
-                  balance={balance}
-                  network="mainnet"
-                  isConnected={isConnected}
-                  onRefresh={refreshBalance}
-                />
-              )}
+
 
               {/* Balance Card */}
               <Card className="cosmic-glow bg-card/50 backdrop-blur-sm border-border/50">
@@ -653,27 +796,27 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
                   <div className="space-y-4">
                     <div>
                       <div className="text-3xl font-bold text-foreground">
-                        {showBalance ? (balance ? `${parseFloat(balance).toFixed(8)} APT` : '0.00000000 APT') : '••••••••'}
+                        {showBalance ? `${parseFloat(balance || '0').toFixed(8)} APT` : '••••••••'}
                       </div>
                       <div className="text-muted-foreground">
-                        {showBalance ? (balance ? `≈ ₹${(parseFloat(balance) * 251100).toFixed(2)}` : '≈ ₹0.00') : '••••••'}
+                        {showBalance ? `≈ ₹${(parseFloat(balance || '0') * 251100).toFixed(2)}` : '••••••'}
                       </div>
                     </div>
                     
-                    {address && (
+                    {currentAccount?.address && (
                       <div className="bg-muted/20 backdrop-blur-sm rounded-lg p-4 space-y-2 border border-border/30">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium text-foreground">Address</span>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => copyToClipboard(address)}
+                            onClick={() => copyToClipboard(currentAccount.address)}
                             className="h-6 w-6 p-0 hover:bg-muted/50"
                           >
                             <Copy className="h-3 w-3" />
                           </Button>
                         </div>
-                        <div className="font-mono text-sm text-muted-foreground break-all">{address}</div>
+                        <div className="font-mono text-sm text-muted-foreground break-all">{currentAccount.address}</div>
                       </div>
                     )}
                     
@@ -747,20 +890,50 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8">
-                    <History className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-foreground mb-2">No Recent Transactions</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Connect your wallet to view transaction history
-                    </p>
-                    <Button
-                      variant="outline"
-                      onClick={() => setActiveSection('transactions')}
-                      className="border-border hover:bg-muted/50"
-                    >
-                      View Transaction History
-                    </Button>
-                  </div>
+                  {transactions.length > 0 ? (
+                    <div className="space-y-3">
+                      {transactions.slice(0, 3).map((tx: Transaction, index: number) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-muted/10 rounded-lg border border-border/20">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 bg-primary/10 rounded-full flex items-center justify-center">
+                              <ArrowUpDown className="h-4 w-4 text-primary" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-foreground">
+                                {tx.type?.includes('transfer') ? 'Transfer' : 'Transaction'}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(parseInt(tx.timestamp) / 1000).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-foreground">
+                              {tx.version || 'N/A'}
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {tx.success ? 'Success' : 'Failed'}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <History className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-foreground mb-2">No Recent Transactions</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Your transaction history will appear here
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowSendTransaction(true)}
+                        className="border-border hover:bg-muted/50"
+                      >
+                        Send Your First Transaction
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -845,7 +1018,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
       <ReceiveTransaction 
         isOpen={showReceiveQR}
         onClose={() => setShowReceiveQR(false)}
-        address={address || ''}
+        address={currentAccount?.address || ''}
       />
 
       {/* Modals */}
