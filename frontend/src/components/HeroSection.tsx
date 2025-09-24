@@ -80,8 +80,15 @@ const HeroSection = () => {
 
   return (
     <section className="relative w-full pt-4 sm:pt-8 md:pt-12 pb-16 sm:pb-24 md:pb-32 px-10 flex flex-col items-center justify-center overflow-hidden bg-background mt-14 sm:mt-17 md:mt-21">
-      {/* Rounded Container with Black Background */}
-      <div className="relative w-full max-w-full bg-black rounded-3xl overflow-hidden">
+      {/* Rounded Container with Black Background - Fixed 16:9 Aspect Ratio */}
+      <div 
+        className="relative w-full bg-black rounded-3xl overflow-hidden"
+        style={{
+          aspectRatio: '16/9',
+          maxWidth: '100%',
+          height: 'auto'
+        }}
+      >
         {/* UnicornStudio 3D Background */}
         <div 
           className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
@@ -93,8 +100,10 @@ const HeroSection = () => {
           <div 
             data-us-project="hXMrWxpuGilKPHMEOelf" 
             style={{
-              width: '1920px', 
-              height: '1080px',
+              width: '100%', 
+              height: '100%',
+              minWidth: '1920px',
+              minHeight: '1080px',
               transform: 'scale(1)',
               transformOrigin: 'center center'
             }}
@@ -105,7 +114,7 @@ const HeroSection = () => {
         <div className="absolute inset-0 cosmic-grid opacity-5 z-10"></div>
         
         {/* Container Content */}
-        <div className="relative z-20 px-4 sm:px-6 md:px-12 py-16 sm:py-24 md:py-32 flex flex-col items-center justify-center">
+        <div className="absolute inset-0 z-20 px-4 sm:px-6 md:px-12 py-8 sm:py-12 md:py-16 flex flex-col items-center justify-center">
           {/* Redirect Notice for Logged-in Users */}
           {showRedirectNotice && user && (
             <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-background border border-border rounded-lg shadow-lg p-4 max-w-sm mx-4">
