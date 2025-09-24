@@ -32,35 +32,7 @@ const HeroSection = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Initialize UnicornStudio with exact implementation from their docs
-  useEffect(() => {
-    // Exact implementation from UnicornStudio docs
-    if (!(window as any).UnicornStudio) {
-      (window as any).UnicornStudio = { isInitialized: false };
-      
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v1.4.31/dist/unicornStudio.umd.js";
-      
-      script.onload = function() {
-        if (!(window as any).UnicornStudio.isInitialized) {
-          (window as any).UnicornStudio.init();
-          (window as any).UnicornStudio.isInitialized = true;
-          console.log('UnicornStudio loaded and initialized');
-        }
-      };
-      
-      (document.head || document.body).appendChild(script);
-    } else if (!(window as any).UnicornStudio.isInitialized) {
-      // If UnicornStudio exists but not initialized
-      try {
-        (window as any).UnicornStudio.init();
-        (window as any).UnicornStudio.isInitialized = true;
-        console.log('UnicornStudio re-initialized');
-      } catch (error) {
-        console.error('Error initializing UnicornStudio:', error);
-      }
-    }
-  }, []);
+  // Video background - no additional initialization needed
 
   // Show redirect notice for logged-in users after 3 seconds
   useEffect(() => {
@@ -89,7 +61,7 @@ const HeroSection = () => {
           height: 'auto'
         }}
       >
-        {/* UnicornStudio 3D Background */}
+        {/* Video Background */}
         <div 
           className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
           style={{ 
@@ -97,17 +69,20 @@ const HeroSection = () => {
             pointerEvents: 'none'
           }}
         >
-          <div 
-            data-us-project="hXMrWxpuGilKPHMEOelf" 
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
             style={{
-              width: '100%', 
-              height: '100%',
-              minWidth: '1920px',
-              minHeight: '1080px',
-              transform: 'scale(1)',
-              transformOrigin: 'center center'
+              minWidth: '100%',
+              minHeight: '100%'
             }}
-          />
+          >
+            <source src="/BG.webm" type="video/webm" />
+            Your browser does not support the video tag.
+          </video>
         </div>
         
         {/* Subtle background effects for layering */}
