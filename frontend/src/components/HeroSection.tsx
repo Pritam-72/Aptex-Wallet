@@ -29,25 +29,7 @@ const HeroSection = () => {
       setIsVisible(true);
     }, 300);
 
-    // Manual UnicornStudio initialization for your 3D model
-    const initUnicornStudio = () => {
-      if (window.UnicornStudio) {
-        console.log('UnicornStudio found, initializing 3D model hXMrWxpuGilKPHMEOelf...');
-        window.UnicornStudio.init()
-          .then((scenes) => {
-            console.log('UnicornStudio 3D model loaded successfully:', scenes);
-          })
-          .catch((err) => {
-            console.error('UnicornStudio 3D model error:', err);
-          });
-      } else {
-        console.log('UnicornStudio not loaded yet, retrying in 0.5s...');
-        setTimeout(initUnicornStudio, 500);
-      }
-    };
-
-    // Initialize after a delay to ensure DOM is ready
-    setTimeout(initUnicornStudio, 1500);
+    // (Removed manual UnicornStudio init here) - initialization is handled by the global script or AnimatedBackground
 
     return () => clearTimeout(timer);
   }, []);
@@ -140,16 +122,16 @@ const HeroSection = () => {
         </div>
 
         {/* Main Headline */}
-        <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-medium tracking-tighter text-foreground leading-none">
-          <span className="text-primary">Aptos Wallet</span>
-          <span className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl block mt-1 sm:mt-2">
+        <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-medium tracking-tighter text-white leading-none">
+          <span className="text-cyan-300">Aptos Wallet</span>
+          <span className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl block mt-1 sm:mt-2 text-white">
             <span className="block sm:inline">EMI, NFT &</span>
             <span className="block sm:inline sm:ml-2">INR Integration</span>
           </span>
         </h1>
 
         {/* Subheading */}
-        <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl sm:max-w-3xl mx-auto text-balance leading-relaxed px-2 sm:px-0">
+        <p className="text-base sm:text-lg md:text-xl text-white max-w-2xl sm:max-w-3xl mx-auto text-balance leading-relaxed px-2 sm:px-0">
           We're building a smart wallet on Aptos that makes money move like messages. 
           <span className="hidden sm:inline"> With UPI-crypto bridging, EMI options, and NFT-backed loyalty, it's the first wallet to blend DeFi + RWA + Indian payments in one place.</span>
         </p>
@@ -186,7 +168,7 @@ const HeroSection = () => {
         </div>
 
         {/* Trust Indicator */}
-        <div className="pt-6 text-xs sm:text-sm text-muted-foreground text-center">
+        <div className="pt-6 text-xs sm:text-sm text-white/80 text-center">
           <span className="block sm:inline">Built on Aptos blockchain</span>
           <span className="hidden sm:inline"> • </span>
           <span className="block sm:inline">Smart contract security</span>
@@ -265,22 +247,22 @@ const HeroSection = () => {
           ) : (
             <>
               {/* Minimal Individual Card */}
-              <div className="w-full max-w-xs bg-background border border-border rounded-xl p-5 flex flex-col items-start gap-4 shadow-sm">
+              <div className="w-full max-w-xs bg-black/60 backdrop-blur-sm border border-white/20 rounded-xl p-5 flex flex-col items-start gap-4 shadow-sm">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-                    <Users className="h-5 w-5 text-foreground" />
+                  <div className="h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center">
+                    <Users className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-foreground">For Individuals</h3>
-                    <p className="text-xs text-muted-foreground">EMI, NFT & INR Integration</p>
+                    <h3 className="text-base font-semibold text-white">For Individuals</h3>
+                    <p className="text-xs text-white/70">EMI, NFT & INR Integration</p>
                   </div>
                 </div>
-                <div className="text-sm text-foreground font-medium">Buy with EMI in APT tokens, collect NFTs, see INR values.</div>
+                <div className="text-sm text-white font-medium">Buy with EMI in APT tokens, collect NFTs, see INR values.</div>
                 {/* Feature List */}
                 <ul className="mt-2 space-y-2 w-full">
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Shield className="h-4 w-4" /> Monthly EMI in APT tokens</li>
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Zap className="h-4 w-4" /> NFT collectibles & rewards</li>
-                  <li className="flex items-center gap-2 text-xs text-muted-foreground"><Users className="h-4 w-4" /> UPI-APT bridging</li>
+                  <li className="flex items-center gap-2 text-xs text-white/80"><Shield className="h-4 w-4" /> Monthly EMI in APT tokens</li>
+                  <li className="flex items-center gap-2 text-xs text-white/80"><Zap className="h-4 w-4" /> NFT collectibles & rewards</li>
+                  <li className="flex items-center gap-2 text-xs text-white/80"><Users className="h-4 w-4" /> UPI-APT bridging</li>
                 </ul>
                 <Button
                   size="sm"
