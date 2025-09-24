@@ -70,29 +70,19 @@ const HeroSection = () => {
 
   return (
     <section className="relative w-full pt-4 sm:pt-8 md:pt-12 pb-16 sm:pb-24 md:pb-32 px-4 sm:px-6 md:px-12 flex flex-col items-center justify-center overflow-hidden bg-background mt-16 sm:mt-20 md:mt-24">
-      {/* Your 3D Model Background */}
+      {/* Your 3D Model Background - Exact implementation */}
       <div 
-        className="absolute inset-0 z-0"
+        className="absolute inset-0 z-0 flex items-center justify-center"
         style={{ 
-          width: '100%', 
-          height: '100%',
           opacity: 0.8,
           pointerEvents: 'none'
         }}
       >
         <div 
-          data-us-project="hXMrWxpuGilKPHMEOelf"
-          data-us-scale="1"
-          data-us-dpi="1.5"
-          data-us-lazyload="false"
-          data-us-production="false"
-          data-us-disablemobile="false"
-          data-us-alttext="3D background animation"
-          data-us-arialabel="Interactive 3D background scene"
+          data-us-project="hXMrWxpuGilKPHMEOelf" 
           style={{
-            width: '100%',
-            height: '100%',
-            minHeight: '600px'
+            width: '1920px', 
+            height: '1080px'
           }}
         />
       </div>
