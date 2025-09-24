@@ -6,7 +6,7 @@ module aptos_contract::wallet_system {
     use std::option::{Self, Option};
     use aptos_framework::event;
     use aptos_framework::timestamp;
-    use aptos_framework::coin;
+    use aptos_framework::coin::{Self, Coin};
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_std::table::{Self, Table};
 
@@ -30,6 +30,7 @@ module aptos_contract::wallet_system {
     const E_LOYALTY_NFT_ALREADY_EXISTS: u64 = 17;
     const E_COUPON_NFT_NOT_FOUND: u64 = 18;
     const E_COUPON_NFT_EXPIRED: u64 = 19;
+    const E_AUTO_PAY_NOT_APPROVED: u64 = 20;
 
     /// Payment request status
     const STATUS_PENDING: u8 = 0;
@@ -88,7 +89,7 @@ module aptos_contract::wallet_system {
     }
 
     /// EMI Agreement structure
-    struct EmiAgreement has store, drop, copy {
+    struct EmiAgreement has store, drop {
         id: u64,
         user: address,           // User who will pay EMI
         company: address,        // Company receiving payments
@@ -100,6 +101,25 @@ module aptos_contract::wallet_system {
         last_payment_date: Option<u64>, // Last successful payment
         status: u8,              // Active, Completed, Defaulted
         description: String,     // What the EMI is for
+        is_auto_pay_approved: bool, // Whether user has approved auto-pay
+        pre_deposited_amount: u64,  // Amount pre-deposited by user for auto-pay
+    }
+
+    /// EMI Agreement view structure (copyable for view functions)
+    struct EmiAgreementView has drop, copy {
+        id: u64,
+        user: address,
+        company: address,
+        total_amount: u64,
+        monthly_installment: u64,
+        total_months: u64,
+        months_paid: u64,
+        start_date: u64,
+        last_payment_date: Option<u64>,
+        status: u8,
+        description: String,
+        is_auto_pay_approved: bool,
+        pre_deposited_amount: u64,
     }
 
     /// Loyalty NFT structure
@@ -182,6 +202,7 @@ module aptos_contract::wallet_system {
         emi_agreements: Table<u64, EmiAgreement>,
         user_emis: Table<address, vector<u64>>,        // EMIs user is paying
         company_emis: Table<address, vector<u64>>,     // EMIs company is receiving
+        emi_coin_store: Coin<AptosCoin>,               // Store for pre-deposited EMI funds
         
         // User statistics for loyalty system
         user_stats: Table<address, UserStats>,
@@ -319,6 +340,15 @@ module aptos_contract::wallet_system {
         timestamp: u64,
     }
 
+    #[event]
+    struct EmiAutoPayApprovedEvent has drop, store {
+        emi_id: u64,
+        user: address,
+        company: address,
+        monthly_installment: u64,
+        timestamp: u64,
+    }
+
     /// Initialize the wallet system
     public entry fun initialize(admin: &signer) {
         let admin_addr = signer::address_of(admin);
@@ -338,6 +368,7 @@ module aptos_contract::wallet_system {
             emi_agreements: table::new(),
             user_emis: table::new(),
             company_emis: table::new(),
+            emi_coin_store: coin::zero<AptosCoin>(),
             user_stats: table::new(),
             coupon_templates: table::new(),
             company_coupon_templates: table::new(),
@@ -919,6 +950,8 @@ module aptos_contract::wallet_system {
             last_payment_date: option::none(),
             status: EMI_STATUS_ACTIVE,
             description,
+            is_auto_pay_approved: false,
+            pre_deposited_amount: 0,
         };
         
         table::add(&mut registry.emi_agreements, emi_id, emi_agreement);
@@ -942,6 +975,92 @@ module aptos_contract::wallet_system {
             total_months,
             timestamp: timestamp::now_microseconds(),
         });
+    }
+
+    /// Approve auto-pay for EMI agreement with deposit (called by user)
+    public entry fun approve_emi_auto_pay(
+        user: &signer,
+        admin_addr: address,
+        emi_id: u64,
+        deposit_amount: u64
+    ) acquires WalletRegistry {
+        let user_addr = signer::address_of(user);
+        let registry = borrow_global_mut<WalletRegistry>(admin_addr);
+        
+        assert!(table::contains(&registry.emi_agreements, emi_id), 
+                error::not_found(E_EMI_NOT_FOUND));
+        
+        let emi = table::borrow_mut(&mut registry.emi_agreements, emi_id);
+        
+        // Verify user authorization
+        assert!(emi.user == user_addr, error::permission_denied(E_NOT_AUTHORIZED));
+        
+        // Check if EMI is still active
+        assert!(emi.status == EMI_STATUS_ACTIVE, error::invalid_state(E_EMI_COMPLETED));
+        
+        // Check if auto-pay is not already approved
+        assert!(!emi.is_auto_pay_approved, error::already_exists(E_EMI_ALREADY_EXISTS));
+        
+        // Deposit amount should be at least one month's installment
+        assert!(deposit_amount >= emi.monthly_installment, error::invalid_argument(E_INVALID_AMOUNT));
+        
+        // Check user's balance
+        let user_balance = coin::balance<AptosCoin>(user_addr);
+        assert!(user_balance >= deposit_amount, error::invalid_argument(E_INSUFFICIENT_BALANCE));
+        
+        // Withdraw coins from user and add to the contract's store
+        let deposited_coins = coin::withdraw<AptosCoin>(user, deposit_amount);
+        coin::merge(&mut registry.emi_coin_store, deposited_coins);
+        
+        // Update EMI record
+        emi.is_auto_pay_approved = true;
+        emi.pre_deposited_amount = emi.pre_deposited_amount + deposit_amount;
+        
+        event::emit(EmiAutoPayApprovedEvent {
+            emi_id,
+            user: user_addr,
+            company: emi.company,
+            monthly_installment: emi.monthly_installment,
+            timestamp: timestamp::now_microseconds(),
+        });
+    }
+
+    /// Add more funds to EMI auto-pay account (called by user)
+    public entry fun add_emi_funds(
+        user: &signer,
+        admin_addr: address,
+        emi_id: u64,
+        amount: u64
+    ) acquires WalletRegistry {
+        let user_addr = signer::address_of(user);
+        let registry = borrow_global_mut<WalletRegistry>(admin_addr);
+        
+        assert!(table::contains(&registry.emi_agreements, emi_id), 
+                error::not_found(E_EMI_NOT_FOUND));
+        
+        let emi = table::borrow_mut(&mut registry.emi_agreements, emi_id);
+        
+        // Verify user authorization
+        assert!(emi.user == user_addr, error::permission_denied(E_NOT_AUTHORIZED));
+        
+        // Check if EMI is still active
+        assert!(emi.status == EMI_STATUS_ACTIVE, error::invalid_state(E_EMI_COMPLETED));
+        
+        // Check if auto-pay is approved
+        assert!(emi.is_auto_pay_approved, error::permission_denied(E_AUTO_PAY_NOT_APPROVED));
+        
+        assert!(amount > 0, error::invalid_argument(E_INVALID_AMOUNT));
+        
+        // Check user's balance
+        let user_balance = coin::balance<AptosCoin>(user_addr);
+        assert!(user_balance >= amount, error::invalid_argument(E_INSUFFICIENT_BALANCE));
+        
+        // Withdraw coins from user and add to the contract's store
+        let deposited_coins = coin::withdraw<AptosCoin>(user, amount);
+        coin::merge(&mut registry.emi_coin_store, deposited_coins);
+        
+        // Update pre-deposited amount
+        emi.pre_deposited_amount = emi.pre_deposited_amount + amount;
     }
 
     /// Collect EMI payment (called by company)
@@ -981,26 +1100,30 @@ module aptos_contract::wallet_system {
                    error::invalid_state(E_EMI_NOT_DUE));
         };
         
-        // Check user's balance
-        let user_balance = coin::balance<AptosCoin>(emi.user);
+        // Check if auto-pay has been approved
+        assert!(emi.is_auto_pay_approved, error::permission_denied(E_AUTO_PAY_NOT_APPROVED));
         
-        if (user_balance < emi.monthly_installment) {
-            // Insufficient balance - emit failure event but don't abort
+        // Check if user has sufficient pre-deposited amount
+        if (emi.pre_deposited_amount < emi.monthly_installment) {
+            // Insufficient pre-deposited funds - emit failure event but don't abort
             event::emit(EmiPaymentFailedEvent {
                 emi_id,
                 user: emi.user,
                 company: company_addr,
                 required_amount: emi.monthly_installment,
-                user_balance,
-                reason: string::utf8(b"Insufficient balance"),
+                user_balance: emi.pre_deposited_amount,
+                reason: string::utf8(b"Insufficient pre-deposited funds for auto-pay"),
                 timestamp: current_time,
             });
             return
         };
         
-        // Note: In a real implementation, the actual coin transfer would be handled
-        // through a separate transaction signed by the user. This function only
-        // tracks the EMI status and assumes payment has been made externally.
+        // Extract coins from the contract's store and transfer to company
+        let payment_coins = coin::extract(&mut registry.emi_coin_store, emi.monthly_installment);
+        coin::deposit<AptosCoin>(company_addr, payment_coins);
+        
+        // Update pre-deposited amount
+        emi.pre_deposited_amount = emi.pre_deposited_amount - emi.monthly_installment;
         
         // Update EMI record
         emi.months_paid = emi.months_paid + 1;
@@ -1222,10 +1345,26 @@ module aptos_contract::wallet_system {
 
     /// Get EMI agreement details
     #[view]
-    public fun get_emi_agreement(admin_addr: address, emi_id: u64): Option<EmiAgreement> acquires WalletRegistry {
+    public fun get_emi_agreement(admin_addr: address, emi_id: u64): Option<EmiAgreementView> acquires WalletRegistry {
         let registry = borrow_global<WalletRegistry>(admin_addr);
         if (table::contains(&registry.emi_agreements, emi_id)) {
-            option::some(*table::borrow(&registry.emi_agreements, emi_id))
+            let emi = table::borrow(&registry.emi_agreements, emi_id);
+            let view = EmiAgreementView {
+                id: emi.id,
+                user: emi.user,
+                company: emi.company,
+                total_amount: emi.total_amount,
+                monthly_installment: emi.monthly_installment,
+                total_months: emi.total_months,
+                months_paid: emi.months_paid,
+                start_date: emi.start_date,
+                last_payment_date: emi.last_payment_date,
+                status: emi.status,
+                description: emi.description,
+                is_auto_pay_approved: emi.is_auto_pay_approved,
+                pre_deposited_amount: emi.pre_deposited_amount,
+            };
+            option::some(view)
         } else {
             option::none()
         }
@@ -1344,5 +1483,29 @@ module aptos_contract::wallet_system {
         } else {
             false
         }
+    }
+
+    /// Check if auto-pay is approved for an EMI
+    #[view]
+    public fun is_emi_auto_pay_approved(admin_addr: address, emi_id: u64): bool acquires WalletRegistry {
+        let registry = borrow_global<WalletRegistry>(admin_addr);
+        if (!table::contains(&registry.emi_agreements, emi_id)) {
+            return false
+        };
+        
+        let emi = table::borrow(&registry.emi_agreements, emi_id);
+        emi.is_auto_pay_approved
+    }
+
+    /// Get EMI pre-deposited amount
+    #[view]
+    public fun get_emi_pre_deposited_amount(admin_addr: address, emi_id: u64): u64 acquires WalletRegistry {
+        let registry = borrow_global<WalletRegistry>(admin_addr);
+        if (!table::contains(&registry.emi_agreements, emi_id)) {
+            return 0
+        };
+        
+        let emi = table::borrow(&registry.emi_agreements, emi_id);
+        emi.pre_deposited_amount
     }
 }
