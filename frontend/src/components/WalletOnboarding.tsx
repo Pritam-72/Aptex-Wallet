@@ -26,7 +26,7 @@ import {
   RefreshCw,
   Zap
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/hooks/use-toast';
 
 interface WalletOnboardingProps {
   onComplete: (walletData: any) => void;
@@ -222,23 +222,29 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
       createdAt: new Date().toISOString()
     };
     
-    toast.success('Wallet created successfully!');
+    toast({
+      title: "Success",
+      description: "Wallet created successfully!",
+    });
     onComplete(walletWithPassword);
   };
 
   const copyToClipboard = (text: string, description: string) => {
     navigator.clipboard.writeText(text);
-    toast.success(`${description} copied to clipboard`);
+    toast({
+      title: "Copied",
+      description: `${description} copied to clipboard`,
+    });
   };
 
   const renderWelcomeStep = () => (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full max-w-md mx-auto bg-secondary/50 border-border/50 backdrop-blur-sm relative z-10">
       <CardHeader className="text-center space-y-4">
-        <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center">
-          <Wallet className="h-8 w-8 text-primary" />
+        <div className="mx-auto bg-primary/20 w-16 h-16 rounded-full flex items-center justify-center border border-border/30">
+          <Wallet className="h-8 w-8 text-foreground" />
         </div>
-        <CardTitle className="text-2xl">Welcome to Aptos Wallet</CardTitle>
-        <CardDescription className="text-base">
+        <CardTitle className="text-2xl text-foreground">Welcome to Aptos Wallet</CardTitle>
+        <CardDescription className="text-base text-muted-foreground">
           Get started by creating a new wallet or importing an existing one
         </CardDescription>
       </CardHeader>
@@ -249,7 +255,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
             setOnboardingType('create');
             setCurrentStep(1);
           }}
-          className="w-full h-12 text-base"
+          className="w-full h-12 text-base bg-primary hover:bg-primary/80 text-primary-foreground"
           size="lg"
         >
           <Zap className="mr-2 h-5 w-5" />
@@ -262,16 +268,16 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
             setCurrentStep(1);
           }}
           variant="outline"
-          className="w-full h-12 text-base"
+          className="w-full h-12 text-base border-border/50 hover:bg-secondary/30"
           size="lg"
         >
           <Upload className="mr-2 h-5 w-5" />
           Import Existing Wallet
         </Button>
         
-        <Alert>
-          <Shield className="h-4 w-4" />
-          <AlertDescription>
+        <Alert className="bg-secondary/30 border-border/30">
+          <Shield className="h-4 w-4 text-muted-foreground" />
+          <AlertDescription className="text-muted-foreground">
             Your wallet will be encrypted and stored securely on your device
           </AlertDescription>
         </Alert>
@@ -280,33 +286,33 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
   );
 
   const renderCreateWalletStep = () => (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full max-w-md mx-auto bg-secondary/50 border-border/50 backdrop-blur-sm relative z-10">
       <CardHeader>
-        <CardTitle className="flex items-center">
+        <CardTitle className="flex items-center text-foreground">
           <Zap className="mr-2 h-5 w-5" />
           Create New Wallet
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-muted-foreground">
           Generate a new Aptos wallet with a secure seed phrase
         </CardDescription>
       </CardHeader>
       
       <CardContent className="space-y-6">
         <div className="space-y-4">
-          <div className="flex items-start space-x-3 p-4 bg-muted rounded-lg">
+          <div className="flex items-start space-x-3 p-4 bg-secondary/30 border border-border/20 rounded-lg">
             <Shield className="h-5 w-5 text-primary mt-0.5" />
             <div>
-              <h4 className="font-medium">Secure & Private</h4>
+              <h4 className="font-medium text-foreground">Secure & Private</h4>
               <p className="text-sm text-muted-foreground">
                 Your wallet is generated locally and never leaves your device
               </p>
             </div>
           </div>
           
-          <div className="flex items-start space-x-3 p-4 bg-muted rounded-lg">
+          <div className="flex items-start space-x-3 p-4 bg-secondary/30 border border-border/20 rounded-lg">
             <Key className="h-5 w-5 text-primary mt-0.5" />
             <div>
-              <h4 className="font-medium">Full Control</h4>
+              <h4 className="font-medium text-foreground">Full Control</h4>
               <p className="text-sm text-muted-foreground">
                 You own your private keys and have complete control over your assets
               </p>
@@ -315,7 +321,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
         </div>
         
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="bg-red-950/50 border-red-800/50">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -325,7 +331,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           <Button 
             variant="outline" 
             onClick={() => setCurrentStep(0)}
-            className="flex-1"
+            className="flex-1 border-border/50 hover:bg-secondary/30"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
@@ -333,7 +339,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           <Button 
             onClick={handleCreateWallet}
             disabled={isLoading}
-            className="flex-1"
+            className="flex-1 bg-primary hover:bg-primary/80 text-primary-foreground"
           >
             {isLoading ? (
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -348,33 +354,33 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
   );
 
   const renderImportWalletStep = () => (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full max-w-md mx-auto bg-secondary/50 border-border/50 backdrop-blur-sm relative z-10">
       <CardHeader>
-        <CardTitle className="flex items-center">
+        <CardTitle className="flex items-center text-foreground">
           <Upload className="mr-2 h-5 w-5" />
           Import Wallet
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-muted-foreground">
           Import your existing wallet using seed phrase or private key
         </CardDescription>
       </CardHeader>
       
       <CardContent className="space-y-6">
         <Tabs value={importType} onValueChange={(value) => setImportType(value as 'mnemonic' | 'privateKey')}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="mnemonic">Seed Phrase</TabsTrigger>
-            <TabsTrigger value="privateKey">Private Key</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 bg-secondary/30 border border-border/20">
+            <TabsTrigger value="mnemonic" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Seed Phrase</TabsTrigger>
+            <TabsTrigger value="privateKey" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Private Key</TabsTrigger>
           </TabsList>
           
           <TabsContent value="mnemonic" className="space-y-4">
             <div>
-              <Label htmlFor="mnemonic">12 or 24 Word Seed Phrase</Label>
+              <Label htmlFor="mnemonic" className="text-foreground">12 or 24 Word Seed Phrase</Label>
               <textarea
                 id="mnemonic"
                 placeholder="Enter your seed phrase (separate words with spaces)"
                 value={importMnemonic}
                 onChange={(e) => setImportMnemonic(e.target.value)}
-                className="w-full min-h-[100px] p-3 border rounded-md resize-none"
+                className="w-full min-h-[100px] p-3 bg-secondary/30 border border-border/50 text-foreground placeholder:text-muted-foreground rounded-md resize-none focus:border-primary/50 focus:outline-none focus:ring-0"
                 rows={4}
               />
             </div>
@@ -382,20 +388,21 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           
           <TabsContent value="privateKey" className="space-y-4">
             <div>
-              <Label htmlFor="privateKey">Private Key</Label>
+              <Label htmlFor="privateKey" className="text-foreground">Private Key</Label>
               <Input
                 id="privateKey"
                 type="password"
                 placeholder="0x..."
                 value={importPrivateKey}
                 onChange={(e) => setImportPrivateKey(e.target.value)}
+                className="bg-secondary/30 border-border/50 text-foreground placeholder:text-muted-foreground focus:border-primary/50"
               />
             </div>
           </TabsContent>
         </Tabs>
         
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="bg-red-950/50 border-red-800/50">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -405,7 +412,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           <Button 
             variant="outline" 
             onClick={() => setCurrentStep(0)}
-            className="flex-1"
+            className="flex-1 border-border/50 hover:bg-secondary/30"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
@@ -413,7 +420,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           <Button 
             onClick={handleImportWallet}
             disabled={isLoading || (!importMnemonic.trim() && !importPrivateKey.trim())}
-            className="flex-1"
+            className="flex-1 bg-primary hover:bg-primary/80 text-primary-foreground"
           >
             {isLoading ? (
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -428,13 +435,13 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
   );
 
   const renderPasswordStep = () => (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full max-w-md mx-auto bg-secondary/50 border-border/50 backdrop-blur-sm relative z-10">
       <CardHeader>
-        <CardTitle className="flex items-center">
+        <CardTitle className="flex items-center text-foreground">
           <Lock className="mr-2 h-5 w-5" />
           Secure Your Wallet
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-muted-foreground">
           Create a strong password to encrypt your wallet
         </CardDescription>
       </CardHeader>
@@ -442,7 +449,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
       <CardContent className="space-y-6">
         <div className="space-y-4">
           <div>
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="text-foreground">Password</Label>
             <div className="relative">
               <Input
                 id="password"
@@ -450,21 +457,22 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
                 placeholder="Enter a strong password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="bg-secondary/30 border-border/50 text-foreground placeholder:text-muted-foreground focus:border-primary/50 pr-12"
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="absolute right-0 top-0 h-full px-3"
+                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                 onClick={() => setShowPassword(!showPassword)}
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
               </Button>
             </div>
           </div>
           
           <div>
-            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <Label htmlFor="confirmPassword" className="text-foreground">Confirm Password</Label>
             <div className="relative">
               <Input
                 id="confirmPassword"
@@ -472,29 +480,30 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
                 placeholder="Confirm your password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                className="bg-secondary/30 border-border/50 text-foreground placeholder:text-muted-foreground focus:border-primary/50 pr-12"
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="absolute right-0 top-0 h-full px-3"
+                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
               >
-                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showConfirmPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
               </Button>
             </div>
           </div>
         </div>
         
-        <Alert>
-          <Shield className="h-4 w-4" />
-          <AlertDescription>
+        <Alert className="bg-secondary/30 border-border/30">
+          <Shield className="h-4 w-4 text-muted-foreground" />
+          <AlertDescription className="text-muted-foreground">
             Use at least 8 characters with a mix of letters, numbers, and symbols
           </AlertDescription>
         </Alert>
         
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="bg-red-950/50 border-red-800/50">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -504,7 +513,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           <Button 
             variant="outline" 
             onClick={() => setCurrentStep(1)}
-            className="flex-1"
+            className="flex-1 border-border/50 hover:bg-secondary/30"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
@@ -512,7 +521,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           <Button 
             onClick={handlePasswordSetup}
             disabled={!password || !confirmPassword}
-            className="flex-1"
+            className="flex-1 bg-primary hover:bg-primary/80 text-primary-foreground"
           >
             <ArrowRight className="mr-2 h-4 w-4" />
             Continue
@@ -523,19 +532,19 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
   );
 
   const renderBackupStep = () => (
-    <Card className="w-full max-w-lg mx-auto">
+    <Card className="w-full max-w-lg mx-auto bg-secondary/50 border-border/50 backdrop-blur-sm relative z-10">
       <CardHeader>
-        <CardTitle className="flex items-center">
+        <CardTitle className="flex items-center text-foreground">
           <FileText className="mr-2 h-5 w-5" />
           Backup Your Seed Phrase
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-muted-foreground">
           Write down these 12 words in order and store them safely
         </CardDescription>
       </CardHeader>
       
       <CardContent className="space-y-6">
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="bg-red-950/50 border-red-800/50">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             <strong>Never share your seed phrase!</strong> Anyone with these words can access your wallet.
@@ -543,18 +552,18 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
         </Alert>
         
         <div className="relative">
-          <div className={`grid grid-cols-3 gap-3 p-4 bg-muted rounded-lg ${!showMnemonic ? 'blur-sm' : ''}`}>
+          <div className={`grid grid-cols-3 gap-3 p-4 bg-secondary/30 border border-border/20 rounded-lg ${!showMnemonic ? 'blur-sm' : ''}`}>
             {mnemonicWords.map((word, index) => (
-              <div key={index} className="flex items-center space-x-2 p-2 bg-background rounded border">
-                <Badge variant="secondary" className="text-xs">{index + 1}</Badge>
-                <span className="font-mono text-sm">{word}</span>
+              <div key={index} className="flex items-center space-x-2 p-2 bg-background/50 rounded border border-border/30">
+                <Badge variant="secondary" className="text-xs bg-secondary/50 text-foreground border-border/30">{index + 1}</Badge>
+                <span className="font-mono text-sm text-foreground">{word}</span>
               </div>
             ))}
           </div>
           
           {!showMnemonic && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <Button onClick={() => setShowMnemonic(true)} variant="secondary">
+              <Button onClick={() => setShowMnemonic(true)} variant="secondary" className="bg-secondary/80 hover:bg-secondary">
                 <Eye className="mr-2 h-4 w-4" />
                 Click to reveal
               </Button>
@@ -567,7 +576,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
             <Button
               variant="outline"
               onClick={() => copyToClipboard(walletData?.mnemonic || '', 'Seed phrase')}
-              className="flex-1"
+              className="flex-1 border-border/50 hover:bg-secondary/30"
             >
               <Copy className="mr-2 h-4 w-4" />
               Copy
@@ -575,7 +584,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
             <Button
               variant="outline"
               onClick={() => setShowMnemonic(false)}
-              className="flex-1"
+              className="flex-1 border-border/50 hover:bg-secondary/30"
             >
               <EyeOff className="mr-2 h-4 w-4" />
               Hide
@@ -588,14 +597,15 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
             id="backup-confirm"
             checked={hasBackedUp}
             onCheckedChange={(checked) => setHasBackedUp(checked === true)}
+            className="border-border/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
           />
-          <Label htmlFor="backup-confirm" className="text-sm">
+          <Label htmlFor="backup-confirm" className="text-sm text-foreground">
             I have written down my seed phrase in a safe place
           </Label>
         </div>
         
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="bg-red-950/50 border-red-800/50">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -605,7 +615,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           <Button 
             variant="outline" 
             onClick={() => setCurrentStep(2)}
-            className="flex-1"
+            className="flex-1 border-border/50 hover:bg-secondary/30"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
@@ -613,7 +623,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           <Button 
             onClick={handleBackupConfirmation}
             disabled={!hasBackedUp}
-            className="flex-1"
+            className="flex-1 bg-primary hover:bg-primary/80 text-primary-foreground"
           >
             <ArrowRight className="mr-2 h-4 w-4" />
             Continue
@@ -624,28 +634,28 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
   );
 
   const renderConfirmStep = () => (
-    <Card className="w-full max-w-lg mx-auto">
+    <Card className="w-full max-w-lg mx-auto bg-secondary/50 border-border/50 backdrop-blur-sm relative z-10">
       <CardHeader>
-        <CardTitle className="flex items-center">
+        <CardTitle className="flex items-center text-foreground">
           <CheckCircle className="mr-2 h-5 w-5" />
           Confirm Your Seed Phrase
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-muted-foreground">
           Select the words in the correct order to verify your backup
         </CardDescription>
       </CardHeader>
       
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-3 gap-3 p-4 bg-muted rounded-lg">
+        <div className="grid grid-cols-3 gap-3 p-4 bg-secondary/30 border border-border/20 rounded-lg">
           {mnemonicConfirmation.map((word, index) => (
-            <div key={index} className="flex items-center space-x-2 p-2 bg-background rounded border min-h-[40px]">
-              <Badge variant="secondary" className="text-xs">{index + 1}</Badge>
-              <span className="font-mono text-sm">{word || '...'}</span>
+            <div key={index} className="flex items-center space-x-2 p-2 bg-background/50 rounded border border-border/30 min-h-[40px]">
+              <Badge variant="secondary" className="text-xs bg-secondary/50 text-foreground border-border/30">{index + 1}</Badge>
+              <span className="font-mono text-sm text-foreground">{word || '...'}</span>
             </div>
           ))}
         </div>
         
-        <Separator />
+        <Separator className="bg-border/30" />
         
         <div className="grid grid-cols-3 gap-2">
           {shuffledWords.map((word, index) => (
@@ -662,7 +672,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
                 }
               }}
               disabled={mnemonicConfirmation.includes(word)}
-              className="text-xs"
+              className="text-xs border-border/50 hover:bg-secondary/30 disabled:opacity-30"
             >
               {word}
             </Button>
@@ -672,14 +682,14 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
         <Button
           variant="ghost"
           onClick={() => setMnemonicConfirmation(new Array(12).fill(''))}
-          className="w-full"
+          className="w-full hover:bg-secondary/30"
         >
           <RefreshCw className="mr-2 h-4 w-4" />
           Clear All
         </Button>
         
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="bg-red-950/50 border-red-800/50">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -689,7 +699,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           <Button 
             variant="outline" 
             onClick={() => setCurrentStep(3)}
-            className="flex-1"
+            className="flex-1 border-border/50 hover:bg-secondary/30"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
@@ -697,7 +707,7 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           <Button 
             onClick={handleMnemonicConfirmation}
             disabled={mnemonicConfirmation.some(word => word === '')}
-            className="flex-1"
+            className="flex-1 bg-primary hover:bg-primary/80 text-primary-foreground"
           >
             <ArrowRight className="mr-2 h-4 w-4" />
             Continue
@@ -708,42 +718,43 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
   );
 
   const renderCompleteStep = () => (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full max-w-md mx-auto bg-secondary/50 border-border/50 backdrop-blur-sm relative z-10">
       <CardHeader className="text-center space-y-4">
-        <div className="mx-auto bg-green-100 w-16 h-16 rounded-full flex items-center justify-center">
-          <CheckCircle className="h-8 w-8 text-green-600" />
+        <div className="mx-auto bg-green-950/50 border border-green-800/50 w-16 h-16 rounded-full flex items-center justify-center">
+          <CheckCircle className="h-8 w-8 text-green-400" />
         </div>
-        <CardTitle className="text-2xl">Wallet Ready!</CardTitle>
-        <CardDescription>
+        <CardTitle className="text-2xl text-foreground">Wallet Ready!</CardTitle>
+        <CardDescription className="text-muted-foreground">
           Your Aptos wallet has been {onboardingType === 'create' ? 'created' : 'imported'} successfully
         </CardDescription>
       </CardHeader>
       
       <CardContent className="space-y-6">
         <div className="space-y-4">
-          <div className="p-4 bg-muted rounded-lg">
+          <div className="p-4 bg-secondary/30 border border-border/20 rounded-lg">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Wallet Address</span>
+              <span className="text-sm font-medium text-foreground">Wallet Address</span>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => copyToClipboard(walletData?.address || '', 'Address')}
+                className="hover:bg-secondary/30"
               >
-                <Copy className="h-4 w-4" />
+                <Copy className="h-4 w-4 text-muted-foreground" />
               </Button>
             </div>
-            <p className="font-mono text-xs break-all">{walletData?.address}</p>
+            <p className="font-mono text-xs break-all text-muted-foreground">{walletData?.address}</p>
           </div>
           
-          <Alert>
-            <Shield className="h-4 w-4" />
-            <AlertDescription>
+          <Alert className="bg-secondary/30 border-border/30">
+            <Shield className="h-4 w-4 text-muted-foreground" />
+            <AlertDescription className="text-muted-foreground">
               Your wallet is encrypted and stored securely on this device
             </AlertDescription>
           </Alert>
         </div>
         
-        <Button onClick={handleComplete} className="w-full" size="lg">
+        <Button onClick={handleComplete} className="w-full bg-primary hover:bg-primary/80 text-primary-foreground" size="lg">
           <ArrowRight className="mr-2 h-5 w-5" />
           Start Using Wallet
         </Button>
@@ -764,22 +775,26 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
+    <div className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Grid background pattern matching landing page */}
+      <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
+      <div className="w-full max-w-2xl relative z-10">
         {/* Progress indicator */}
         {currentStep > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-center space-x-2 mb-4">
               {steps.map((step, index) => (
                 <div key={index} className="flex items-center">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    index <= currentStep ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium border ${
+                    index <= currentStep 
+                      ? 'bg-primary text-primary-foreground border-primary' 
+                      : 'bg-secondary/30 text-muted-foreground border-border/50'
                   }`}>
                     {index < currentStep ? <CheckCircle className="h-4 w-4" /> : index + 1}
                   </div>
                   {index < steps.length - 1 && (
                     <div className={`w-8 h-0.5 mx-2 ${
-                      index < currentStep ? 'bg-primary' : 'bg-muted'
+                      index < currentStep ? 'bg-primary' : 'bg-border/30'
                     }`} />
                   )}
                 </div>
