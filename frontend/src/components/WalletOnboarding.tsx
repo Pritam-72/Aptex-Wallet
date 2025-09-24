@@ -1,0 +1,800 @@
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
+import { 
+  Wallet, 
+  Shield, 
+  Eye, 
+  EyeOff, 
+  Copy, 
+  Download, 
+  Upload,
+  CheckCircle, 
+  AlertTriangle, 
+  ArrowRight, 
+  ArrowLeft,
+  Key,
+  Lock,
+  FileText,
+  RefreshCw,
+  Zap
+} from 'lucide-react';
+import { toast } from 'sonner';
+
+interface WalletOnboardingProps {
+  onComplete: (walletData: any) => void;
+}
+
+interface WalletData {
+  address: string;
+  mnemonic: string;
+  privateKey: string;
+  publicKey: string;
+}
+
+const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [onboardingType, setOnboardingType] = useState<'create' | 'import' | null>(null);
+  const [importType, setImportType] = useState<'mnemonic' | 'privateKey'>('mnemonic');
+  
+  // Wallet creation states
+  const [walletData, setWalletData] = useState<WalletData | null>(null);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Import states
+  const [importMnemonic, setImportMnemonic] = useState('');
+  const [importPrivateKey, setImportPrivateKey] = useState('');
+  
+  // Security states
+  const [mnemonicConfirmation, setMnemonicConfirmation] = useState<string[]>(new Array(12).fill(''));
+  const [hasBackedUp, setHasBackedUp] = useState(false);
+  const [showMnemonic, setShowMnemonic] = useState(true);
+  const [mnemonicWords, setMnemonicWords] = useState<string[]>([]);
+  const [shuffledWords, setShuffledWords] = useState<string[]>([]);
+  
+  // Loading states
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const steps = [
+    'Welcome',
+    onboardingType === 'create' ? 'Create Wallet' : 'Import Wallet',
+    'Set Password',
+    onboardingType === 'create' ? 'Backup Phrase' : 'Wallet Ready',
+    onboardingType === 'create' ? 'Confirm Phrase' : null,
+    'Complete Setup'
+  ].filter(Boolean);
+
+  // Generate mock wallet (replace with actual Aptos wallet generation)
+  const generateWallet = async (): Promise<WalletData> => {
+    const words = [
+      'abandon', 'abandon', 'abandon', 'abandon', 'abandon', 'abandon',
+      'abandon', 'abandon', 'abandon', 'abandon', 'abandon', 'about'
+    ];
+    
+    // Simulate wallet generation delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    return {
+      address: `0x${Math.random().toString(16).substr(2, 40)}`,
+      mnemonic: words.join(' '),
+      privateKey: `0x${Math.random().toString(16).substr(2, 64)}`,
+      publicKey: `0x${Math.random().toString(16).substr(2, 64)}`
+    };
+  };
+
+  // Import wallet from mnemonic or private key
+  const importWallet = async (seedPhrase?: string, privateKey?: string): Promise<WalletData> => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    if (seedPhrase) {
+      return {
+        address: `0x${Math.random().toString(16).substr(2, 40)}`,
+        mnemonic: seedPhrase,
+        privateKey: `0x${Math.random().toString(16).substr(2, 64)}`,
+        publicKey: `0x${Math.random().toString(16).substr(2, 64)}`
+      };
+    } else if (privateKey) {
+      return {
+        address: `0x${Math.random().toString(16).substr(2, 40)}`,
+        mnemonic: '',
+        privateKey: privateKey,
+        publicKey: `0x${Math.random().toString(16).substr(2, 64)}`
+      };
+    }
+    
+    throw new Error('Invalid import data');
+  };
+
+  const handleCreateWallet = async () => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const newWallet = await generateWallet();
+      setWalletData(newWallet);
+      setMnemonicWords(newWallet.mnemonic.split(' '));
+      setCurrentStep(2);
+    } catch (err) {
+      setError('Failed to create wallet. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleImportWallet = async () => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      let wallet: WalletData;
+      
+      if (importType === 'mnemonic' && importMnemonic.trim()) {
+        const words = importMnemonic.trim().split(/\s+/);
+        if (words.length !== 12 && words.length !== 24) {
+          throw new Error('Mnemonic must be 12 or 24 words');
+        }
+        wallet = await importWallet(importMnemonic.trim());
+      } else if (importType === 'privateKey' && importPrivateKey.trim()) {
+        if (!importPrivateKey.startsWith('0x') || importPrivateKey.length !== 66) {
+          throw new Error('Invalid private key format');
+        }
+        wallet = await importWallet(undefined, importPrivateKey.trim());
+      } else {
+        throw new Error('Please provide valid import data');
+      }
+      
+      setWalletData(wallet);
+      setCurrentStep(2);
+    } catch (err: any) {
+      setError(err.message || 'Failed to import wallet. Please check your input.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasswordSetup = () => {
+    if (!password || password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    
+    setError('');
+    if (onboardingType === 'create') {
+      setCurrentStep(3);
+    } else {
+      setCurrentStep(5); // Skip to completion for imports
+    }
+  };
+
+  const handleBackupConfirmation = () => {
+    if (!hasBackedUp) {
+      setError('Please confirm that you have backed up your seed phrase');
+      return;
+    }
+    
+    setError('');
+    // Shuffle words for confirmation
+    const shuffled = [...mnemonicWords].sort(() => Math.random() - 0.5);
+    setShuffledWords(shuffled);
+    setCurrentStep(4);
+  };
+
+  const handleMnemonicConfirmation = () => {
+    const userPhrase = mnemonicConfirmation.join(' ');
+    const originalPhrase = walletData?.mnemonic;
+    
+    if (userPhrase !== originalPhrase) {
+      setError('Seed phrase does not match. Please try again.');
+      return;
+    }
+    
+    setError('');
+    setCurrentStep(5);
+  };
+
+  const handleComplete = () => {
+    if (!walletData || !password) {
+      setError('Missing wallet data or password');
+      return;
+    }
+    
+    // Encrypt and store wallet (in real implementation)
+    const walletWithPassword = {
+      ...walletData,
+      password,
+      encrypted: true,
+      createdAt: new Date().toISOString()
+    };
+    
+    toast.success('Wallet created successfully!');
+    onComplete(walletWithPassword);
+  };
+
+  const copyToClipboard = (text: string, description: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${description} copied to clipboard`);
+  };
+
+  const renderWelcomeStep = () => (
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader className="text-center space-y-4">
+        <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center">
+          <Wallet className="h-8 w-8 text-primary" />
+        </div>
+        <CardTitle className="text-2xl">Welcome to Aptos Wallet</CardTitle>
+        <CardDescription className="text-base">
+          Get started by creating a new wallet or importing an existing one
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-4">
+        <Button 
+          onClick={() => {
+            setOnboardingType('create');
+            setCurrentStep(1);
+          }}
+          className="w-full h-12 text-base"
+          size="lg"
+        >
+          <Zap className="mr-2 h-5 w-5" />
+          Create New Wallet
+        </Button>
+        
+        <Button 
+          onClick={() => {
+            setOnboardingType('import');
+            setCurrentStep(1);
+          }}
+          variant="outline"
+          className="w-full h-12 text-base"
+          size="lg"
+        >
+          <Upload className="mr-2 h-5 w-5" />
+          Import Existing Wallet
+        </Button>
+        
+        <Alert>
+          <Shield className="h-4 w-4" />
+          <AlertDescription>
+            Your wallet will be encrypted and stored securely on your device
+          </AlertDescription>
+        </Alert>
+      </CardContent>
+    </Card>
+  );
+
+  const renderCreateWalletStep = () => (
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <Zap className="mr-2 h-5 w-5" />
+          Create New Wallet
+        </CardTitle>
+        <CardDescription>
+          Generate a new Aptos wallet with a secure seed phrase
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <div className="flex items-start space-x-3 p-4 bg-muted rounded-lg">
+            <Shield className="h-5 w-5 text-primary mt-0.5" />
+            <div>
+              <h4 className="font-medium">Secure & Private</h4>
+              <p className="text-sm text-muted-foreground">
+                Your wallet is generated locally and never leaves your device
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-start space-x-3 p-4 bg-muted rounded-lg">
+            <Key className="h-5 w-5 text-primary mt-0.5" />
+            <div>
+              <h4 className="font-medium">Full Control</h4>
+              <p className="text-sm text-muted-foreground">
+                You own your private keys and have complete control over your assets
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        <div className="flex space-x-3">
+          <Button 
+            variant="outline" 
+            onClick={() => setCurrentStep(0)}
+            className="flex-1"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+          <Button 
+            onClick={handleCreateWallet}
+            disabled={isLoading}
+            className="flex-1"
+          >
+            {isLoading ? (
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowRight className="mr-2 h-4 w-4" />
+            )}
+            {isLoading ? 'Creating...' : 'Create Wallet'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderImportWalletStep = () => (
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <Upload className="mr-2 h-5 w-5" />
+          Import Wallet
+        </CardTitle>
+        <CardDescription>
+          Import your existing wallet using seed phrase or private key
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        <Tabs value={importType} onValueChange={(value) => setImportType(value as 'mnemonic' | 'privateKey')}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="mnemonic">Seed Phrase</TabsTrigger>
+            <TabsTrigger value="privateKey">Private Key</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="mnemonic" className="space-y-4">
+            <div>
+              <Label htmlFor="mnemonic">12 or 24 Word Seed Phrase</Label>
+              <textarea
+                id="mnemonic"
+                placeholder="Enter your seed phrase (separate words with spaces)"
+                value={importMnemonic}
+                onChange={(e) => setImportMnemonic(e.target.value)}
+                className="w-full min-h-[100px] p-3 border rounded-md resize-none"
+                rows={4}
+              />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="privateKey" className="space-y-4">
+            <div>
+              <Label htmlFor="privateKey">Private Key</Label>
+              <Input
+                id="privateKey"
+                type="password"
+                placeholder="0x..."
+                value={importPrivateKey}
+                onChange={(e) => setImportPrivateKey(e.target.value)}
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
+        
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        <div className="flex space-x-3">
+          <Button 
+            variant="outline" 
+            onClick={() => setCurrentStep(0)}
+            className="flex-1"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+          <Button 
+            onClick={handleImportWallet}
+            disabled={isLoading || (!importMnemonic.trim() && !importPrivateKey.trim())}
+            className="flex-1"
+          >
+            {isLoading ? (
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowRight className="mr-2 h-4 w-4" />
+            )}
+            {isLoading ? 'Importing...' : 'Import Wallet'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderPasswordStep = () => (
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <Lock className="mr-2 h-5 w-5" />
+          Secure Your Wallet
+        </CardTitle>
+        <CardDescription>
+          Create a strong password to encrypt your wallet
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="password">Password</Label>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter a strong password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+          
+          <div>
+            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <div className="relative">
+              <Input
+                id="confirmPassword"
+                type={showConfirmPassword ? 'text' : 'password'}
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        </div>
+        
+        <Alert>
+          <Shield className="h-4 w-4" />
+          <AlertDescription>
+            Use at least 8 characters with a mix of letters, numbers, and symbols
+          </AlertDescription>
+        </Alert>
+        
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        <div className="flex space-x-3">
+          <Button 
+            variant="outline" 
+            onClick={() => setCurrentStep(1)}
+            className="flex-1"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+          <Button 
+            onClick={handlePasswordSetup}
+            disabled={!password || !confirmPassword}
+            className="flex-1"
+          >
+            <ArrowRight className="mr-2 h-4 w-4" />
+            Continue
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderBackupStep = () => (
+    <Card className="w-full max-w-lg mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <FileText className="mr-2 h-5 w-5" />
+          Backup Your Seed Phrase
+        </CardTitle>
+        <CardDescription>
+          Write down these 12 words in order and store them safely
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Never share your seed phrase!</strong> Anyone with these words can access your wallet.
+          </AlertDescription>
+        </Alert>
+        
+        <div className="relative">
+          <div className={`grid grid-cols-3 gap-3 p-4 bg-muted rounded-lg ${!showMnemonic ? 'blur-sm' : ''}`}>
+            {mnemonicWords.map((word, index) => (
+              <div key={index} className="flex items-center space-x-2 p-2 bg-background rounded border">
+                <Badge variant="secondary" className="text-xs">{index + 1}</Badge>
+                <span className="font-mono text-sm">{word}</span>
+              </div>
+            ))}
+          </div>
+          
+          {!showMnemonic && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Button onClick={() => setShowMnemonic(true)} variant="secondary">
+                <Eye className="mr-2 h-4 w-4" />
+                Click to reveal
+              </Button>
+            </div>
+          )}
+        </div>
+        
+        {showMnemonic && (
+          <div className="flex space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => copyToClipboard(walletData?.mnemonic || '', 'Seed phrase')}
+              className="flex-1"
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              Copy
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowMnemonic(false)}
+              className="flex-1"
+            >
+              <EyeOff className="mr-2 h-4 w-4" />
+              Hide
+            </Button>
+          </div>
+        )}
+        
+        <div className="flex items-center space-x-2">
+          <Checkbox 
+            id="backup-confirm"
+            checked={hasBackedUp}
+            onCheckedChange={(checked) => setHasBackedUp(checked === true)}
+          />
+          <Label htmlFor="backup-confirm" className="text-sm">
+            I have written down my seed phrase in a safe place
+          </Label>
+        </div>
+        
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        <div className="flex space-x-3">
+          <Button 
+            variant="outline" 
+            onClick={() => setCurrentStep(2)}
+            className="flex-1"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+          <Button 
+            onClick={handleBackupConfirmation}
+            disabled={!hasBackedUp}
+            className="flex-1"
+          >
+            <ArrowRight className="mr-2 h-4 w-4" />
+            Continue
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderConfirmStep = () => (
+    <Card className="w-full max-w-lg mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <CheckCircle className="mr-2 h-5 w-5" />
+          Confirm Your Seed Phrase
+        </CardTitle>
+        <CardDescription>
+          Select the words in the correct order to verify your backup
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-3 gap-3 p-4 bg-muted rounded-lg">
+          {mnemonicConfirmation.map((word, index) => (
+            <div key={index} className="flex items-center space-x-2 p-2 bg-background rounded border min-h-[40px]">
+              <Badge variant="secondary" className="text-xs">{index + 1}</Badge>
+              <span className="font-mono text-sm">{word || '...'}</span>
+            </div>
+          ))}
+        </div>
+        
+        <Separator />
+        
+        <div className="grid grid-cols-3 gap-2">
+          {shuffledWords.map((word, index) => (
+            <Button
+              key={index}
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const nextEmptyIndex = mnemonicConfirmation.findIndex(w => w === '');
+                if (nextEmptyIndex !== -1) {
+                  const newConfirmation = [...mnemonicConfirmation];
+                  newConfirmation[nextEmptyIndex] = word;
+                  setMnemonicConfirmation(newConfirmation);
+                }
+              }}
+              disabled={mnemonicConfirmation.includes(word)}
+              className="text-xs"
+            >
+              {word}
+            </Button>
+          ))}
+        </div>
+        
+        <Button
+          variant="ghost"
+          onClick={() => setMnemonicConfirmation(new Array(12).fill(''))}
+          className="w-full"
+        >
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Clear All
+        </Button>
+        
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        <div className="flex space-x-3">
+          <Button 
+            variant="outline" 
+            onClick={() => setCurrentStep(3)}
+            className="flex-1"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+          <Button 
+            onClick={handleMnemonicConfirmation}
+            disabled={mnemonicConfirmation.some(word => word === '')}
+            className="flex-1"
+          >
+            <ArrowRight className="mr-2 h-4 w-4" />
+            Continue
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderCompleteStep = () => (
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader className="text-center space-y-4">
+        <div className="mx-auto bg-green-100 w-16 h-16 rounded-full flex items-center justify-center">
+          <CheckCircle className="h-8 w-8 text-green-600" />
+        </div>
+        <CardTitle className="text-2xl">Wallet Ready!</CardTitle>
+        <CardDescription>
+          Your Aptos wallet has been {onboardingType === 'create' ? 'created' : 'imported'} successfully
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <div className="p-4 bg-muted rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Wallet Address</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => copyToClipboard(walletData?.address || '', 'Address')}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="font-mono text-xs break-all">{walletData?.address}</p>
+          </div>
+          
+          <Alert>
+            <Shield className="h-4 w-4" />
+            <AlertDescription>
+              Your wallet is encrypted and stored securely on this device
+            </AlertDescription>
+          </Alert>
+        </div>
+        
+        <Button onClick={handleComplete} className="w-full" size="lg">
+          <ArrowRight className="mr-2 h-5 w-5" />
+          Start Using Wallet
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
+  const getCurrentStepComponent = () => {
+    switch (currentStep) {
+      case 0: return renderWelcomeStep();
+      case 1: return onboardingType === 'create' ? renderCreateWalletStep() : renderImportWalletStep();
+      case 2: return renderPasswordStep();
+      case 3: return renderBackupStep();
+      case 4: return renderConfirmStep();
+      case 5: return renderCompleteStep();
+      default: return renderWelcomeStep();
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl">
+        {/* Progress indicator */}
+        {currentStep > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-center space-x-2 mb-4">
+              {steps.map((step, index) => (
+                <div key={index} className="flex items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                    index <= currentStep ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {index < currentStep ? <CheckCircle className="h-4 w-4" /> : index + 1}
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className={`w-8 h-0.5 mx-2 ${
+                      index < currentStep ? 'bg-primary' : 'bg-muted'
+                    }`} />
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              Step {currentStep + 1} of {steps.length}: {steps[currentStep]}
+            </p>
+          </div>
+        )}
+        
+        {getCurrentStepComponent()}
+      </div>
+    </div>
+  );
+};
+
+export default WalletOnboarding;

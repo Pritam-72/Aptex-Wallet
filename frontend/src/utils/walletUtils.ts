@@ -17,6 +17,14 @@ export interface StoredWallet {
   currentAccountIndex: number;
 }
 
+export interface Transaction {
+  version: string;
+  timestamp: string;
+  type: string;
+  success: boolean;
+  hash: string;
+}
+
 // LocalStorage keys
 const WALLET_STORAGE_KEY = 'cryptal_wallet';
 const ACCOUNT_COUNT_KEY = 'cryptal_account_count';

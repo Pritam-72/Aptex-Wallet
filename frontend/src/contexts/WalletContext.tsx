@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 interface WalletContextType {
   isConnected: boolean;
@@ -13,16 +14,30 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Built-in wallet - always connected
-  const [isConnected, setIsConnected] = useState(true);
-  const [address, setAddress] = useState<string | null>('0x742d35Cc6663C0532d8c5E9C4267B53A0D7C9b1F');
-  const [balance, setBalance] = useState('12.5623');
+  const { user, hasWallet } = useAuth();
+  const [isConnected, setIsConnected] = useState(false);
+  const [address, setAddress] = useState<string | null>(null);
+  const [balance, setBalance] = useState('0.0');
+
+  // Update wallet connection status based on authentication
+  useEffect(() => {
+    if (user && hasWallet) {
+      setIsConnected(true);
+      setAddress(user.walletAddress);
+      setBalance('12.5623'); // Mock initial balance
+    } else {
+      setIsConnected(false);
+      setAddress(null);
+      setBalance('0.0');
+    }
+  }, [user, hasWallet]);
 
   const connectWallet = async () => {
-    // Built-in wallet - already connected, just refresh state
-    setIsConnected(true);
-    setAddress('0x742d35Cc6663C0532d8c5E9C4267B53A0D7C9b1F');
-    setBalance('12.5623');
+    if (user && hasWallet) {
+      setIsConnected(true);
+      setAddress(user.walletAddress);
+      setBalance('12.5623');
+    }
   };
 
   const disconnectWallet = () => {
@@ -32,6 +47,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const sendTransaction = async (to: string, amount: string): Promise<string> => {
+    if (!isConnected || !address) {
+      throw new Error('Wallet not connected');
+    }
+
     // Mock transaction
     const txHash = '0x' + Math.random().toString(16).substr(2, 40);
     
@@ -41,17 +60,18 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Update balance (mock deduction)
     const currentBalance = parseFloat(balance);
     const sentAmount = parseFloat(amount);
-    setBalance((currentBalance - sentAmount - 0.001).toString()); // deduct amount + gas fee
+    const newBalance = currentBalance - sentAmount - 0.001; // deduct amount + gas fee
+    setBalance(Math.max(0, newBalance).toString());
     
     return txHash;
   };
 
   const refreshBalance = async () => {
-    // Mock balance refresh
-    if (isConnected) {
-      // Simulate API call
+    if (isConnected && address) {
+      // Simulate API call to fetch real balance
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setBalance((parseFloat(balance) + Math.random() * 0.1).toString());
+      // Mock balance update
+      setBalance((Math.random() * 20 + 5).toFixed(4));
     }
   };
 

@@ -46,10 +46,9 @@ export const Navbar = () => { // Renamed from HeroHeader
 
     // Get user's dashboard route based on account type
     const getDashboardRoute = () => {
-        if (!user) return '/user-dashboard';
-        const userMetadata = user.user_metadata || {};
-        const accountType = userMetadata.account_type || 'individual';
-        return accountType === 'merchant' ? '/merchant-dashboard' : '/user-dashboard';
+        if (!user) return '/dashboard';
+        const accountType = user.account_type || 'user';
+        return '/dashboard';
     };
 
     // Dynamic menu items based on user authentication status and current page
@@ -327,7 +326,6 @@ export const Navbar = () => { // Renamed from HeroHeader
                                         <DropdownMenuTrigger asChild>
                                             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                                                 <Avatar>
-                                                    <AvatarImage src={user.user_metadata?.avatar_url} />
                                                     <AvatarFallback>
                                                         <User className="h-6 w-6" />
                                                     </AvatarFallback>
@@ -335,29 +333,29 @@ export const Navbar = () => { // Renamed from HeroHeader
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuPortal>
-                                            <DropdownMenuContent align="end" className="w-56" sideOffset={8}>
+                                            <DropdownMenuContent align="end" className="w-64" sideOffset={8}>
                                                 <DropdownMenuLabel className="font-normal">
                                                     <div className="flex flex-col space-y-1">
-                                                        <p className="text-sm font-medium leading-none">Account</p>
-                                                        <p className="text-xs leading-none text-muted-foreground">
-                                                            {user.email}
+                                                        <p className="text-sm font-medium leading-none">Wallet</p>
+                                                        <p className="text-xs leading-none text-muted-foreground font-mono">
+                                                            {user.walletAddress?.slice(0, 6)}...{user.walletAddress?.slice(-4)}
                                                         </p>
                                                     </div>
                                                 </DropdownMenuLabel>
                                                 <DropdownMenuSeparator />
-                                                <DropdownMenuItem className="flex items-center" onClick={() => navigate(getDashboardRoute())}>
+                                                <DropdownMenuItem className="flex items-center" onClick={() => navigate('/dashboard')}>
                                                     Dashboard
                                                 </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem className="flex items-center text-red-500" onClick={signOut}>
-                                                    Sign Out
+                                                    Lock Wallet
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenuPortal>
                                     </DropdownMenu>
                                 ) : (
                                     <Button onClick={() => navigate('/auth')} variant="ghost">
-                                        Sign In
+                                        Connect Wallet
                                     </Button>
                                 )}
                             </div>
@@ -462,9 +460,11 @@ export const Navbar = () => { // Renamed from HeroHeader
                                             <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted text-white text-xs font-medium">
                                                 <span className="inline-flex items-center gap-1">
                                                     <span className="h-6 w-6 rounded-full bg-primary flex items-center justify-center text-white font-bold text-xs">
-                                                        {user.email ? user.email[0].toUpperCase() : 'U'}
+                                                        W
                                                     </span>
-                                                    <span className="ml-1">{user.email}</span>
+                                                    <span className="ml-1 font-mono text-xs">
+                                                        {user.walletAddress?.slice(0, 6)}...{user.walletAddress?.slice(-4)}
+                                                    </span>
                                                 </span>
                                             </div>
                                             <Button
@@ -473,7 +473,7 @@ export const Navbar = () => { // Renamed from HeroHeader
                                                 className="bg-white/[0.06] text-white border-white/[0.12] hover:bg-white/[0.08] hover:border-white/[0.18] font-semibold rounded-lg px-3 h-8 text-xs"
                                                 onClick={() => { setMenuState(false); signOut(); }}
                                             >
-                                                Sign Out
+                                                Lock Wallet
                                             </Button>
                                         </div>
                                     ) : (
@@ -486,7 +486,7 @@ export const Navbar = () => { // Renamed from HeroHeader
                                             )}
                                             onClick={() => { setMenuState(false); navigate('/auth'); }}
                                         >
-                                            Sign In
+                                            Connect Wallet
                                         </Button>
                                     )}
                                 </div>

@@ -10,7 +10,7 @@ import LandingPage from "./pages/LandingPage";
 import AboutPage from "./pages/AboutPage";
 import UserPage from "./pages/UserPage";
 import SimpleDashboard from "./pages/SimpleDashboard";
-import SupabaseAuthPage from "./pages/SupabaseAuthPage";
+import WalletAuthPage from "./pages/WalletAuthPage";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "./components/ui/button";
@@ -41,7 +41,7 @@ const Layout = () => {
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles = [] }: { children: JSX.Element, allowedRoles?: string[] }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, hasWallet } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -52,7 +52,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }: { children: JSX.Element
     );
   }
 
-  if (!user) {
+  if (!user || !hasWallet) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
@@ -69,7 +69,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }: { children: JSX.Element
 
 // Public route that redirects to dashboard if user is already authenticated
 const PublicRoute = ({ children }: { children: JSX.Element }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, hasWallet } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -80,7 +80,7 @@ const PublicRoute = ({ children }: { children: JSX.Element }) => {
     );
   }
 
-  if (user) {
+  if (user && hasWallet) {
     const dashboard = '/dashboard';
     const from = location.state?.from?.pathname || dashboard;
     return <Navigate to={from} replace />;
@@ -114,7 +114,7 @@ const AppContent = () => {
         <Route path="/user" element={<UserPage />} />
         {/* Auth routes */}
         <Route element={<PublicRoute><Outlet /></PublicRoute>}>
-          <Route path="/auth" element={<SupabaseAuthPage />} />
+          <Route path="/auth" element={<WalletAuthPage />} />
         </Route>
         {/* Protected routes */}
         <Route element={<ProtectedRoute><Outlet /></ProtectedRoute>}>
