@@ -43,7 +43,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
     }
   };
 
-  const estimatedFee = '0.001 ETH';
+  const estimatedFee = '0.001 APT';
   const estimatedFiat = amount ? `≈ ₹${(parseFloat(amount) * 251100).toFixed(2)}` : '₹0.00';
 
   return (
@@ -52,10 +52,10 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Send className="h-5 w-5" />
-            Send ETH
+            Send APT
           </DialogTitle>
           <DialogDescription>
-            Send Ethereum to another wallet address
+            Send Aptos to another wallet address
           </DialogDescription>
         </DialogHeader>
 
@@ -80,7 +80,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="amount">Amount (ETH) *</Label>
+            <Label htmlFor="amount">Amount (APT) *</Label>
             <div className="relative">
               <Input
                 id="amount"
@@ -91,7 +91,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
                 onChange={(e) => setAmount(e.target.value)}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                ETH
+                APT
               </div>
             </div>
             {amount && (
@@ -119,7 +119,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">Amount:</span>
-                <span className="font-medium">{amount || '0'} ETH</span>
+                <span className="font-medium">{amount || '0'} APT</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Network Fee:</span>
@@ -127,7 +127,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
               </div>
               <div className="flex justify-between border-t border-gray-200 pt-1">
                 <span className="text-gray-700 font-medium">Total:</span>
-                <span className="font-bold">{amount ? (parseFloat(amount) + 0.001).toFixed(6) : '0.001'} ETH</span>
+                <span className="font-bold">{amount ? (parseFloat(amount) + 0.001).toFixed(6) : '0.001'} APT</span>
               </div>
             </div>
           </div>
@@ -146,7 +146,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
               className="flex-1"
               disabled={isLoading || !recipient || !amount}
             >
-              {isLoading ? 'Sending...' : 'Send ETH'}
+              {isLoading ? 'Sending...' : 'Send APT'}
             </Button>
           </div>
         </div>

@@ -140,7 +140,7 @@ export const WalletSetup: React.FC<WalletSetupProps> = ({ isOpen, onClose, onCom
             Create Your Wallet
           </DialogTitle>
           <DialogDescription>
-            Follow these steps to secure your new Ethereum wallet.
+            Follow these steps to secure your new Aptos wallet.
           </DialogDescription>
         </DialogHeader>
 
@@ -183,7 +183,7 @@ export const WalletSetup: React.FC<WalletSetupProps> = ({ isOpen, onClose, onCom
                     </p>
                     <Button 
                       onClick={handleGenerateWallet} 
-                      className="w-full"
+                      className="w-full bg-black hover:bg-gray-900 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] border-0"
                       disabled={isLoading}
                     >
                       {isLoading ? 'Generating...' : 'Generate Wallet'}
@@ -223,7 +223,7 @@ export const WalletSetup: React.FC<WalletSetupProps> = ({ isOpen, onClose, onCom
                   
                   <Button 
                     onClick={handleImportWallet} 
-                    className="w-full"
+                    className="w-full bg-black hover:bg-gray-900 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] border-0"
                     disabled={isLoading || (!mnemonic && !privateKey)}
                   >
                     {isLoading ? 'Importing...' : 'Import Wallet'}
@@ -286,7 +286,7 @@ export const WalletSetup: React.FC<WalletSetupProps> = ({ isOpen, onClose, onCom
                 </AlertDescription>
               </Alert>
               
-              <Button onClick={() => setStep(3)} className="w-full">
+              <Button onClick={() => setStep(3)} className="w-full bg-black hover:bg-gray-900 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] border-0">
                 I've Saved My Recovery Phrase
               </Button>
             </div>
@@ -301,7 +301,7 @@ export const WalletSetup: React.FC<WalletSetupProps> = ({ isOpen, onClose, onCom
                   Please confirm you've saved your recovery phrase by proceeding.
                 </p>
               </div>
-              <Button onClick={() => setStep(4)} className="w-full">
+              <Button onClick={() => setStep(4)} className="w-full bg-black hover:bg-gray-900 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] border-0">
                 Continue to Password Setup
               </Button>
             </div>
@@ -350,7 +350,7 @@ export const WalletSetup: React.FC<WalletSetupProps> = ({ isOpen, onClose, onCom
               
               <Button 
                 onClick={handleSaveWallet} 
-                className="w-full"
+                className="w-full bg-black hover:bg-gray-900 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] border-0"
                 disabled={isLoading || !password || !confirmPassword}
               >
                 {isLoading ? 'Creating Wallet...' : 'Create Wallet'}
@@ -379,7 +379,7 @@ export const WalletSetup: React.FC<WalletSetupProps> = ({ isOpen, onClose, onCom
                 </div>
               </div>
               
-              <Button onClick={handleComplete} className="w-full">
+              <Button onClick={handleComplete} className="w-full bg-black hover:bg-gray-900 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] border-0">
                 Continue to Dashboard
               </Button>
             </div>

@@ -23,7 +23,7 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({ isOpen, onClose, o
       await new Promise(resolve => setTimeout(resolve, 2000));
       onClose();
     } catch (err) {
-      setError('Failed to connect wallet. Please try again.');
+      setError('Failed to connect account. Please try again.');
     } finally {
       setIsConnecting(false);
     }
@@ -35,10 +35,10 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({ isOpen, onClose, o
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wallet className="h-5 w-5" />
-            Connect Your Wallet
+            Add Account
           </DialogTitle>
           <DialogDescription>
-            Choose how you'd like to access your wallet
+            Choose how you'd like to add or access your account
           </DialogDescription>
         </DialogHeader>
 
@@ -60,8 +60,8 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({ isOpen, onClose, o
             >
               <Key className="h-5 w-5" />
               <div className="text-left">
-                <div className="font-medium">Connect Existing Wallet</div>
-                <div className="text-xs text-gray-500">Use your saved wallet</div>
+                <div className="font-medium">Connect Existing Account</div>
+                <div className="text-xs text-gray-500">Use your saved account</div>
               </div>
             </Button>
 
@@ -72,8 +72,8 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({ isOpen, onClose, o
             >
               <Database className="h-5 w-5" />
               <div className="text-left">
-                <div className="font-medium">Create New Wallet</div>
-                <div className="text-xs text-gray-500">Generate a new secure wallet</div>
+                <div className="font-medium">Create New Account</div>
+                <div className="text-xs text-gray-500">Generate a new secure account</div>
               </div>
             </Button>
           </div>
@@ -85,7 +85,7 @@ export const WalletConnect: React.FC<WalletConnectProps> = ({ isOpen, onClose, o
               <div>
                 <div className="text-sm font-medium text-blue-900">Secure Connection</div>
                 <div className="text-xs text-blue-700 mt-1">
-                  Your wallet data is encrypted and stored securely. We never have access to your private keys.
+                  Your account data is encrypted and stored securely. We never have access to your private keys.
                 </div>
               </div>
             </div>

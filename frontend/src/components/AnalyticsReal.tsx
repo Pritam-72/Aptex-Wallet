@@ -25,7 +25,7 @@ interface AnalyticsData {
 
 export const Analytics: React.FC = () => {
   const { isConnected, address } = useWallet();
-  const { convertETHToINR, rate } = useExchangeRate();
+  const { convertAPTToINR, rate } = useExchangeRate();
   const [timeRange, setTimeRange] = useState('30d');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -210,7 +210,7 @@ export const Analytics: React.FC = () => {
         const gasUsed = parseInt(tx.gasUsed);
         const gasPrice = parseFloat(tx.gasPrice);
         totalGasUsed += gasUsed;
-        totalGasCost += (gasUsed * gasPrice) / 1e9; // Convert to ETH
+        totalGasCost += (gasUsed * gasPrice) / 1e9; // Convert to APT
         totalGasPrice += gasPrice;
         count++;
       }
@@ -259,11 +259,11 @@ export const Analytics: React.FC = () => {
       const summaryData = [
         ['Metric', 'Value'],
         ['Total Transactions', analytics.totalTransactions],
-        ['Total Volume (ETH)', analytics.totalVolume.toFixed(6)],
+        ['Total Volume (APT)', analytics.totalVolume.toFixed(6)],
         ['Total Volume (INR)', analytics.totalVolumeINR.toFixed(2)],
-        ['Total Sent (ETH)', analytics.totalSent.toFixed(6)],
-        ['Total Received (ETH)', analytics.totalReceived.toFixed(6)],
-        ['Average Transaction (ETH)', analytics.averageTransaction.toFixed(6)],
+        ['Total Sent (APT)', analytics.totalSent.toFixed(6)],
+        ['Total Received (APT)', analytics.totalReceived.toFixed(6)],
+        ['Average Transaction (APT)', analytics.averageTransaction.toFixed(6)],
         ['Monthly Growth (%)', analytics.monthlyGrowth.toFixed(2)]
       ];
       const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
@@ -400,7 +400,7 @@ export const Analytics: React.FC = () => {
             <StatCard
               title="Total Volume"
               value={analytics.totalVolume.toFixed(4)}
-              suffix=" ETH"
+              suffix=" APT"
               icon={Wallet}
               change={analytics.monthlyGrowth}
             />
@@ -413,7 +413,7 @@ export const Analytics: React.FC = () => {
             <StatCard
               title="Average Transaction"
               value={analytics.averageTransaction.toFixed(6)}
-              suffix=" ETH"
+              suffix=" APT"
               icon={BarChart3}
             />
           </div>
@@ -423,13 +423,13 @@ export const Analytics: React.FC = () => {
             <StatCard
               title="Total Sent"
               value={analytics.totalSent.toFixed(4)}
-              suffix=" ETH"
+              suffix=" APT"
               icon={Send}
             />
             <StatCard
               title="Total Received"
               value={analytics.totalReceived.toFixed(4)}
-              suffix=" ETH"
+              suffix=" APT"
               icon={ArrowDownLeft}
             />
           </div>
@@ -454,7 +454,7 @@ export const Analytics: React.FC = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">{category.amount.toFixed(4)} ETH</p>
+                      <p className="font-medium">{category.amount.toFixed(4)} APT</p>
                       <p className="text-sm text-muted-foreground">
                         {category.percentage.toFixed(1)}%
                       </p>
@@ -482,7 +482,7 @@ export const Analytics: React.FC = () => {
                       <span className="font-mono text-sm">{addr.address}</span>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">{addr.volume} ETH</p>
+                      <p className="font-medium">{addr.volume} APT</p>
                       <p className="text-sm text-muted-foreground">
                         {addr.transactions} transactions
                       </p>
@@ -507,7 +507,7 @@ export const Analytics: React.FC = () => {
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold">{analytics.gasAnalytics.totalGasCost.toFixed(6)}</p>
-                  <p className="text-sm text-muted-foreground">Total Gas Cost (ETH)</p>
+                  <p className="text-sm text-muted-foreground">Total Gas Cost (APT)</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold">{analytics.gasAnalytics.averageGasPrice.toFixed(2)}</p>

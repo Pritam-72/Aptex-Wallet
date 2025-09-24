@@ -16,7 +16,7 @@ import * as XLSX from 'xlsx';
 import WalletInfo from '@/components/WalletInfo';
 
 // Enhanced Sidebar Link with active state support
-const EnhancedSidebarLink = ({ link }: { link: any }) => {
+const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: boolean }) => {
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (link.onClick) {
@@ -28,14 +28,16 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
     <button
       onClick={handleClick}
       className={`
-        flex items-center gap-5 w-full px-6 py-4 rounded-lg text-left
-        relative overflow-hidden
+        flex items-center w-full rounded-lg text-left
+        relative overflow-hidden transition-all duration-200
+        ${isCollapsed ? 'gap-0 px-2 py-3 justify-center' : 'gap-5 px-6 py-4'}
         ${link.isActive
           ? 'bg-primary/10 text-primary border border-primary/20 shadow-sm'
           : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
         }
         ${link.isAction ? 'border border-dashed border-border/50' : ''}
       `}
+      title={isCollapsed ? link.label : undefined}
     >
       {/* Active indicator */}
       {link.isActive && (
@@ -50,23 +52,29 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
         link.isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
       }`}>
         {link.icon}
-      </div>      {/* Label */}
-      <span className="relative z-10 text-base font-medium flex-1">
-        {link.label}
-      </span>
+      </div>
 
-      {/* Keyboard shortcut hint */}
-      {link.shortcut && (
-        <span className="relative z-10 text-xl text-muted-foreground/80 font-mono">
-          {link.shortcut}
-        </span>
-      )}
+      {/* Label - hidden when collapsed */}
+      {!isCollapsed && (
+        <>
+          <span className="relative z-10 text-base font-medium flex-1">
+            {link.label}
+          </span>
 
-      {/* Action indicator */}
-      {link.isAction && (
-        <div className="relative z-10">
-          <Plus className="h-3 w-3 text-muted-foreground/50" />
-        </div>
+          {/* Keyboard shortcut hint */}
+          {link.shortcut && (
+            <span className="relative z-10 text-xl text-muted-foreground/80 font-mono">
+              {link.shortcut}
+            </span>
+          )}
+
+          {/* Action indicator */}
+          {link.isAction && (
+            <div className="relative z-10">
+              <Plus className="h-3 w-3 text-muted-foreground/50" />
+            </div>
+          )}
+        </>
       )}
     </button>
   );
@@ -88,7 +96,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
   const [showReceiveQR, setShowReceiveQR] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [address, setAddress] = useState('');
-  const [balance, setBalance] = useState('0.00 ETH');
+  const [balance, setBalance] = useState('0.00 APT');
 
   // Single wallet dashboard for all users
 
@@ -190,7 +198,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
   const handleDisconnect = () => {
     setIsConnected(false);
     setAddress('');
-    setBalance('0.00 ETH');
+    setBalance('0.00 APT');
     setShowWalletConnect(true);
   };
 
@@ -198,7 +206,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
     // Mock wallet connection
     setIsConnected(true);
     setAddress('0x742d35Cc6663C0532d8c5E9C4267B53A0D7C9b1F');
-    setBalance('1.23456789 ETH');
+    setBalance('1.23456789 APT');
     setShowWalletConnect(false);
   };
 
@@ -221,7 +229,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
     if (isConnected) {
       // Mock balance refresh
       const newBalance = (parseFloat(balance) + Math.random() * 0.01).toFixed(8);
-      setBalance(newBalance + ' ETH');
+      setBalance(newBalance + ' APT');
     }
   };
 
@@ -304,7 +312,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
         'ID': transaction.id,
         'Type': transaction.type,
         'Description': transaction.description,
-        'Amount_ETH': transaction.amount,
+        'Amount_APT': transaction.amount,
         'Amount_INR': transaction.fiatAmount,
         'Status': transaction.status,
         'Time': transaction.time,
@@ -408,24 +416,30 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
           <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden ultra-minimal-scrollbar">
             {/* Logo and Brand */}
             <motion.div
-              className="flex items-center gap-3 mb-6 px-1"
+              className={`flex items-center mb-6 px-1 ${
+                sidebarOpen ? 'gap-3' : 'justify-center gap-0'
+              }`}
               transition={{ type: "spring", stiffness: 400, damping: 17 }}
             >
               <div className="h-10 w-10 bg-gradient-to-br from-primary via-primary/90 to-primary/70 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
                 <Wallet className="h-5 w-5 text-primary-foreground" />
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-xl text-foreground tracking-tight">CrypPal</span>
-                <span className="text-xs text-muted-foreground/70">Wallet</span>
-              </div>
+              {sidebarOpen && (
+                <div className="flex flex-col">
+                  <span className="font-bold text-xl text-foreground tracking-tight">CrypPal</span>
+                  <span className="text-xs text-muted-foreground/70">Wallet</span>
+                </div>
+              )}
             </motion.div>
 
             {/* Quick Stats */}
             {isConnected && (
               <motion.div
-                className="mb-4 p-3 bg-card/30 rounded-lg border border-border/30"
+                className={`mb-4 p-3 bg-card/30 rounded-lg border border-border/30 ${
+                  !sidebarOpen ? 'hidden' : ''
+                }`}
                 initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+                animate={{ opacity: sidebarOpen ? 1 : 0, y: sidebarOpen ? 0 : 20 }}
                 transition={{ delay: 0.1 }}
               >
                 <div className="text-xs text-muted-foreground mb-1">Balance</div>
@@ -436,7 +450,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
 
             <div className="mt-4 flex flex-col gap-2">
               {sidebarLinks.map((link, idx) => (
-                <EnhancedSidebarLink key={idx} link={link} />
+                <EnhancedSidebarLink key={idx} link={link} isCollapsed={!sidebarOpen} />
               ))}
             </div>
           </div>
@@ -445,17 +459,24 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
           <div className="pt-6 space-y-4">
             {isConnected ? (
               <motion.div
-                className="space-y-4"
+                className={`space-y-4 ${!sidebarOpen ? 'hidden' : ''}`}
                 initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                animate={{ opacity: sidebarOpen ? 1 : 0 }}
                 transition={{ delay: 0.2 }}
               >
+                {/* Current Wallet Display */}
                 <div className="p-3 bg-card/20 rounded-lg border border-border/30">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs text-muted-foreground">Connected</div>
-                    <div className="flex items-center gap-1">
-                      <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <span className="text-xs text-green-400">Online</span>
+                  <div className="text-xs text-muted-foreground mb-2">Current Account</div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-8 w-8 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center">
+                      <Wallet className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-foreground">Main Wallet</div>
+                      <div className="flex items-center gap-1">
+                        <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span className="text-xs text-green-400">Connected</span>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -484,44 +505,136 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
                     </div>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDisconnect}
-                  className="w-full border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                >
-                  <Lock className="h-4 w-4 mr-2" />
-                  Disconnect
-                </Button>
+                
+                {/* Account Actions */}
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowWalletConnect(true)}
+                    className="w-full border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Account
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDisconnect}
+                    className="w-full border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                  >
+                    <Lock className="h-4 w-4 mr-2" />
+                    Disconnect
+                  </Button>
+                </div>
               </motion.div>
             ) : (
-              <div className="relative">
-                <Button
-                  onClick={() => setShowWalletConnect(true)}
-                  className="w-full bg-black hover:bg-gray-900 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] border-0"
-                  size="lg"
-                >
-                  <Wallet className="h-5 w-5 mr-2" />
-                  Connect Wallet
-                </Button>
-                {/* Subtle glow effect */}
-                <div className="absolute inset-0 bg-black/20 rounded-md blur-lg -z-10 opacity-75"></div>
+              <div className={`space-y-4 ${!sidebarOpen ? 'hidden' : ''}`}>
+                {/* Current Wallet Display */}
+                <div className="p-3 bg-card/20 rounded-lg border border-border/30">
+                  <div className="text-xs text-muted-foreground mb-2">Current Account</div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center">
+                      <Wallet className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-foreground">Main Wallet</div>
+                      <div className="text-xs text-muted-foreground">Not connected</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Add Account Button */}
+                <div className="relative">
+                  <Button
+                    onClick={() => setShowWalletConnect(true)}
+                    className="w-full bg-black hover:bg-gray-900 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] border-0"
+                    size="lg"
+                  >
+                    <Plus className="h-5 w-5 mr-2" />
+                    Add Account
+                  </Button>
+                  {/* Subtle glow effect */}
+                  <div className="absolute inset-0 bg-black/20 rounded-md blur-lg -z-10 opacity-75"></div>
+                </div>
+              </div>
+            )}
+
+            {/* Collapsed state: Show minimal connection status */}
+            {!sidebarOpen && (
+              <div className="flex flex-col items-center space-y-3">
+                {isConnected ? (
+                  <div className="flex flex-col items-center space-y-2">
+                    {/* Connected wallet indicator */}
+                    <div className="relative">
+                      <div className="h-8 w-8 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center" title={`Main Wallet - Connected\nBalance: ${balance}`}>
+                        <Wallet className="h-4 w-4 text-white" />
+                      </div>
+                      <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-400 rounded-full animate-pulse border-2 border-background"></div>
+                    </div>
+                    
+                    {/* Quick actions */}
+                    <div className="flex flex-col items-center space-y-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={generateAddressQR}
+                        className="h-7 w-7 p-1 hover:bg-muted/50 rounded-lg"
+                        title="Show QR Code"
+                      >
+                        <QrCode className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowWalletConnect(true)}
+                        className="h-7 w-7 p-1 hover:bg-muted/50 rounded-lg"
+                        title="Add Account"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center space-y-2">
+                    {/* Current wallet indicator when collapsed */}
+                    <div className="h-8 w-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center" title="Main Wallet - Not connected">
+                      <Wallet className="h-4 w-4 text-white" />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowWalletConnect(true)}
+                      className="h-8 w-8 p-1 hover:bg-muted/50 rounded-lg"
+                      title="Add Account"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
             {/* User Actions */}
             <div className="pt-4 border-t border-border/30 space-y-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
-                <span>Press ⌘B to toggle sidebar</span>
-              </div>
+              {sidebarOpen && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
+                  <span>Press ⌘B to toggle sidebar</span>
+                </div>
+              )}
               <Button
                 variant="ghost"
-                size="sm"
+                size={sidebarOpen ? "sm" : "sm"}
                 onClick={handleLogout}
-                className="w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 justify-start"
+                className={`${
+                  sidebarOpen 
+                    ? 'w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 justify-start' 
+                    : 'h-8 w-8 p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 mx-auto'
+                }`}
+                title="Logout"
               >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
+                <LogOut className={`h-4 w-4 ${sidebarOpen ? 'mr-2' : ''}`} />
+                {sidebarOpen && 'Logout'}
               </Button>
             </div>
           </div>
@@ -543,13 +656,6 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
                 <Menu className="h-5 w-5" />
               </Button>
               <div className="flex flex-col">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                  <span>Dashboard</span>
-                  <span>/</span>
-                  <span className="text-foreground">
-                    {activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}
-                  </span>
-                </div>
                 <h1 className="text-2xl font-bold text-foreground">
                   {activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}
                 </h1>
@@ -633,7 +739,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
                   <div className="space-y-4">
                     <div>
                       <div className="text-3xl font-bold text-foreground">
-                        {showBalance ? (balance ? `${parseFloat(balance).toFixed(8)} ETH` : '0.00000000 ETH') : '••••••••'}
+                        {showBalance ? (balance ? `${parseFloat(balance).toFixed(8)} APT` : '0.00000000 APT') : '••••••••'}
                       </div>
                       <div className="text-muted-foreground">
                         {showBalance ? (balance ? `≈ ₹${(parseFloat(balance) * 251100).toFixed(2)}` : '≈ ₹0.00') : '••••••'}
@@ -684,7 +790,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
                   <CardContent className="flex items-center justify-center p-6">
                     <div className="text-center">
                       <Send className="h-8 w-8 mx-auto mb-2 text-primary" />
-                      <div className="font-medium text-foreground">Send ETH</div>
+                      <div className="font-medium text-foreground">Send APT</div>
                       <div className="text-sm text-muted-foreground">Transfer to others</div>
                     </div>
                   </CardContent>
@@ -749,7 +855,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
                           <div className={`font-medium text-sm ${
                             tx.type === 'sent' ? 'text-red-400' : 'text-green-400'
                           }`}>
-                            {tx.type === 'sent' ? '-' : '+'}{tx.amount} ETH
+                            {tx.type === 'sent' ? '-' : '+'}{tx.amount} APT
                           </div>
                           <div className="text-xs text-muted-foreground">{tx.fiatAmount}</div>
                         </div>
@@ -802,7 +908,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
                           <div className={`font-bold ${
                             tx.type === 'sent' ? 'text-red-400' : 'text-green-400'
                           }`}>
-                            {tx.type === 'sent' ? '-' : '+'}{tx.amount} ETH
+                            {tx.type === 'sent' ? '-' : '+'}{tx.amount} APT
                           </div>
                           <div className="text-sm text-muted-foreground">{tx.fiatAmount}</div>
                           <Badge variant={tx.status === 'completed' ? 'default' : 'secondary'} className="mt-1">
@@ -923,7 +1029,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
               </div>
               <div className="bg-card/50 border border-border/50 rounded-lg p-3 cosmic-glow">
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">TYPE</div>
-                <div className="text-sm text-foreground mt-1">Ethereum</div>
+                <div className="text-sm text-foreground mt-1">Aptos</div>
               </div>
             </div>
             {/* Copy Button */}
@@ -941,7 +1047,7 @@ const EnhancedSidebarLink = ({ link }: { link: any }) => {
                 <div>
                   <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Security Notice</div>
                   <div className="text-xs text-muted-foreground/80 mt-1">
-                    This address can receive ETH and ERC-20 tokens on Ethereum network. Always verify the network before sending funds.
+                    This address can receive APT and Aptos tokens on Aptos network. Always verify the network before sending funds.
                   </div>
                 </div>
               </div>

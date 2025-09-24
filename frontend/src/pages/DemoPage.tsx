@@ -17,7 +17,7 @@ const DemoPage = () => {
             CrypPal Wallet Integration Demo
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Experience the future of digital payments with our fully integrated Ethereum wallet system. 
+            Experience the future of digital payments with our fully integrated Aptos wallet system. 
             Secure, fast, and user-friendly cryptocurrency transactions for both users and merchants.
           </p>
         </div>
@@ -70,7 +70,7 @@ const DemoPage = () => {
             </CardHeader>
             <CardContent>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li>• Ethereum Mainnet</li>
+                <li>• Aptos Mainnet</li>
                 <li>• Sepolia Testnet</li>
                 <li>• Network auto-detection</li>
                 <li>• Custom RPC support</li>
@@ -101,7 +101,7 @@ const DemoPage = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-blue-50 rounded-lg">
                     <div className="text-sm text-gray-600">Balance</div>
-                    <div className="font-semibold">0.2500 ETH</div>
+                    <div className="font-semibold">0.2500 APT</div>
                   </div>
                   <div className="p-3 bg-green-50 rounded-lg">
                     <div className="text-sm text-gray-600">Transactions</div>
@@ -113,7 +113,7 @@ const DemoPage = () => {
                   <h4 className="font-medium">Key Features:</h4>
                   <ul className="text-sm text-gray-600 space-y-1">
                     <li>• Wallet creation & import</li>
-                    <li>• Send/receive ETH with QR codes</li>
+                    <li>• Send/receive APT with QR codes</li>
                     <li>• Transaction history with Excel export</li>
                     <li>• Portfolio tracking & analytics</li>
                     <li>• Security settings management</li>
@@ -151,7 +151,7 @@ const DemoPage = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 bg-green-50 rounded-lg">
                     <div className="text-sm text-gray-600">Revenue</div>
-                    <div className="font-semibold">1.25 ETH</div>
+                    <div className="font-semibold">1.25 APT</div>
                   </div>
                   <div className="p-3 bg-blue-50 rounded-lg">
                     <div className="text-sm text-gray-600">Customers</div>
@@ -215,8 +215,8 @@ const DemoPage = () => {
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                   <span className="text-purple-600 font-bold">Ξ</span>
                 </div>
-                <h4 className="font-medium">Ethers.js</h4>
-                <p className="text-sm text-gray-600">Ethereum interaction</p>
+                <h4 className="font-medium">Aptos SDK</h4>
+                <p className="text-sm text-gray-600">Aptos interaction</p>
               </div>
               
               <div className="text-center">

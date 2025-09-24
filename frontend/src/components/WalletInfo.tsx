@@ -33,8 +33,8 @@ const WalletInfo: React.FC<WalletInfoProps> = ({
   };
 
   const formatBalance = (bal?: string) => {
-    if (!bal) return '0.00000000 ETH';
-    return `${parseFloat(bal).toFixed(8)} ETH`;
+    if (!bal) return '0.00000000 APT';
+    return `${parseFloat(bal).toFixed(8)} APT`;
   };
 
   const formatFiatValue = (bal?: string) => {

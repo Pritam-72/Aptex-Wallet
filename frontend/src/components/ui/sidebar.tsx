@@ -94,10 +94,11 @@ export const DesktopSidebar = ({
   const { user } = useAuth();
   // Helper to get initials
   const getInitials = () => {
-    const name = user?.user_metadata?.full_name || user?.email || '';
+    const userData = user as any;
+    const name = userData?.user_metadata?.full_name || user?.email || '';
     return name
       .split(' ')
-      .map((n) => n[0])
+      .map((n: string) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2);
@@ -105,17 +106,17 @@ export const DesktopSidebar = ({
   return (
     <motion.div
       className={cn(
-        "fixed top-0 left-0 h-screen w-[300px] py-4 hidden md:flex md:flex-col bg-card border-r border-border flex-shrink-0 z-40",
+        "fixed top-0 left-0 h-screen py-4 hidden md:flex md:flex-col bg-card border-r border-border flex-shrink-0 z-40",
         "transition-shadow duration-300 ease-out",
         open ? "shadow-sm" : "shadow-md",
         className
       )}
       animate={{
-        width: animate ? (open ? "300px" : "60px") : "300px",
+        width: animate ? (open ? "300px" : "80px") : "300px",
       }}
       transition={{
-        duration: 0.3,
-        ease: [0.25, 0.46, 0.45, 0.94], // Custom easing for smoother animation
+        duration: 0.4,
+        ease: [0.23, 1, 0.32, 1], // Enhanced easing for smoother animation
       }}
       {...props}
     >
@@ -134,7 +135,7 @@ export const DesktopSidebar = ({
         {!open && (
           <div className="mt-auto flex justify-center pb-2">
             <Avatar className="h-10 w-10 border-2 border-primary/40">
-              <AvatarImage src={user?.user_metadata?.avatar_url} alt={user?.user_metadata?.full_name || user?.email || 'User'} />
+              <AvatarImage src={(user as any)?.user_metadata?.avatar_url} alt={(user as any)?.user_metadata?.full_name || user?.email || 'User'} />
               <AvatarFallback className="bg-primary text-primary-foreground text-lg font-semibold">
                 {getInitials()}
               </AvatarFallback>

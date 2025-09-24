@@ -312,7 +312,7 @@ export const UserSettings: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-medium">Price Alerts</h4>
-                <p className="text-sm text-muted-foreground">ETH price changes and market updates</p>
+                <p className="text-sm text-muted-foreground">APT price changes and market updates</p>
               </div>
               <Switch 
                 checked={notifications.priceAlerts} 
