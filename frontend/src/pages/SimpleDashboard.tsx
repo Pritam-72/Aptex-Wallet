@@ -340,6 +340,12 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
     setShowReceiveQR(true);
   };
 
+  const handleRequestMoney = () => {
+    // For now, we'll just show the receive QR (same as receive)
+    // In the future, this could open a request money modal or form
+    setShowReceiveQR(true);
+  };
+
   const handleSectionChange = (section: string) => {
     setActiveSection(section);
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -538,13 +544,14 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
                 <WalletSection
                   balance={balance}
                   showBalance={showBalance}
-                  currentAccount={currentAccount}
+                  currentAccount={currentAccount?.address || null}
                   transactions={transactions}
                   onToggleBalance={() => setShowBalance(!showBalance)}
                   onSendTransaction={() => setShowSendTransaction(true)}
+                  onRequestMoney={handleRequestMoney}
                   onShowReceiveQR={generateAddressQR}
                   onViewTransactions={() => handleSectionChange('transactions')}
-                  onCopyAddress={copyToClipboard}
+                  onCopyAddress={() => copyToClipboard(currentAccount?.address || '')}
                 />
               )}
 

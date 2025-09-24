@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Wallet, EyeOff, Eye, Copy, Send, QrCode, ArrowUpDown, History } from 'lucide-react';
+import { Wallet, EyeOff, Eye, Copy, Send, QrCode, ArrowUpDown, History, HandCoins } from 'lucide-react';
 
 interface Transaction {
   version: string;
@@ -13,13 +13,14 @@ interface Transaction {
 }
 
 interface WalletSectionProps {
-  currentAccount: any;
+  currentAccount: string | null;
   balance: string;
   showBalance: boolean;
   transactions: Transaction[];
   onToggleBalance: () => void;
-  onCopyAddress: (address: string) => void;
+  onCopyAddress: () => void;
   onSendTransaction: () => void;
+  onRequestMoney: () => void;
   onShowReceiveQR: () => void;
   onViewTransactions: () => void;
 }
@@ -32,8 +33,9 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
   onToggleBalance,
   onCopyAddress,
   onSendTransaction,
+  onRequestMoney,
   onShowReceiveQR,
-  onViewTransactions
+  onViewTransactions,
 }) => {
   return (
     <div className="space-y-6">
@@ -66,30 +68,38 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
               </div>
             </div>
             
-            {currentAccount?.address && (
+            {currentAccount && (
               <div className="bg-muted/20 backdrop-blur-sm rounded-lg p-4 space-y-2 border border-border/30">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-foreground">Address</span>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onCopyAddress(currentAccount.address)}
+                    onClick={() => onCopyAddress()}
                     className="h-6 w-6 p-0 hover:bg-muted/50"
                   >
                     <Copy className="h-3 w-3" />
                   </Button>
                 </div>
-                <div className="font-mono text-sm text-muted-foreground break-all">{currentAccount.address}</div>
+                <div className="font-mono text-sm text-muted-foreground break-all">{currentAccount}</div>
               </div>
             )}
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <Button 
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground cosmic-glow" 
                 onClick={onSendTransaction}
               >
                 <Send className="h-4 w-4 mr-2" />
                 Send
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full border-border hover:bg-muted/50 cosmic-glow" 
+                onClick={onRequestMoney}
+              >
+                <HandCoins className="h-4 w-4 mr-2" />
+                Request
               </Button>
               <Button 
                 variant="outline" 
