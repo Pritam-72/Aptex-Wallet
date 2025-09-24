@@ -126,8 +126,8 @@ const HowItWorksSection = () => {
           </div>
           
           <h2 className="text-3xl md:text-5xl lg:text-6xl font-medium tracking-tighter text-foreground mb-6">
-            Your Smart Wallet
-            <span className="text-primary block">Journey Starts Here</span>
+            <span className="text-cyan-200">Your Smart Wallet</span>
+            <span className="text-white block">Journey Starts Here</span>
           </h2>
           
           <p className="hidden md:block text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-balance">
