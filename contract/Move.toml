@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-aptos_contract = "0x1"
+aptos_contract = "9c2fe13427bfa2d51671cdc2c04b4915ed4ef81709ccd8cd31c1150769596d2c"
 
 [dev-addresses]
 
