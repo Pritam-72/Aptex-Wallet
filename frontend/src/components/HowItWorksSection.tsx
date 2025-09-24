@@ -121,7 +121,7 @@ const HowItWorksSection = () => {
             <span className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-[8px] sm:text-[10px] font-medium rounded-full bg-background/80 backdrop-blur text-white border border-border">
               <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
               Simple Process
-              <ArrowRight className="h-2.5 w-2.5 text-primary" />
+              <ArrowRight className="h-2.5 w-2.5 text-cyan-200/90" />
             </span>
           </div>
           
@@ -153,7 +153,7 @@ const HowItWorksSection = () => {
                         {/* Step Number and Icon */}
                         <div className="flex items-center gap-4 mb-2">
                           <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                            <IconComponent className="h-6 w-6 text-primary" />
+                            <IconComponent className="h-6 w-6 text-cyan-200/90" />
                           </div>
                           <span className="text-2xl font-bold text-primary/60">{step.number}</span>
                         </div>
@@ -168,7 +168,7 @@ const HowItWorksSection = () => {
                           <div className="space-y-2">
                             {step.features.map((feature, featureIndex) => (
                               <div key={featureIndex} className="flex items-center gap-2">
-                                <CheckCircle className="h-3 w-3 text-primary flex-shrink-0" />
+                                <CheckCircle className="h-3 w-3 text-cyan-200/90 flex-shrink-0" />
                                 <span className="text-xs text-muted-foreground">{feature}</span>
                               </div>
                             ))}
@@ -223,7 +223,7 @@ const HowItWorksSection = () => {
                     {/* Step Number and Icon */}
                     <div className="flex items-center gap-4 mb-2">
                       <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                        <IconComponent className="h-6 w-6 text-primary" />
+                        <IconComponent className="h-6 w-6 text-cyan-200/90" />
                       </div>
                       <span className="text-2xl font-bold text-primary/60">{step.number}</span>
                     </div>
@@ -238,7 +238,7 @@ const HowItWorksSection = () => {
                       <div className="space-y-2">
                         {step.features.map((feature, featureIndex) => (
                           <div key={featureIndex} className="flex items-center gap-2">
-                            <CheckCircle className="h-3 w-3 text-primary flex-shrink-0" />
+                            <CheckCircle className="h-3 w-3 text-cyan-200/90 flex-shrink-0" />
                             <span className="text-xs text-muted-foreground">{feature}</span>
                           </div>
                         ))}
@@ -257,11 +257,11 @@ const HowItWorksSection = () => {
             <div className="flex justify-center mb-6">
               <div className="flex items-center gap-4">
                 <div className="h-16 w-16 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <QrCode className="h-8 w-8 text-primary" />
+                  <QrCode className="h-8 w-8 text-cyan-200/90" />
                 </div>
                 <ArrowRight className="h-6 w-6 text-muted-foreground" />
                 <div className="h-16 w-16 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <CreditCard className="h-8 w-8 text-primary" />
+                  <CreditCard className="h-8 w-8 text-cyan-200/90" />
                 </div>
               </div>
             </div>

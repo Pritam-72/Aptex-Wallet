@@ -277,7 +277,7 @@ export const Analytics: React.FC = () => {
       const weeklySheet = XLSX.utils.json_to_sheet(analytics.weeklyActivity);
       XLSX.utils.book_append_sheet(workbook, weeklySheet, 'Weekly Activity');
 
-      const filename = `cryppal-analytics-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      const filename = `aptex-wallet-analytics-${timeRange}-${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(workbook, filename);
     } catch (error) {
       console.error('Export failed:', error);

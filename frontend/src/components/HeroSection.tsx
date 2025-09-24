@@ -20,6 +20,7 @@ function useIsDesktop() {
 const HeroSection = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [showRedirectNotice, setShowRedirectNotice] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const { user } = useAuth();
   const navigate = useNavigate();
   const isDesktop = useIsDesktop();
@@ -29,38 +30,18 @@ const HeroSection = () => {
       setIsVisible(true);
     }, 300);
 
-    return () => clearTimeout(timer);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
-  // Initialize UnicornStudio with exact implementation from their docs
-  useEffect(() => {
-    // Exact implementation from UnicornStudio docs
-    if (!(window as any).UnicornStudio) {
-      (window as any).UnicornStudio = { isInitialized: false };
-      
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v1.4.31/dist/unicornStudio.umd.js";
-      
-      script.onload = function() {
-        if (!(window as any).UnicornStudio.isInitialized) {
-          (window as any).UnicornStudio.init();
-          (window as any).UnicornStudio.isInitialized = true;
-          console.log('UnicornStudio loaded and initialized');
-        }
-      };
-      
-      (document.head || document.body).appendChild(script);
-    } else if (!(window as any).UnicornStudio.isInitialized) {
-      // If UnicornStudio exists but not initialized
-      try {
-        (window as any).UnicornStudio.init();
-        (window as any).UnicornStudio.isInitialized = true;
-        console.log('UnicornStudio re-initialized');
-      } catch (error) {
-        console.error('Error initializing UnicornStudio:', error);
-      }
-    }
-  }, []);
+  // Video background - no additional initialization needed
 
   // Show redirect notice for logged-in users after 3 seconds
   useEffect(() => {
@@ -79,42 +60,59 @@ const HeroSection = () => {
   };
 
   return (
-    <section className="relative w-full pt-4 sm:pt-8 md:pt-12 pb-16 sm:pb-24 md:pb-32 px-10 flex flex-col items-center justify-center overflow-hidden bg-background mt-14 sm:mt-17 md:mt-21">
-      {/* Rounded Container with Black Background - Fixed 16:9 Aspect Ratio */}
+    <section className="relative w-full pt-8 sm:pt-4 md:pt-8 lg:pt-12 pb-8 sm:pb-16 md:pb-24 lg:pb-32 px-4 sm:px-6 md:px-10 flex flex-col items-center justify-center overflow-hidden bg-background mt-16 sm:mt-14 md:mt-17 lg:mt-21">
+      {/* Rounded Container with Black Background - Responsive Aspect Ratio */}
       <div 
-        className="relative w-full bg-black rounded-3xl overflow-hidden"
+        className="relative w-full bg-black rounded-2xl sm:rounded-3xl overflow-hidden"
         style={{
-          aspectRatio: '16/9',
+          aspectRatio: isMobile ? '2/3' : '16/12',
           maxWidth: '100%',
-          height: 'auto'
+          height: 'auto',
+          minHeight: isMobile ? '800px' : '700px'
         }}
       >
-        {/* UnicornStudio 3D Background */}
+        {/* Background - Video for Desktop, Gradient for Mobile */}
         <div 
-          className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
+          className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl"
           style={{ 
-            opacity: 0.8,
             pointerEvents: 'none'
           }}
         >
-          <div 
-            data-us-project="hXMrWxpuGilKPHMEOelf" 
-            style={{
-              width: '100%', 
-              height: '100%',
-              minWidth: '1920px',
-              minHeight: '1080px',
-              transform: 'scale(1)',
-              transformOrigin: 'center center'
-            }}
-          />
+          {isMobile ? (
+            // Mobile: Deep blue gradient background
+            <div 
+              className="absolute inset-0 w-full h-full"
+              style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 20%, #334155 40%, #1e40af 60%, #1e3a8a 80%, #0f172a 100%)',
+                opacity: 0.95
+              }}
+            />
+          ) : (
+            // Desktop: Video background
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                minWidth: '100%',
+                minHeight: '100%',
+                opacity: 0.8
+              }}
+            >
+              <source src="/BG.webm" type="video/webm" />
+              Your browser does not support the video tag.
+            </video>
+          )}
         </div>
         
         {/* Subtle background effects for layering */}
         <div className="absolute inset-0 cosmic-grid opacity-5 z-10"></div>
         
         {/* Container Content */}
-        <div className="absolute inset-0 z-20 px-4 sm:px-6 md:px-12 py-8 sm:py-12 md:py-16 flex flex-col items-center justify-center">
+        <div className="absolute inset-0 z-20 px-4 sm:px-4 md:px-6 lg:px-12 py-8 sm:py-8 md:py-12 lg:py-16 flex flex-col items-center justify-center">
           {/* Redirect Notice for Logged-in Users */}
           {showRedirectNotice && user && (
             <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-background border border-border rounded-lg shadow-lg p-4 max-w-sm mx-4">
@@ -153,10 +151,10 @@ const HeroSection = () => {
           )}
           
           {/* Hero Content */}
-          <div className={`relative z-20 max-w-5xl text-center space-y-6 transition-all duration-700 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+          <div className={`relative z-20 max-w-sm sm:max-w-2xl md:max-w-4xl lg:max-w-5xl text-center space-y-5 sm:space-y-6 transition-all duration-700 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
         {/* Status Badge */}
         <div className="flex justify-center">
-          <span className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-[8px] sm:text-[10px] font-medium rounded-full bg-muted text-white">
+          <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-[9px] sm:text-[10px] font-medium rounded-full bg-muted text-white">
             <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
             <span className="hidden sm:inline">Smart Wallet with EMI & NFT Integration</span>
             <span className="sm:hidden">Smart Wallet Innovation</span>
@@ -165,26 +163,26 @@ const HeroSection = () => {
         </div>
 
         {/* Main Headline */}
-        <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-medium tracking-tighter text-white leading-none">
-          <span className="text-cyan-200">Aptos Wallet</span>
-          <span className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl block mt-1 sm:mt-2 text-white">
-            <span className="block sm:inline">EMI, NFT &</span>
-            <span className="block sm:inline sm:ml-2">INR Integration</span>
+        <h1 className="text-3xl xs:text-4xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-medium tracking-tighter text-white leading-tight sm:leading-none px-1 sm:px-0">
+          <span className="text-cyan-200 block sm:inline">Aptex Wallet</span>
+          <span className="text-2xl xs:text-3xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl block mt-2 sm:mt-2 text-white">
+            <span className="block">EMI, NFT &</span>
+            <span className="block">INR Integration</span>
           </span>
         </h1>
 
         {/* Subheading */}
-        <p className="text-base sm:text-lg md:text-xl text-white max-w-2xl sm:max-w-3xl mx-auto text-balance leading-relaxed px-2 sm:px-0">
-          We're building a smart wallet on Aptos that makes money move like messages. 
-          <span className="hidden sm:inline"> With UPI-crypto bridging, EMI options, and NFT-backed loyalty, it's the first wallet to blend DeFi + RWA + Indian payments in one place.</span>
+        <p className="text-base xs:text-lg sm:text-lg md:text-xl text-white/90 max-w-sm sm:max-w-2xl md:max-w-3xl mx-auto text-balance leading-relaxed px-2 sm:px-2 md:px-0">
+          <span className="sm:hidden block">Crypto-UPI bridge with EMI & NFT rewards.</span>
+          <span className="hidden sm:inline">We're building a smart wallet on Aptos that makes money move like messages. With UPI-crypto bridging, EMI options, and NFT-backed loyalty, it's the first wallet to blend <span className="text-cyan-200">DeFi + RWA + Global payments</span> in one place.</span>
         </p>
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8 items-center">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center pt-6 sm:pt-8 items-center w-full max-w-sm sm:max-w-none">
           {user ? (
             // Show dashboard button for logged-in users
             <Button 
-              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full text-sm font-medium h-11 px-7 flex items-center justify-center space-x-1.5"
+              className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 rounded-full text-sm font-medium h-11 px-6 sm:px-7 flex items-center justify-center space-x-1.5"
               onClick={() => navigate(getDashboardRoute())}
             >
               <Wallet className="h-4 w-4 mr-1" />
@@ -194,14 +192,14 @@ const HeroSection = () => {
           ) : (
             <>
               <Button
-                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full text-sm font-medium h-11 px-7 flex items-center justify-center mr-2"
+                className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 rounded-full text-sm font-medium h-11 px-6 sm:px-7 flex items-center justify-center sm:mr-2"
                 onClick={() => window.location.href = '/auth'}
               >
                 Get Started <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
               <Button 
                 variant="outline" 
-                className="bg-black border-gray-700 text-white hover:bg-gray-900 rounded-full text-sm font-medium h-11 px-7 flex items-center justify-center"
+                className="w-full sm:w-auto bg-black border-gray-700 text-white hover:bg-gray-900 rounded-full text-sm font-medium h-11 px-6 sm:px-7 flex items-center justify-center"
                 onClick={() => window.location.href = '/about'}
               >
                 Learn More
@@ -211,18 +209,19 @@ const HeroSection = () => {
         </div>
 
         {/* Trust Indicator */}
-        <div className="pt-6 text-xs sm:text-sm text-white/80 text-center">
+        <div className="pt-4 sm:pt-6 text-xs sm:text-sm text-white/80 text-center px-4">
           <span className="block sm:inline">Built on Aptos blockchain</span>
           <span className="hidden sm:inline"> • </span>
           <span className="block sm:inline">Smart contract security</span>
           <span className="hidden sm:inline"> • </span>
-            <span className="block sm:inline">UPI integration ready</span>
-          </div>
+          <span className="block sm:inline">UPI integration ready</span>
+        </div>
           </div>
 
-          {/* Feature Cards */}
-          <div className={`w-full max-w-7xl mt-12 sm:mt-16 md:mt-20 z-20 relative transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-20'}`}>
-            <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12 justify-center items-center px-2 sm:px-4">
+          {/* Feature Cards - Desktop Only */}
+          {!isMobile && (
+          <div className={`w-full max-w-7xl mt-10 sm:mt-12 md:mt-16 lg:mt-20 z-20 relative transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-20'}`}>
+            <div className="flex flex-col lg:flex-row gap-6 sm:gap-6 md:gap-8 lg:gap-12 justify-center items-center px-4 sm:px-4">
           {isDesktop ? (
             <>
               {/* Individual Solutions Card (3D) */}
@@ -290,29 +289,38 @@ const HeroSection = () => {
           ) : (
             <>
               {/* Minimal Individual Card */}
-              <div className="w-full max-w-xs bg-black/60 backdrop-blur-sm border border-white/20 rounded-xl p-5 flex flex-col items-start gap-4 shadow-sm">
+              <div className="w-full max-w-sm bg-slate-800/70 backdrop-blur-sm border border-slate-600/30 rounded-2xl p-6 flex flex-col items-start gap-4 shadow-lg">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center">
-                    <Users className="h-5 w-5 text-white" />
+                  <div className="h-12 w-12 rounded-xl bg-blue-600/20 flex items-center justify-center">
+                    <Users className="h-6 w-6 text-blue-400" />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-white">For Individuals</h3>
-                    <p className="text-xs text-white/70">EMI, NFT & INR Integration</p>
+                    <h3 className="text-lg font-semibold text-white">For Individuals</h3>
+                    <p className="text-sm text-slate-300">EMI, NFT & INR Integration</p>
                   </div>
                 </div>
-                <div className="text-sm text-white font-medium">Buy with EMI in APT tokens, collect NFTs, see INR values.</div>
+                <div className="text-sm text-slate-200 font-medium leading-relaxed">Buy with EMI in APT tokens, collect NFTs, see INR values.</div>
                 {/* Feature List */}
-                <ul className="mt-2 space-y-2 w-full">
-                  <li className="flex items-center gap-2 text-xs text-white/80"><Shield className="h-4 w-4" /> Monthly EMI in APT tokens</li>
-                  <li className="flex items-center gap-2 text-xs text-white/80"><Zap className="h-4 w-4" /> NFT collectibles & rewards</li>
-                  <li className="flex items-center gap-2 text-xs text-white/80"><Users className="h-4 w-4" /> UPI-APT bridging</li>
+                <ul className="mt-2 space-y-3 w-full">
+                  <li className="flex items-center gap-3 text-sm text-slate-200">
+                    <Shield className="h-4 w-4 text-blue-400 flex-shrink-0" /> 
+                    Monthly EMI in APT tokens
+                  </li>
+                  <li className="flex items-center gap-3 text-sm text-slate-200">
+                    <Zap className="h-4 w-4 text-blue-400 flex-shrink-0" /> 
+                    NFT collectibles & rewards
+                  </li>
+                  <li className="flex items-center gap-3 text-sm text-slate-200">
+                    <Users className="h-4 w-4 text-blue-400 flex-shrink-0" /> 
+                    UPI-APT bridging
+                  </li>
                 </ul>
                 <Button
                   size="sm"
-                  className="w-full bg-primary text-primary-foreground rounded-lg mt-2"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl mt-3 h-11"
                   onClick={() => window.location.href = '/user'}
                 >
-                  Get Started <ArrowRight className="ml-1 h-4 w-4" />
+                  Get Started <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
 
@@ -320,6 +328,7 @@ const HeroSection = () => {
             )}
             </div>
           </div>
+          )}
         </div>
       </div>
     </section>

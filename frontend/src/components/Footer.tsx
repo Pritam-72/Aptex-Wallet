@@ -39,7 +39,7 @@ const Footer = () => {
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
               <Logo />
-              <span className="text-xl font-semibold text-foreground">CrypPal</span>
+              <span className="text-xl font-semibold text-foreground">Aptex wallet</span>
             </div>
             <p className="text-muted-foreground text-sm max-w-xs">
               Secure, instant cryptocurrency payments for businesses and individuals worldwide.
@@ -72,7 +72,7 @@ const Footer = () => {
             <div className="space-y-2 text-sm text-muted-foreground">
               <div className="flex items-center space-x-2">
                 <Mail className="h-4 w-4 text-primary" />
-                <span>support@cryppal.com</span>
+                <span>support@aptexwallet.com</span>
               </div>
               <div className="flex items-center space-x-2">
                 <MapPin className="h-4 w-4 text-primary" />
@@ -99,7 +99,7 @@ const Footer = () => {
         {/* Bottom Bar */}
         <div className="flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
           <div className="text-sm text-muted-foreground">
-            © {currentYear} CrypPal. All rights reserved.
+            © {currentYear} Aptex wallet. All rights reserved.
           </div>
           <div className="flex items-center space-x-1 text-sm text-muted-foreground">
             <span>Made with</span>

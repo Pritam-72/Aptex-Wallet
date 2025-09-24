@@ -148,7 +148,7 @@ const SupabaseAuthPage = () => {
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Welcome to CrypPal
+            Welcome to Aptex wallet
           </h1>
           <p className="text-muted-foreground">
             {isIndividual
