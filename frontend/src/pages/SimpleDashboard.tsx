@@ -234,7 +234,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
         {/* Center logo */}
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="bg-orange-500 p-2 rounded">
-            <Wallet className="h-6 w-6 text-white" />
+            <img src="/logo.png" alt="Aptex Wallet Logo" className="h-6 w-6 object-contain" />
           </div>
         </div>
       </div>
@@ -337,7 +337,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
               transition={{ type: "spring", stiffness: 400, damping: 17 }}
             >
               <div className="h-10 w-10 bg-gradient-to-br from-primary via-primary/90 to-primary/70 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-                <Wallet className="h-5 w-5 text-primary-foreground" />
+                <img src="/logo.png" alt="Aptex Wallet Logo" className="h-5 w-5 object-contain" />
               </div>
               {sidebarOpen && (
                 <div className="flex flex-col">

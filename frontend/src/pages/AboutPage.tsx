@@ -33,12 +33,7 @@ const AboutPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const stats = [
-    { label: 'Users Served', value: '10K+', icon: Users },
-    { label: 'Transactions', value: '1M+', icon: Zap },
-    { label: 'Countries', value: '15+', icon: Globe },
-    { label: 'Uptime', value: '99.9%', icon: Shield }
-  ];
+
 
   const teamValues = [
     {
@@ -121,24 +116,7 @@ const AboutPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-16 px-4 sm:px-6 md:px-12 bg-black/50">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center">
-                <div className="flex justify-center mb-4">
-                  <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
-                    <stat.icon className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
-                <div className="text-2xl md:text-3xl font-bold text-white mb-2">{stat.value}</div>
-                <div className="text-sm text-gray-400">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+
 
       {/* Mission Section */}
       <section className="py-20 px-4 sm:px-6 md:px-12">

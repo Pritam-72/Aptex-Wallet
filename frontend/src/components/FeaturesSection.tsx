@@ -132,7 +132,7 @@ const FeaturesSection = () => {
             <span className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-[8px] sm:text-[10px] font-medium rounded-full bg-muted text-white">
               <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
               Core Differentiators
-              <Zap className="h-2.5 w-2.5 text-primary" />
+              <Zap className="h-2.5 w-2.5 text-cyan-200/90" />
             </span>
           </div>
           <h2 className="text-3xl md:text-5xl lg:text-6xl font-medium tracking-tighter text-foreground mb-6">
@@ -159,7 +159,7 @@ const FeaturesSection = () => {
                     >
                       <GridPatternCardBody className="space-y-4">
                         <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                          <IconComponent className="h-6 w-6 text-primary" />
+                          <IconComponent className="h-6 w-6 text-cyan-200/90" />
                         </div>
                         <div>
                           <h3 className="text-lg font-semibold text-foreground mb-2">
@@ -208,7 +208,7 @@ const FeaturesSection = () => {
               >
                 <GridPatternCardBody className="space-y-4">
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                    <IconComponent className="h-6 w-6 text-primary" />
+                    <IconComponent className="h-6 w-6 text-cyan-200/90" />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-foreground mb-2">
@@ -226,7 +226,7 @@ const FeaturesSection = () => {
         {/* Bottom CTA */}
         <div className={`text-center mt-16 transition-all duration-700 delay-1000 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <p className="text-sm text-muted-foreground">
-            Ready to revolutionize your payment experience? • Join thousands of satisfied users • Get started in minutes
+            Ready to revolutionize your payment experience? • Get started in minutes
           </p>
         </div>
       </div>
