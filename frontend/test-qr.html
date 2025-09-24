@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+</head>
+<body>
+    <h1>Test QR Code Generator</h1>
+    <div>
+        <button onclick="generateTestQR()">Generate Test QR Code</button>
+        <button onclick="generateWalletQR()">Generate Wallet Address QR</button>
+    </div>
+    <div id="qr-container" style="margin: 20px 0;"></div>
+    <div>
+        <p>Test Address: <code id="test-address">0x1234567890abcdef1234567890abcdef12345678</code></p>
+        <p>Right-click the QR code and save it to test the upload functionality.</p>
+    </div>
+
+    <script>
+        function generateTestQR() {
+            const testData = "0x1234567890abcdef1234567890abcdef12345678";
+            document.getElementById('test-address').textContent = testData;
+            
+            QRCode.toCanvas(testData, { width: 200 }, function (error, canvas) {
+                if (error) {
+                    console.error(error);
+                    return;
+                }
+                
+                const container = document.getElementById('qr-container');
+                container.innerHTML = '';
+                container.appendChild(canvas);
+                
+                console.log('Test QR code generated for:', testData);
+            });
+        }
+
+        function generateWalletQR() {
+            const walletAddress = "0xabcdef1234567890abcdef1234567890abcdef12";
+            document.getElementById('test-address').textContent = walletAddress;
+            
+            QRCode.toCanvas(walletAddress, { width: 200, margin: 2 }, function (error, canvas) {
+                if (error) {
+                    console.error(error);
+                    return;
+                }
+                
+                const container = document.getElementById('qr-container');
+                container.innerHTML = '';
+                container.appendChild(canvas);
+                
+                console.log('Wallet QR code generated for:', walletAddress);
+            });
+        }
+
+        // Generate a test QR on page load
+        window.onload = function() {
+            generateTestQR();
+        };
+    </script>
+</body>
+</html>
