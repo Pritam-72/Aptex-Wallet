@@ -27,6 +27,14 @@ import {
   Zap
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import {
+  generateAptosWallet,
+  importWalletFromMnemonic,
+  importWalletFromPrivateKey,
+  getWalletBalance,
+  fundAccountWithDevnetAPT,
+  isValidMnemonic
+} from '../utils/aptosWalletUtils';
 
 interface WalletOnboardingProps {
   onComplete: (walletData: any) => void;
@@ -75,45 +83,42 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
     'Complete Setup'
   ].filter(Boolean);
 
-  // Generate mock wallet (replace with actual Aptos wallet generation)
+  // Real Aptos wallet generation using SDK
   const generateWallet = async (): Promise<WalletData> => {
-    const words = [
-      'abandon', 'abandon', 'abandon', 'abandon', 'abandon', 'abandon',
-      'abandon', 'abandon', 'abandon', 'abandon', 'abandon', 'about'
-    ];
-    
-    // Simulate wallet generation delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    return {
-      address: `0x${Math.random().toString(16).substr(2, 40)}`,
-      mnemonic: words.join(' '),
-      privateKey: `0x${Math.random().toString(16).substr(2, 64)}`,
-      publicKey: `0x${Math.random().toString(16).substr(2, 64)}`
-    };
+    try {
+      const walletData = await generateAptosWallet();
+      
+      // Fund the new account with devnet APT
+      const funded = await fundAccountWithDevnetAPT(walletData.address);
+      if (funded) {
+        console.log('Account funded with devnet APT');
+        toast({
+          title: "Wallet Funded",
+          description: "Your new wallet has been funded with 1 APT from the devnet faucet!"
+        });
+      }
+      
+      return walletData;
+    } catch (error) {
+      console.error('Error generating wallet:', error);
+      throw new Error('Failed to generate wallet');
+    }
   };
 
-  // Import wallet from mnemonic or private key
+  // Real Aptos wallet import using SDK
   const importWallet = async (seedPhrase?: string, privateKey?: string): Promise<WalletData> => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (seedPhrase) {
-      return {
-        address: `0x${Math.random().toString(16).substr(2, 40)}`,
-        mnemonic: seedPhrase,
-        privateKey: `0x${Math.random().toString(16).substr(2, 64)}`,
-        publicKey: `0x${Math.random().toString(16).substr(2, 64)}`
-      };
-    } else if (privateKey) {
-      return {
-        address: `0x${Math.random().toString(16).substr(2, 40)}`,
-        mnemonic: '',
-        privateKey: privateKey,
-        publicKey: `0x${Math.random().toString(16).substr(2, 64)}`
-      };
+    try {
+      if (seedPhrase) {
+        return await importWalletFromMnemonic(seedPhrase);
+      } else if (privateKey) {
+        return await importWalletFromPrivateKey(privateKey);
+      }
+      
+      throw new Error('Invalid import data');
+    } catch (error) {
+      console.error('Error importing wallet:', error);
+      throw error;
     }
-    
-    throw new Error('Invalid import data');
   };
 
   const handleCreateWallet = async () => {
@@ -140,11 +145,18 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
       let wallet: WalletData;
       
       if (importType === 'mnemonic' && importMnemonic.trim()) {
-        const words = importMnemonic.trim().split(/\s+/);
+        const cleanMnemonic = importMnemonic.trim();
+        const words = cleanMnemonic.split(/\s+/);
+        
         if (words.length !== 12 && words.length !== 24) {
           throw new Error('Mnemonic must be 12 or 24 words');
         }
-        wallet = await importWallet(importMnemonic.trim());
+        
+        if (!isValidMnemonic(cleanMnemonic)) {
+          throw new Error('Invalid mnemonic phrase. Please check your seed phrase.');
+        }
+        
+        wallet = await importWallet(cleanMnemonic);
       } else if (importType === 'privateKey' && importPrivateKey.trim()) {
         if (!importPrivateKey.startsWith('0x') || importPrivateKey.length !== 66) {
           throw new Error('Invalid private key format');
@@ -749,7 +761,8 @@ const WalletOnboarding: React.FC<WalletOnboardingProps> = ({ onComplete }) => {
           <Alert className="bg-secondary/30 border-border/30">
             <Shield className="h-4 w-4 text-muted-foreground" />
             <AlertDescription className="text-muted-foreground">
-              Your wallet is encrypted and stored securely on this device
+              Your wallet is encrypted and stored securely on this device. 
+              {onboardingType === 'create' && ' It has been connected to Aptos Devnet and funded with 1 APT for testing.'}
             </AlertDescription>
           </Alert>
         </div>

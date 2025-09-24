@@ -11,6 +11,7 @@ import AboutPage from "./pages/AboutPage";
 import UserPage from "./pages/UserPage";
 import SimpleDashboard from "./pages/SimpleDashboard";
 import WalletAuthPage from "./pages/WalletAuthPage";
+import AptosTestComponent from "./components/AptosTestComponent";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "./components/ui/button";
@@ -110,6 +111,8 @@ const AppContent = () => {
         <Route path="/home" element={<LandingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/market" element={<Index />} />
+        {/* Aptos Test Component */}
+        <Route path="/test-aptos" element={<AptosTestComponent />} />
         {/* Make /user public route */}
         <Route path="/user" element={<UserPage />} />
         {/* Auth routes */}
