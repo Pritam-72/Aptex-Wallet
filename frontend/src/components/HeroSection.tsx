@@ -5,7 +5,6 @@ import { PinContainer } from '@/components/ui/3d-pin';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import AnimatedBackground from '@/components/AnimatedBackground';
 
 // Custom hook for viewport detection
 function useIsDesktop() {
@@ -30,6 +29,26 @@ const HeroSection = () => {
       setIsVisible(true);
     }, 300);
 
+    // Manual UnicornStudio initialization for your 3D model
+    const initUnicornStudio = () => {
+      if (window.UnicornStudio) {
+        console.log('UnicornStudio found, initializing 3D model hXMrWxpuGilKPHMEOelf...');
+        window.UnicornStudio.init()
+          .then((scenes) => {
+            console.log('UnicornStudio 3D model loaded successfully:', scenes);
+          })
+          .catch((err) => {
+            console.error('UnicornStudio 3D model error:', err);
+          });
+      } else {
+        console.log('UnicornStudio not loaded yet, retrying in 0.5s...');
+        setTimeout(initUnicornStudio, 500);
+      }
+    };
+
+    // Initialize after a delay to ensure DOM is ready
+    setTimeout(initUnicornStudio, 1500);
+
     return () => clearTimeout(timer);
   }, []);
 
@@ -51,11 +70,35 @@ const HeroSection = () => {
 
   return (
     <section className="relative w-full pt-4 sm:pt-8 md:pt-12 pb-16 sm:pb-24 md:pb-32 px-4 sm:px-6 md:px-12 flex flex-col items-center justify-center overflow-hidden bg-background mt-16 sm:mt-20 md:mt-24">
-      {/* 3D Animated Background with Unicorn Studio */}
-      <AnimatedBackground projectId="cm294jqwv1hkdml0hncxmdyvp" overlay="light" />
+      {/* Your 3D Model Background */}
+      <div 
+        className="absolute inset-0 z-0"
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          opacity: 0.8,
+          pointerEvents: 'none'
+        }}
+      >
+        <div 
+          data-us-project="hXMrWxpuGilKPHMEOelf"
+          data-us-scale="1"
+          data-us-dpi="1.5"
+          data-us-lazyload="false"
+          data-us-production="false"
+          data-us-disablemobile="false"
+          data-us-alttext="3D background animation"
+          data-us-arialabel="Interactive 3D background scene"
+          style={{
+            width: '100%',
+            height: '100%',
+            minHeight: '600px'
+          }}
+        />
+      </div>
       
       {/* Subtle background effects for layering */}
-      <div className="absolute inset-0 cosmic-grid opacity-5"></div>
+      <div className="absolute inset-0 cosmic-grid opacity-5 z-10"></div>
       
       {/* Redirect Notice for Logged-in Users */}
       {showRedirectNotice && user && (
@@ -95,7 +138,7 @@ const HeroSection = () => {
       )}
       
       {/* Hero Content */}
-      <div className={`relative z-10 max-w-5xl text-center space-y-6 transition-all duration-700 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+      <div className={`relative z-20 max-w-5xl text-center space-y-6 transition-all duration-700 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
         {/* Status Badge */}
         <div className="flex justify-center">
           <span className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-[8px] sm:text-[10px] font-medium rounded-full bg-muted text-white">
@@ -163,7 +206,7 @@ const HeroSection = () => {
       </div>
 
       {/* Feature Cards */}
-      <div className={`w-full max-w-7xl mt-12 sm:mt-16 md:mt-20 z-10 transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-20'}`}>
+      <div className={`w-full max-w-7xl mt-12 sm:mt-16 md:mt-20 z-20 relative transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-20'}`}>
         <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12 justify-center items-center px-2 sm:px-4">
           {isDesktop ? (
             <>
