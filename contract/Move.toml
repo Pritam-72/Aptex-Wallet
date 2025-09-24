@@ -4,12 +4,17 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-
+aptos_contract = "9c2fe13427bfa2d51671cdc2c04b4915ed4ef81709ccd8cd31c1150769596d2c"
 [dev-addresses]
 
 [dependencies.AptosFramework]
-git = "https://github.com/aptos-labs/aptos-framework.git"
+git = "https://github.com/aptos-labs/aptos-core.git"
 rev = "mainnet"
-subdir = "aptos-framework"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dependencies.AptosStdlib]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "mainnet"
+subdir = "aptos-move/framework/aptos-stdlib"
 
 [dev-dependencies]
