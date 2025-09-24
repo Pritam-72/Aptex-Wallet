@@ -1,0 +1,1410 @@
+# CrypPal QR Scanner and Transaction Components
+
+Complete collection of QR scanning, QR code generation, and transaction files from your crypPal cryptocurrency wallet dashboard.
+
+## QR Scanner Components
+
+### 1. Enhanced QR Scanner (`src/components/QRScannerNew.tsx`)
+
+```tsx
+import React, { useState, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { QrCode, Camera, Upload, X, Check, Send, AlertTriangle, Loader2 } from 'lucide-react';
+import { useWallet } from '@/contexts/WalletContext';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
+import { paymentService, type QRPaymentData, type PaymentRequest } from '@/services/PaymentService';
+import { ethers } from 'ethers';
+import { BrowserQRCodeReader } from '@zxing/browser';
+import jsQR from 'jsqr';
+import { isValidAddress, getExplorerUrl } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+interface QRScannerProps {
+  onScan?: (data: string) => void;
+  onClose?: () => void;
+  onPaymentComplete?: (txHash: string) => void;
+  cardClassName?: string;
+  showCloseButton?: boolean;
+  onSuccessDialogClose?: () => void;
+  scanButtonProps?: React.ComponentProps<typeof Button> & { tooltip?: string };
+  uploadButtonProps?: React.ComponentProps<typeof Button> & { tooltip?: string };
+}
+
+export const QRScanner: React.FC<QRScannerProps> = ({ 
+  onScan, onClose, onPaymentComplete, cardClassName, showCloseButton = true, 
+  onSuccessDialogClose, scanButtonProps = {}, uploadButtonProps = {} 
+}) => {
+  const { isConnected, sendTransaction, address, balance } = useWallet();
+  const { convertETHToINR } = useExchangeRate();
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedData, setScannedData] = useState<string | null>(null);
+  const [parsedData, setParsedData] = useState<QRPaymentData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [manualInput, setManualInput] = useState('');
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest>({
+    to: '',
+    amount: '',
+    memo: ''
+  });
+  const [gasPriority, setGasPriority] = useState<'slow' | 'standard' | 'fast' | 'rapid'>('standard');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const qrReaderRef = useRef<BrowserQRCodeReader | null>(null);
+  const [lastInputMethod, setLastInputMethod] = useState<'scan' | 'upload' | 'manual' | null>(null);
+  const [showSuccessCard, setShowSuccessCard] = useState(false);
+  const [successTxHash, setSuccessTxHash] = useState<string | null>(null);
+
+  // Helper to get minimum INR for 1 wei
+  const getMinInrForOneWei = () => {
+    const ethToInr = convertETHToINR(1);
+    if (ethToInr > 0) {
+      return (1 / ethToInr).toFixed(8);
+    }
+    return '0';
+  };
+  const minInrForOneWei = getMinInrForOneWei();
+
+  // Helper to stop camera stream
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const handleStartScan = async () => {
+    setIsScanning(true);
+    setError(null);
+    setScannedData(null);
+    setParsedData(null);
+    setShowPaymentForm(false);
+    setLastInputMethod('scan');
+    stopCamera();
+
+    let timeoutId: NodeJS.Timeout | null = null;
+    let stopped = false;
+
+    try {
+      if (!qrReaderRef.current) {
+        qrReaderRef.current = new BrowserQRCodeReader();
+      }
+      const videoInputDevices = await BrowserQRCodeReader.listVideoInputDevices();
+      if (videoInputDevices.length === 0) {
+        setError('No camera devices found');
+        setIsScanning(false);
+        stopCamera();
+        return;
+      }
+      const selectedDeviceId = videoInputDevices[0].deviceId;
+
+      // Start 15s timeout
+      timeoutId = setTimeout(() => {
+        stopped = true;
+        setIsScanning(false);
+        setError('No QR Detected');
+        stopCamera();
+      }, 15000);
+
+      const result = await qrReaderRef.current.decodeOnceFromVideoDevice(selectedDeviceId, videoRef.current!);
+      if (stopped) return;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (result && result.getText()) {
+        // Validate QR (must be ETH address or payment QR)
+        const data = result.getText();
+        const parsed = paymentService.parseQRCode(data);
+        if (parsed.address && ethers.isAddress(parsed.address)) {
+          handleQRDataReceived(data);
+        } else {
+          setError('Invalid QR code scanned.');
+          setIsScanning(false);
+          stopCamera();
+        }
+      } else {
+        setError('No QR Detected');
+        setIsScanning(false);
+        stopCamera();
+      }
+    } catch (err: any) {
+      if (!stopped) {
+        setError('Camera error or permission denied');
+        setIsScanning(false);
+        stopCamera();
+      }
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  };
+
+  const handleQRDataReceived = (data: string) => {
+    setScannedData(data);
+
+    // Accept plain ETH address or parsed QR
+    let parsed = paymentService.parseQRCode(data);
+    if ((!parsed.address || !ethers.isAddress(parsed.address)) && ethers.isAddress(data.trim())) {
+      parsed = { address: data.trim(), type: 'address' };
+    }
+    setParsedData(parsed);
+
+    if (parsed.address && ethers.isAddress(parsed.address)) {
+      setPaymentRequest({
+        to: parsed.address,
+        amount: parsed.amount || '',
+        memo: parsed.memo || ''
+      });
+      setShowPaymentForm(true);
+      setIsScanning(false);
+      stopCamera();
+    }
+
+    if (onScan) {
+      onScan(data);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    setLastInputMethod('upload');
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setIsScanning(true);
+    setError(null);
+    setScannedData(null);
+    setParsedData(null);
+    setShowPaymentForm(false);
+
+    // Reset file input so user can re-upload the same file if needed
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please upload a valid image file.');
+      setIsScanning(false);
+      return;
+    }
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const imageDataUrl = e.target?.result as string;
+        if (!qrReaderRef.current) {
+          qrReaderRef.current = new BrowserQRCodeReader();
+        }
+        const img = document.createElement('img');
+        img.src = imageDataUrl;
+        img.onload = async () => {
+          try {
+            // Try to decode all possible QR codes in the image (fallback to single if needed)
+            let results: any;
+            try {
+              results = await qrReaderRef.current!.decodeFromImageElement(img);
+            } catch (e) {
+              results = null;
+            }
+            if (results && results.getText) {
+              // Single result
+              handleQRDataReceived(results.getText());
+            } else {
+              // Fallback: try jsQR
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, img.width, img.height);
+                const imageData = ctx.getImageData(0, 0, img.width, img.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code && code.data) {
+                  handleQRDataReceived(code.data);
+                  setIsScanning(false);
+                  return;
+                }
+              }
+              setError('No QR Detected');
+            }
+          } catch (err) {
+            setError('Failed to decode QR from image.');
+          } finally {
+            setIsScanning(false);
+          }
+        };
+        img.onerror = () => {
+          setError('Could not load the image.');
+          setIsScanning(false);
+        };
+      };
+      reader.onerror = () => {
+        setError('Failed to read image file.');
+        setIsScanning(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setError('Unexpected error while processing image.');
+      setIsScanning(false);
+    }
+  };
+
+  const handleManualSubmit = () => {
+    setLastInputMethod('manual');
+    if (manualInput.trim()) {
+      if (!isValidAddress(manualInput.trim())) {
+        setError('Invalid Ethereum address. Please enter a valid address.');
+        return;
+      }
+      handleQRDataReceived(manualInput);
+    }
+  };
+
+  const handlePayment = async () => {
+    // First check if wallet is connected
+    if (!isConnected || !address) {
+      setError('Please connect your wallet first');
+      return;
+    }
+
+    // Validate payment request
+    if (!paymentRequest || !paymentRequest.to || !paymentRequest.amount) {
+      setError('Invalid payment request. Please scan again.');
+      return;
+    }
+
+    // Check if amount is too small (less than 1 wei)
+    const ethToInr = convertETHToINR(1);
+    const ethValue = parseFloat(paymentRequest.amount) / ethToInr;
+    if (isNaN(ethValue) || ethValue < 0.000000000000000001) {
+      setError(`Amount too small. The minimum you can send is ₹${minInrForOneWei} (1 wei). Please increase the amount.`);
+      return;
+    }
+
+    const validation = paymentService.validatePaymentRequest(paymentRequest, ethToInr);
+    if (!validation.valid) {
+      setError(validation.error || 'Invalid payment request');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    setError(null);
+
+    try {
+      const gasMap = {
+        slow: 'ultra-low' as const,
+        standard: 'economy' as const,
+        fast: 'standard' as const,
+        rapid: 'standard' as const
+      };
+
+      // Double check wallet connection before sending
+      if (!isConnected || !address) {
+        throw new Error('Wallet connection lost. Please reconnect your wallet.');
+      }
+
+      const result = await sendTransaction(
+        paymentRequest.to,
+        paymentRequest.amount,
+        gasMap[gasPriority]
+      );
+
+      if (result.success && result.hash) {
+        if (onPaymentComplete) {
+          onPaymentComplete(result.hash);
+        }
+        setSuccessTxHash(result.hash);
+        setShowSuccessCard(true);
+        setShowPaymentForm(false);
+      } else {
+        // If the error indicates a wallet session issue, show appropriate message
+        if (result.error?.toLowerCase().includes('session') || 
+            result.error?.toLowerCase().includes('connect') ||
+            result.error?.toLowerCase().includes('wallet')) {
+          setError('Wallet session expired. Please reconnect your wallet.');
+        } else {
+          setError(result.error || 'Payment failed');
+        }
+      }
+    } catch (error: any) {
+      // Handle specific error cases
+      const errorMessage = error.message || 'Payment failed';
+      if (errorMessage.toLowerCase().includes('session') || 
+          errorMessage.toLowerCase().includes('connect') ||
+          errorMessage.toLowerCase().includes('wallet')) {
+        setError('Wallet session expired. Please reconnect your wallet.');
+      } else {
+        setError(errorMessage);
+      }
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const resetScanner = () => {
+    setScannedData(null);
+    setParsedData(null);
+    setShowPaymentForm(false);
+    setError(null);
+    setManualInput('');
+    stopCamera();
+  };
+
+  const handleStopScan = () => {
+    setIsScanning(false);
+    stopCamera();
+  };
+
+  // Success card close handler
+  const handleSuccessCardClose = () => {
+    setShowSuccessCard(false);
+    setSuccessTxHash(null);
+    if (onSuccessDialogClose) {
+      onSuccessDialogClose();
+    } else {
+      resetScanner();
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {showSuccessCard && successTxHash ? (
+        <Card className={cardClassName || "w-full max-w-md mx-auto rounded-xl border border-gray-700 bg-gray-900 shadow p-2"}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-white text-lg font-semibold">
+              <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gray-800 border border-gray-700 mr-2">
+                <Check className="h-5 w-5 text-green-400" />
+              </span>
+              Payment Sent Successfully
+            </CardTitle>
+            <CardDescription className="text-gray-400 text-sm mt-1">
+              Your payment was sent. Here is your transaction info:
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-2 text-xs text-gray-300">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 w-14">From</span>
+                <span className="font-mono bg-gray-800 px-2 py-1 rounded border border-gray-700 break-all flex-1">{address}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 w-14">To</span>
+                <span className="font-mono bg-gray-800 px-2 py-1 rounded border border-gray-700 break-all flex-1">{paymentRequest.to}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 w-14">Time</span>
+                <span className="font-mono bg-gray-800 px-2 py-1 rounded border border-gray-700 flex-1">{new Date().toLocaleString()}</span>
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="text-xs text-gray-500 mb-1">Transaction Hash</div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs bg-gray-800 text-white p-2 rounded border border-gray-700 break-all flex-1 select-all">{successTxHash}</span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 p-0 bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white relative group"
+                  onClick={() => navigator.clipboard.writeText(successTxHash)}
+                  title="Copy Hash"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-4 w-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75v-1.5A2.25 2.25 0 0 1 10.5 3h7.5A2.25 2.25 0 0 1 20.25 5.25v7.5A2.25 2.25 0 0 1 18 15h-1.5M5.25 8.25V18A2.25 2.25 0 0 1 3 20.25h-7.5A2.25 2.25 0 0 1 5.25 18V5.25A2.25 2.25 0 0 1 7.5 3h7.5A2.25 2.25 0 0 1 20.25 5.25v7.5A2.25 2.25 0 0 1 18 15h-1.5" />
+                  </svg>
+                  <span className="absolute left-1/2 -translate-x-1/2 top-8 bg-gray-800 text-xs text-gray-200 rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                    Copied!
+                  </span>
+                </Button>
+              </div>
+            </div>
+            <a
+              href={getExplorerUrl(successTxHash)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center text-gray-400 hover:text-white underline mt-2 text-xs"
+            >
+              View on Etherscan
+            </a>
+            <Button onClick={handleSuccessCardClose} className="mt-4 w-full bg-gray-800 text-white hover:bg-gray-700 border border-gray-700">OK</Button>
+          </CardContent>
+        </Card>
+      ) : showPaymentForm && parsedData ? (
+        // Only show Confirm Payment card
+        <Card className={cardClassName || "w-full max-w-md mx-auto rounded-xl border border-muted shadow p-2"}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              Confirm Payment
+            </CardTitle>
+            <CardDescription>
+              Review and confirm your payment details
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!isConnected && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>Please connect your wallet to make payments</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <Label>To Address</Label>
+                <Input
+                  value={paymentRequest.to}
+                  onChange={(e) => setPaymentRequest(prev => ({ ...prev, to: e.target.value }))}
+                  className="font-mono"
+                />
+              </div>
+
+              <div>
+                <Label>Amount (INR)</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="^[0-9]*[.,]?[0-9]*$"
+                  min="0"
+                  value={paymentRequest.amount}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Only allow non-negative numbers
+                    if (/^\d*\.?\d*$/.test(val) && (val === '' || parseFloat(val) >= 0)) {
+                      setPaymentRequest(prev => ({ ...prev, amount: val }));
+                    }
+                  }}
+                  className="font-mono"
+                  placeholder={`Enter amount in INR (min: ₹${minInrForOneWei})`}
+                />
+                {paymentRequest.amount && (
+                  <>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      ≈ {parseFloat(paymentRequest.amount) > 0 && convertETHToINR(1) > 0
+                        ? `${(parseFloat(paymentRequest.amount) / convertETHToINR(1)).toFixed(6)} ETH`
+                        : '0 ETH'}
+                    </p>
+                    {parseFloat(paymentRequest.amount) / convertETHToINR(1) < 0.000000000000000001 && (
+                      <p className="text-xs text-red-400 mt-1">Amount too small. The minimum you can send is ₹{minInrForOneWei} (1 wei).</p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div>
+                <Label>Memo (Optional)</Label>
+                <Input
+                  value={paymentRequest.memo}
+                  onChange={(e) => setPaymentRequest(prev => ({ ...prev, memo: e.target.value }))}
+                  placeholder="Payment description..."
+                />
+              </div>
+
+              <div>
+                <Label>Gas Priority</Label>
+                <Select value={gasPriority} onValueChange={(value: any) => setGasPriority(value)}>
+                  <SelectTrigger className="bg-black text-white border border-gray-800 rounded-md shadow-sm focus:ring-2 focus:ring-gray-700 focus:border-gray-700">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black text-white border border-gray-800 rounded-md shadow-lg">
+                    <SelectItem value="slow" className="hover:bg-gray-800 font-medium">Slow (Lower cost)</SelectItem>
+                    <SelectItem value="standard" className="hover:bg-gray-800 font-medium">Standard</SelectItem>
+                    <SelectItem value="fast" className="hover:bg-gray-800 font-medium">Fast</SelectItem>
+                    <SelectItem value="rapid" className="hover:bg-gray-800 font-medium">Rapid (Higher cost)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {balance && (
+                <div className="text-sm text-muted-foreground">
+                  Wallet Balance: {parseFloat(balance).toFixed(6)} ETH
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                onClick={handlePayment} 
+                className="w-full"
+                disabled={isProcessingPayment || !paymentRequest.to || !paymentRequest.amount || parseFloat(paymentRequest.amount) / convertETHToINR(1) < 0.000000000000000001}
+              >
+                {isProcessingPayment ? 'Processing...' : 'Send Payment'}
+              </Button>
+              <Button variant="outline" onClick={() => setShowPaymentForm(false)}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        // Only show QR Scanner card
+        <Card className={cardClassName || "w-full max-w-md mx-auto rounded-xl border border-muted shadow p-2"}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5" />
+                QR Scanner
+              </CardTitle>
+              {showCloseButton && onClose && (
+                <Button variant="ghost" size="sm" onClick={onClose}>
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <CardDescription>
+              Scan a QR code to receive payment information or enter manually
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="qr-error-minimal flex items-center gap-2 px-4 py-2 rounded-md border">
+                <AlertTriangle className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-200 font-medium">{error}</span>
+              </div>
+            )}
+
+            {/* Camera Preview (show inside card when scanning) */}
+            {isScanning && (
+              <div className="flex flex-col items-center">
+                <video ref={videoRef} style={{ width: 300, height: 300 }} autoPlay muted playsInline />
+                <p className="mt-2 text-sm text-muted-foreground">Point your camera at a QR code</p>
+              </div>
+            )}
+
+            {/* Scan/Upload Buttons (disable while scanning or via props) */}
+            <div className="grid grid-cols-2 gap-2">
+              {scanButtonProps.tooltip && (scanButtonProps.disabled || isScanning) ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="w-full">
+                        <Button
+                          onClick={handleStartScan}
+                          disabled={isScanning || scanButtonProps.disabled}
+                          className="flex items-center gap-2 w-full"
+                          {...scanButtonProps}
+                        >
+                          {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                          {isScanning ? 'Scanning...' : 'Scan to Pay'}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{scanButtonProps.tooltip}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <Button
+                  onClick={handleStartScan}
+                  disabled={isScanning || scanButtonProps.disabled}
+                  className="flex items-center gap-2 w-full"
+                  {...scanButtonProps}
+                >
+                  {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  {isScanning ? 'Scanning...' : 'Scan to Pay'}
+                </Button>
+              )}
+              {isScanning ? (
+                <Button
+                  variant="outline"
+                  onClick={handleStopScan}
+                  className="flex items-center gap-2 w-full"
+                >
+                  <X className="h-4 w-4" />
+                  Stop Scanning
+                </Button>
+              ) : uploadButtonProps.tooltip && uploadButtonProps.disabled ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="w-full">
+                        <Button
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex items-center gap-2 w-full"
+                          disabled={uploadButtonProps.disabled}
+                          {...uploadButtonProps}
+                        >
+                          <Upload className="h-4 w-4" />
+                          Upload Image
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{uploadButtonProps.tooltip}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 w-full"
+                  disabled={uploadButtonProps.disabled}
+                  {...uploadButtonProps}
+                >
+                  <Upload className="h-4 w-4" />
+                  Upload Image
+                </Button>
+              )}
+            </div>
+
+            {/* Manual Input (hide while scanning) */}
+            {!isScanning && (
+              <div className="space-y-2">
+                <Label>Or enter manually:</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter address or payment data..."
+                    value={manualInput}
+                    onChange={(e) => setManualInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleManualSubmit()}
+                  />
+                  <Button onClick={handleManualSubmit} disabled={!manualInput.trim()}>
+                    <Check className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            {/* Scanned Data Display */}
+            {scannedData && parsedData && !showPaymentForm && (lastInputMethod === 'scan' || lastInputMethod === 'upload') && (
+              <div className="space-y-4">
+                <div className="qr-success-minimal flex items-center gap-2 px-4 py-2 rounded-md border">
+                  <Check className="h-4 w-4 text-gray-300" />
+                  <span className="text-sm text-gray-200 font-medium">QR Code scanned successfully!</span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Type:</span>
+                    <Badge variant={parsedData.type === 'unknown' ? 'destructive' : 'default'}>
+                      {parsedData.type}
+                    </Badge>
+                  </div>
+
+                  {parsedData.address && (
+                    <div>
+                      <span className="font-semibold">Address:</span>
+                      <div className="font-mono text-sm break-all bg-muted p-2 rounded">
+                        {parsedData.address}
+                      </div>
+                    </div>
+                  )}
+
+                  {parsedData.amount && (
+                    <div>
+                      <span className="font-semibold">Amount:</span>
+                      <span className="ml-2">{parsedData.amount} ETH</span>
+                      <span className="text-muted-foreground ml-2">
+                        (≈ ₹{convertETHToINR(parseFloat(parsedData.amount)).toLocaleString()})
+                      </span>
+                    </div>
+                  )}
+
+                  {parsedData.memo && (
+                    <div>
+                      <span className="font-semibold">Memo:</span>
+                      <span className="ml-2">{parsedData.memo}</span>
+                    </div>
+                  )}
+
+                  {parsedData.type === 'unknown' && (
+                    <div>
+                      <span className="font-semibold">Raw Data:</span>
+                      <span className="font-mono text-sm break-all">{scannedData}</span>
+                    </div>
+                  )}
+                </div>
+
+                {parsedData.address && ethers.isAddress(parsedData.address) && (
+                  null
+                )}
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={resetScanner}>
+                    Scan Again
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+```
+
+### 2. Basic QR Scanner (`src/components/QRScanner.tsx`)
+
+```tsx
+import React, { useState, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { QrCode, Camera, Upload, X, Check, Send, AlertTriangle, Loader2 } from 'lucide-react';
+import { useWallet } from '@/contexts/WalletContext';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
+import { paymentService, type QRPaymentData, type PaymentRequest } from '@/services/PaymentService';
+import { ethers } from 'ethers';
+
+interface QRScannerProps {
+  onScan?: (data: string) => void;
+  onClose?: () => void;
+  onPaymentComplete?: (txHash: string) => void;
+}
+
+export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, onPaymentComplete }) => {
+  const { isConnected, sendTransaction, address, balance } = useWallet();
+  const { rate } = useExchangeRate();
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedData, setScannedData] = useState<string | null>(null);
+  const [parsedData, setParsedData] = useState<QRPaymentData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [manualInput, setManualInput] = useState('');
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest>({
+    to: '',
+    amount: '',
+    memo: ''
+  });
+  const [gasPriority, setGasPriority] = useState<'slow' | 'standard' | 'fast' | 'rapid'>('standard');
+  const [inrAmount, setInrAmount] = useState('');
+  const [ethAmount, setEthAmount] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Mock QR data for demonstration
+  const mockQRData = [
+    'ethereum:0x742C1C4C8DbE2b0De8B15976Da9F6bB7F3D15C5d?amount=0.001',
+    'cryppal://pay?to=0x9aaDd7805d4bf47Ea3cc8E3571524a84024840ee&amount=0.005&memo=Coffee%20Payment',
+    'ethereum:0x123456789abcdef123456789abcdef123456789a?amount=0.01&gas=21000'
+  ];
+
+  const handleStartScan = () => {
+    setIsScanning(true);
+    setError(null);
+    
+    // Simulate camera access (in real implementation, you'd use a QR scanner library)
+    setTimeout(() => {
+      const randomData = mockQRData[Math.floor(Math.random() * mockQRData.length)];
+      handleQRDataReceived(randomData);
+    }, 2000);
+  };
+
+  const handleQRDataReceived = (data: string) => {
+    setScannedData(data);
+    setIsScanning(false);
+    
+    // Parse the QR data
+    const parsed = paymentService.parseQRCode(data);
+    setParsedData(parsed);
+    
+    // Set up payment form if it's a payment request
+    if (parsed.address && ethers.isAddress(parsed.address)) {
+      setPaymentRequest({
+        to: parsed.address,
+        amount: parsed.amount || '',
+        memo: parsed.memo || ''
+      });
+      setShowPaymentForm(true);
+    }
+    
+    if (onScan) {
+      onScan(data);
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // In a real implementation, you'd decode the QR from the image
+      const mockData = mockQRData[0];
+      handleQRDataReceived(mockData);
+    }
+  };
+
+  const handleManualSubmit = () => {
+    if (manualInput.trim()) {
+      handleQRDataReceived(manualInput);
+    }
+  };
+
+  const handlePayment = async () => {
+    if (!isConnected) {
+      setError('Please connect your wallet first');
+      return;
+    }
+
+    const validation = paymentService.validatePaymentRequest(paymentRequest, 1); // Using default rate of 1
+    if (!validation.valid) {
+      setError(validation.error || 'Invalid payment request');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    setError(null);
+
+    try {
+      const result = await sendTransaction(
+        paymentRequest.to,
+        ethAmount, // always use calculated ETH
+        gasPriority === 'rapid' ? 'standard' : gasPriority === 'fast' ? 'standard' : gasPriority === 'slow' ? 'ultra-low' : 'economy'
+      );
+
+      if (result.success && result.hash) {
+        if (onPaymentComplete) {
+          onPaymentComplete(result.hash);
+        }
+        setShowPaymentForm(false);
+        setScannedData(null);
+        setParsedData(null);
+      } else {
+        setError(result.error || 'Payment failed');
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Payment failed';
+      setError(errorMessage);
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const resetScanner = () => {
+    setScannedData(null);
+    setParsedData(null);
+    setShowPaymentForm(false);
+    setError(null);
+    setManualInput('');
+  };
+
+  // When INR amount changes, calculate ETH using live rate
+  useEffect(() => {
+    if (inrAmount && !isNaN(parseFloat(inrAmount)) && parseFloat(inrAmount) > 0 && rate > 0) {
+      setEthAmount((parseFloat(inrAmount) / rate).toFixed(6));
+    } else {
+      setEthAmount('0');
+    }
+  }, [inrAmount, rate]);
+
+  return (
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <QrCode className="h-5 w-5" />
+            QR Scanner
+          </CardTitle>
+          {onClose && (
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <CardDescription>
+          Scan a QR code or enter payment details manually
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {!scannedData && (
+          <div className="space-y-4">
+            {/* Camera Scan */}
+            <div className="text-center space-y-3">
+              <div className="h-32 w-32 mx-auto rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
+                {isScanning ? (
+                  <div className="text-center">
+                    <Camera className="h-8 w-8 mx-auto text-primary animate-pulse" />
+                    <p className="text-xs text-muted-foreground mt-2">Scanning...</p>
+                  </div>
+                ) : (
+                  <QrCode className="h-8 w-8 text-gray-400" />
+                )}
+              </div>
+              <Button 
+                onClick={handleStartScan} 
+                disabled={isScanning}
+                className="w-full"
+              >
+                <Camera className="h-4 w-4 mr-2" />
+                {isScanning ? 'Scanning...' : 'Start Camera Scan'}
+              </Button>
+            </div>
+
+            {/* File Upload */}
+            <div className="text-center">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <Button 
+                variant="outline" 
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload QR Image
+              </Button>
+            </div>
+
+            {/* Manual Input */}
+            <div className="space-y-2">
+              <Label htmlFor="manual-input">Or enter manually:</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="manual-input"
+                  value={manualInput}
+                  onChange={(e) => setManualInput(e.target.value)}
+                  placeholder="Wallet address or payment data"
+                />
+                <Button onClick={handleManualSubmit} disabled={!manualInput.trim()}>
+                  <Check className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Scanned Result */}
+        {scannedData && parsedData && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-green-600">
+              <Check className="h-5 w-5" />
+              <span className="font-medium">QR Code Scanned Successfully!</span>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <h4 className="font-medium">Payment Details:</h4>
+              {parsedData.address && (
+                <div>
+                  <span className="text-sm text-gray-600">To: </span>
+                  <span className="font-mono text-sm">{parsedData.address}</span>
+                </div>
+              )}
+              {parsedData.amount && (
+                <div>
+                  <span className="text-sm text-gray-600">Amount: </span>
+                  <span className="font-medium">{parsedData.amount} ETH</span>
+                </div>
+              )}
+              {parsedData.memo && (
+                <div>
+                  <span className="text-sm text-gray-600">Memo: </span>
+                  <span>{decodeURIComponent(parsedData.memo)}</span>
+                </div>
+              )}
+              {parsedData.gas && (
+                <div>
+                  <span className="text-sm text-gray-600">Gas Limit: </span>
+                  <span>{parsedData.gas}</span>
+                </div>
+              )}
+              {parsedData.type === 'unknown' && (
+                <div>
+                  <span className="text-sm text-gray-600">Raw Data: </span>
+                  <span className="font-mono text-sm break-all">{parsedData.raw}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                className="flex-1"
+                onClick={() => {
+                  // This would trigger the payment flow
+                  console.log('Proceeding with payment:', parsedData);
+                }}
+              >
+                Proceed to Pay
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setScannedData(null);
+                  setManualInput('');
+                }}
+              >
+                Scan Again
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Form - INR Input */}
+        {showPaymentForm && (
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="to-address">To</Label>
+              <Input
+                id="to-address"
+                value={paymentRequest.to}
+                onChange={(e) => setPaymentRequest({ ...paymentRequest, to: e.target.value })}
+                placeholder="Recipient's wallet address"
+                disabled={isProcessingPayment}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="inrAmount">Amount (INR)</Label>
+              <Input
+                id="inrAmount"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={inrAmount}
+                onChange={e => {
+                  const val = e.target.value.replace(/[^\d.]/g, '');
+                  setInrAmount(val.startsWith('-') ? '' : val);
+                }}
+                placeholder="Enter amount in INR"
+                className="mt-2 h-11 bg-background border-border"
+                disabled={isProcessingPayment}
+              />
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                <span>ETH to be sent:</span>
+                <span className="font-mono font-semibold">{ethAmount} ETH</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="memo">Memo</Label>
+              <Input
+                id="memo"
+                value={paymentRequest.memo}
+                onChange={(e) => setPaymentRequest({ ...paymentRequest, memo: e.target.value })}
+                placeholder="Optional memo for the payment"
+                disabled={isProcessingPayment}
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                className="flex-1"
+                onClick={handlePayment}
+                disabled={isProcessingPayment}
+              >
+                {isProcessingPayment ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : 'Send Payment'}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={resetScanner}
+                disabled={isProcessingPayment}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+```
+
+---
+
+## Send Transaction Component
+
+### 3. Send Transaction (`src/components/SendTransaction.tsx`)
+
+```tsx
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Send, AlertTriangle, CheckCircle, Clock, ExternalLink, QrCode } from 'lucide-react';
+import { useWallet } from '@/contexts/WalletContext';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
+import { QRScanner } from './QRScannerNew';
+
+interface SendTransactionProps {
+  isOpen: boolean;
+  onClose: () => void;
+  recipientAddress?: string;
+  onPaymentComplete?: () => void;
+}
+
+export const SendTransaction: React.FC<SendTransactionProps> = ({ 
+  isOpen, 
+  onClose, 
+  recipientAddress = '',
+  onPaymentComplete
+}) => {
+  const { sendTransaction, balance, address, isLoading, isConnected } = useWallet();
+  const { rate: ethToInr } = useExchangeRate();
+  
+  const [toAddress, setToAddress] = useState(recipientAddress);
+  const [inrAmount, setInrAmount] = useState(''); // INR input
+  const [ethAmount, setEthAmount] = useState(''); // Calculated ETH
+  const [priority, setPriority] = useState<'ultra-low' | 'low' | 'economy' | 'standard'>('low');
+  const [txHash, setTxHash] = useState('');
+  const [estimatedGas, setEstimatedGas] = useState<any>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+
+  const resetForm = () => {
+    setToAddress(recipientAddress);
+    setInrAmount('');
+    setEthAmount('');
+    setPriority('low');
+    setTxHash('');
+    setEstimatedGas(null);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  // Helper to get minimum INR for 1 wei
+  const getMinInrForOneWei = () => {
+    if (ethToInr > 0) {
+      return (1 / ethToInr).toFixed(8);
+    }
+    return '0';
+  };
+  const minInrForOneWei = getMinInrForOneWei();
+
+  const validateForm = () => {
+    if (!toAddress || !inrAmount) return false;
+    if (parseFloat(inrAmount) <= 0) return false;
+    // Check if amount is at least 1 wei
+    if (ethToInr > 0 && parseFloat(inrAmount) / ethToInr < 0.000000000000000001) return false;
+    return true;
+  };
+
+  const handleSend = async () => {
+    if (!validateForm()) {
+      setLocalError(`Amount too small. The minimum you can send is ₹${minInrForOneWei} (1 wei). Please increase the amount.`);
+      return;
+    }
+
+    // Add wallet connection check
+    if (!isConnected) {
+      setLocalError('Wallet not connected. Please connect your wallet first.');
+      return;
+    }
+
+    setLocalError(null);
+    try {
+      // Add detailed error logging for debugging
+      console.log('[SendTransaction] Sending:', { toAddress, inrAmount, priority });
+      const tx = await sendTransaction(toAddress, inrAmount, priority); // Pass INR, not ETH
+      if (tx.success) {
+        setTxHash(tx.hash);
+        if (onPaymentComplete) onPaymentComplete();
+      } else {
+        setLocalError((tx.error ? `[Backend] ${tx.error}` : 'Transaction failed. Please try again.'));
+        console.error('[SendTransaction] Backend error:', tx.error);
+      }
+    } catch (error) {
+      const errorMessage = (error as Error).message;
+      setLocalError(`[Catch] ${errorMessage}`);
+      console.error('[SendTransaction] Exception:', error);
+    }
+  };
+
+  const priorityOptions = {
+    'ultra-low': {
+      label: 'Ultra Low',
+      description: '~$0.01 • 10-30 min',
+      savings: '90% savings'
+    },
+    'low': {
+      label: 'Low',
+      description: '~$0.02 • 5-15 min',
+      savings: '70% savings'
+    },
+    'economy': {
+      label: 'Economy',
+      description: '~$0.05 • 2-5 min',
+      savings: '50% savings'
+    },
+    'standard': {
+      label: 'Standard',
+      description: '~$0.10 • 1-2 min',
+      savings: 'baseline'
+    }
+  };
+
+  // When INR amount changes, calculate ETH
+  useEffect(() => {
+    if (inrAmount && !isNaN(parseFloat(inrAmount)) && parseFloat(inrAmount) > 0 && ethToInr > 0) {
+      setEthAmount((parseFloat(inrAmount) / ethToInr).toFixed(6));
+    } else {
+      setEthAmount('0');
+    }
+  }, [inrAmount, ethToInr]);
+
+  // Handler for QR scan result
+  const handleQRScan = (data: string) => {
+    // Use the paymentService to parse the QR data
+    const parsed = paymentService.parseQRCode(data);
+    if (parsed.address) setToAddress(parsed.address);
+    if (parsed.amount) setInrAmount(parsed.amount);
+    if (parsed.memo) setLocalError(parsed.memo); // Optionally set as memo if you have a memo field
+    setShowQRScanner(false);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="max-w-md rounded-2xl border border-muted shadow-lg p-4">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Send className="h-5 w-5" />
+            Send ETH
+          </DialogTitle>
+          <DialogDescription>
+            Send Ethereum to another address
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Show confirmation if txHash exists, otherwise show form/QRScanner */}
+          {txHash ? (
+            <div className="flex flex-col items-center space-y-6 py-6 bg-neutral-900 rounded-xl">
+              <div className="flex flex-col items-center space-y-2">
+                <CheckCircle className="h-16 w-16 text-neutral-100" />
+                <h2 className="text-xl font-bold text-neutral-100">Transaction Sent!</h2>
+                <p className="text-neutral-400 text-base">Your transaction has been submitted to the network.</p>
+              </div>
+              <div className="w-full max-w-md bg-neutral-800 rounded-xl border border-neutral-700 shadow p-4 flex flex-col items-center space-y-3">
+                <span className="text-xs font-medium text-neutral-400 mb-1">Transaction Hash</span>
+                <div className="flex items-center w-full">
+                  <code className="text-xs bg-neutral-900 p-2 rounded flex-1 break-all select-all text-neutral-100 border border-neutral-700">
+                    {txHash}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-2 relative group"
+                    onClick={() => {
+                      navigator.clipboard.writeText(txHash);
+                    }}
+                    title="Copy Hash"
+                  >
+                    {/* Modern filled copy icon */}
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" className="h-4 w-4 text-neutral-400 group-hover:text-neutral-100 transition-colors">
+                      <rect x="7" y="7" width="9" height="9" rx="2"/>
+                      <rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                    </svg>
+                    <span className="absolute left-1/2 -translate-x-1/2 top-8 bg-neutral-800 text-xs text-neutral-100 rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                      Copied!
+                    </span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-1"
+                    onClick={() => window.open(`https://sepolia.etherscan.io/tx/${txHash}`, '_blank')}
+                    title="View on Etherscan"
+                  >
+                    <ExternalLink className="h-4 w-4 text-neutral-400 hover:text-neutral-100 transition-colors" />
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="inline-flex items-center px-2 py-1 rounded bg-neutral-700 text-neutral-100 text-xs font-semibold">
+                    <Clock className="h-4 w-4 mr-1" />
+                    Pending
+                  </span>
+                  <span className="text-xs text-neutral-400">It may take 5-15 min to confirm.</span>
+                </div>
+              </div>
+              <Button onClick={handleClose} className="w-full max-w-md mt-4 text-base font-semibold py-3 rounded-lg bg-neutral-800 text-neutral-100 border-none hover:bg-neutral-700">
+                Done
+              </Button>
+            </div>
+          ) : showQRScanner ? (
+            <QRScanner
+              onScan={handleQRScan}
+              onClose={() => setShowQRScanner(false)}
+              cardClassName="rounded-xl border border-muted shadow p-2"
+            />
+          ) : (
+            <>
+              {/* Scan to Pay Button */}
+              <Button
+                variant="outline"
+                className="w-full mb-2"
+                onClick={() => setShowQRScanner(true)}
+                disabled={showQRScanner}
+              >
+                <QrCode className="h-4 w-4 mr-2" />
+                Scan to Pay
+              </Button>
+              {/* Form Content */}
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="toAddress">Recipient Address</Label>
+                  <Input
+                    id="toAddress"
+                    type="text"
+                    placeholder="0x..."
+                    value={toAddress}
+                    onChange={(e) => {
+                      setToAddress(e.target.value);
+                      if (localError) setLocalError(null);
+                    }}
+                    className="mt-2 font-mono text-sm h-11 bg-background border-border hover:border-muted-foreground/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 rounded-md"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="inrAmount">Amount (INR)</Label>
+                  <Input
+                    id="inrAmount"
+                    type="text"
+                    inputMode="decimal"
+                    value={inrAmount}
+                    onChange={e => {
+                      const val = e.target.value.replace(/[^\d.]/g, '');
+                      setInrAmount(val.startsWith('-') ? '' : val);
+                    }}
+                    placeholder={`Enter amount in INR (min: ₹${minInrForOneWei})`}
+                    autoFocus
+                    className="mt-2 h-11 bg-background border-border rounded-md"
+                  />
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                    <span>ETH to be sent:</span>
+                    <span className="font-mono font-semibold">{parseFloat(ethAmount).toFixed(8)} ETH</span>
+                    <span className="ml-2 text-xs text-gray-500">(Conversion: ₹{inrAmount || '0'} → {parseFloat(ethAmount).toFixed(8)} ETH @ ₹{ethToInr} / ETH)</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                    <span>Wallet Balance:</span>
+                    <span className="font-mono">{parseFloat(balance || '0').toFixed(8)} ETH</span>
+                  </div>
+                  {/* Show a warning if ETH amount is too low for a transaction */}
+                  {ethAmount && parseFloat(ethAmount) > 0 && parseFloat(ethAmount) < 0.00000001 && (
+                    <div className="text-xs text-yellow-600 mt-1">Amount may be too low for a valid transaction.</div>
+                  )}
+                  {inrAmount && ethToInr > 0 && parseFloat(inrAmount) / ethToInr < 0.000000000000000001 && (
+                    <div className="text-xs text-red-600 mt-1">Amount too small. The minimum you can send is ₹{minInrForOneWei} (1 wei).</div>
+                  )}
+                </div>
+                <div>
+                  <Label>Transaction Priority</Label>
+                  <Select value={priority} onValueChange={(value: any) => setPriority(value)}>
+                    
