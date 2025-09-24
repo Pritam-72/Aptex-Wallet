@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Copy, Eye, EyeOff, Wallet, Send, QrCode, RefreshCw, Settings, History, Shield, CreditCard, BarChart3, ExternalLink, Menu, TrendingUp, Lock, Plus, Minus, ArrowUpDown, X, Bug, LogOut, Store } from 'lucide-react';
+import { Copy, Eye, EyeOff, Wallet, Send, QrCode, RefreshCw, Settings, History, Shield, CreditCard, BarChart3, ExternalLink, Menu, TrendingUp, Lock, Plus, Minus, ArrowUpDown, X, Bug, LogOut, Store, ChevronDown } from 'lucide-react';
+import { UserTransactionResponse, EntryFunctionPayloadResponse } from '@aptos-labs/ts-sdk';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -14,18 +16,23 @@ import { ReceiveTransaction } from '@/components/ReceiveTransaction';
 import { TransactionHistory } from '@/components/TransactionHistory';
 import * as XLSX from 'xlsx';
 // import WalletInfo from '@/components/WalletInfo';
-import { 
-  getStoredWallet, 
-  getAccountCount, 
-  createNewWallet, 
-  getCurrentAccount, 
-  getAccountBalance, 
+import {
+  getStoredWallet,
+  getAccountCount,
+  createNewWallet,
+  getCurrentAccount,
+  getAccountBalance,
   getAccountTransactions,
   fundAccount,
   clearWalletData,
+  addNewAccount,
+  switchAccount,
   type WalletAccount,
-  type StoredWallet 
+  type StoredWallet
 } from '@/utils/walletUtils';
+import { QRCodeSVG } from 'qrcode.react';
+
+// --- Helper Types & Components (Moved outside the main component for correctness) ---
 
 interface Transaction {
   version: string;
@@ -108,28 +115,50 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; is
       )}
     </button>
   );
-};const SimpleDashboard = () => {
+};
+
+// QR code component for displaying wallet address
+const AddressQRCode = ({ publicKey }: { publicKey: string }) => (
+  <div className="bg-white p-6 rounded-lg border border-gray-700">
+    <div className="w-48 h-48 flex items-center justify-center relative mx-auto rounded">
+      <QRCodeSVG value={publicKey} size={176} level="H" includeMargin={true} />
+      {/* Center logo overlay */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="bg-orange-500 p-2 rounded">
+          <Wallet className="h-6 w-6 text-white" />
+        </div>
+      </div>
+    </div>
+    <div className="mt-4 text-center text-xs text-muted-foreground">Scan to get public key</div>
+  </div>
+);
+
+
+// --- Main Dashboard Component ---
+const SimpleDashboard = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const [showBalance, setShowBalance] = useState(true);
   const [activeSection, setActiveSection] = useState('wallet');
   const [sidebarOpen, setSidebarOpen] = useState(() => {
-    // Persist sidebar state in localStorage, default to true on desktop, false on mobile
-    if (typeof window === 'undefined') return true; // SSR fallback
+    if (typeof window === 'undefined') return true;
     const savedState = localStorage.getItem('sidebar-open');
     if (savedState !== null) return JSON.parse(savedState);
-    return window.innerWidth >= 1024; // lg breakpoint
+    return window.innerWidth >= 1024;
   });
   const [showSendTransaction, setShowSendTransaction] = useState(false);
   const [showReceiveQR, setShowReceiveQR] = useState(false);
   const [showCreateWallet, setShowCreateWallet] = useState(false);
-  
+
   // Real wallet state
   const [wallet, setWallet] = useState<StoredWallet | null>(null);
   const [currentAccount, setCurrentAccount] = useState<WalletAccount | null>(null);
   const [balance, setBalance] = useState('0');
   const [isLoading, setIsLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [showAddWallet, setShowAddWallet] = useState(false);
+  const [addWalletLoading, setAddWalletLoading] = useState(false);
+  const [accountList, setAccountList] = useState<WalletAccount[]>([]);
 
   // Persist sidebar state
   useEffect(() => {
@@ -143,7 +172,6 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; is
         setSidebarOpen(false);
       }
     };
-
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -185,23 +213,48 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; is
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const loadWalletData = async (account: WalletAccount) => {
+    try {
+      const accountBalance = await getAccountBalance(account.address);
+      setBalance(accountBalance);
+
+      const accountTransactions = await getAccountTransactions(account.address, 10);
+      const mappedTransactions: Transaction[] = accountTransactions
+        .filter((tx): tx is UserTransactionResponse => 'version' in tx)
+        .map((tx) => {
+          const payload = tx.payload;
+          let type = payload.type;
+          if (payload.type === 'entry_function_payload') {
+            type = (payload as EntryFunctionPayloadResponse).function;
+          }
+          return {
+            version: tx.version,
+            timestamp: tx.timestamp,
+            type,
+            success: tx.success,
+            hash: tx.hash,
+          };
+        });
+      setTransactions(mappedTransactions);
+    } catch (error) {
+      console.error('Error loading wallet data:', error);
+    }
+  };
+
   const initializeWallet = useCallback(async () => {
     setIsLoading(true);
     try {
       const storedWallet = getStoredWallet();
       const accountCount = getAccountCount();
-      
+
       if (accountCount === 0 || !storedWallet) {
-        // No wallet exists, show create wallet UI
         setWallet(null);
         setCurrentAccount(null);
         setShowCreateWallet(true);
       } else {
-        // Wallet exists, load it
         setWallet(storedWallet);
         const account = getCurrentAccount();
         setCurrentAccount(account);
-        
         if (account) {
           await loadWalletData(account);
         }
@@ -213,27 +266,6 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; is
     }
   }, []);
 
-  const loadWalletData = async (account: WalletAccount) => {
-    try {
-      // Load balance
-      const accountBalance = await getAccountBalance(account.address);
-      setBalance(accountBalance);
-      
-      // Load transactions
-      const accountTransactions = await getAccountTransactions(account.address, 10);
-      // Map the Aptos SDK transaction response to our interface
-      const mappedTransactions: Transaction[] = accountTransactions.map((tx: any) => ({
-        version: tx.version || 'N/A',
-        timestamp: tx.timestamp || Date.now().toString(),
-        type: tx.type || 'transaction',
-        success: tx.success !== false,
-        hash: tx.hash
-      }));
-      setTransactions(mappedTransactions);
-    } catch (error) {
-      console.error('Error loading wallet data:', error);
-    }
-  };
 
   const refreshWalletData = useCallback(async () => {
     if (currentAccount) {
@@ -241,42 +273,99 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; is
     }
   }, [currentAccount]);
 
-  // Initialize wallet on component mount
   useEffect(() => {
     initializeWallet();
   }, [initializeWallet]);
 
-  // Refresh balance and transactions periodically
+  useEffect(() => {
+    if (wallet) {
+      setAccountList(wallet.accounts);
+    } else {
+      setAccountList([]);
+    }
+  }, [wallet]);
+
   useEffect(() => {
     if (currentAccount) {
       const interval = setInterval(() => {
         refreshWalletData();
-      }, 30000); // Every 30 seconds
-
+      }, 30000); // Refresh every 30 seconds
       return () => clearInterval(interval);
     }
   }, [currentAccount, refreshWalletData]);
+
+  const waitForBalance = async (account: WalletAccount) => {
+    let attempts = 0;
+    while (attempts < 15) { // Poll for up to 15 seconds
+      try {
+        const newBalance = await getAccountBalance(account.address);
+        if (parseFloat(newBalance) > 0) {
+          return; // Balance found, exit
+        }
+      } catch (error) {
+        console.error("Error while polling for balance:", error);
+      }
+      attempts++;
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+    }
+    console.warn("Timed out waiting for balance to update after funding.");
+  };
 
   const handleCreateWallet = async () => {
     setIsLoading(true);
     try {
       const newWallet = createNewWallet();
       setWallet(newWallet);
-      
       const account = getCurrentAccount();
       setCurrentAccount(account);
       setShowCreateWallet(false);
-      
       if (account) {
-        // Fund the account on devnet for testing
         await fundAccount(account.address);
-        // Wait a bit and then load the wallet data
-        setTimeout(() => loadWalletData(account), 2000);
+        await waitForBalance(account); // Wait for the faucet to fund the account
+        await loadWalletData(account); // Now load all data
       }
     } catch (error) {
       console.error('Error creating wallet:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAddWallet = async () => {
+    setAddWalletLoading(true);
+    try {
+      const newAccount = addNewAccount(); // No longer async, returns WalletAccount | null
+      if (newAccount) {
+        const updatedWallet = getStoredWallet();
+        setWallet(updatedWallet);
+        
+        // Set the new account as the current one
+        setCurrentAccount(newAccount);
+        
+        // Fund the new account and wait for the balance
+        await fundAccount(newAccount.address);
+        await waitForBalance(newAccount);
+        
+        // Now load its data
+        await loadWalletData(newAccount);
+      }
+    } catch (error) {
+      console.error('Error adding new account:', error);
+    } finally {
+      setAddWalletLoading(false);
+    }
+  };
+
+
+  const handleSwitchAccount = async (accountIndex: number) => {
+    if (switchAccount(accountIndex)) {
+      const newAccount = getStoredWallet()?.accounts[accountIndex];
+      if (newAccount) {
+        setIsLoading(true);
+        setCurrentAccount(newAccount);
+        await loadWalletData(newAccount);
+        setIsLoading(false);
+      }
     }
   };
 
@@ -288,22 +377,16 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; is
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // Built-in wallet - no need for connection functions
-
   const handleLogout = async () => {
     try {
-      // Clear wallet data
       clearWalletData();
       setWallet(null);
       setCurrentAccount(null);
       setBalance('0');
       setTransactions([]);
-      
-      // Sign out from authentication
       await signOut();
     } catch (error) {
       console.error('Error during logout:', error);
-      // Still attempt to sign out even if wallet disconnect fails
       await signOut();
     }
   };
@@ -314,67 +397,29 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; is
     }
   };
 
-  // Add QR code generation for the wallet address
   const generateAddressQR = () => {
     setShowReceiveQR(true);
   };
 
-  // Mock QR code component
-  const AddressQRCode = ({ address }: { address: string }) => (
-    <div className="bg-white p-6 rounded-lg border border-gray-700">
-      <div className="w-48 h-48 bg-black flex items-center justify-center relative mx-auto rounded">
-        {/* Enhanced QR-like pattern */}
-        <div className="grid grid-cols-12 gap-0.5 w-44 h-44">
-          {Array.from({ length: 144 }, (_, i) => {
-            const isCorner = (i < 36 && (i % 12) < 3) || 
-                           (i < 36 && (i % 12) > 8) || 
-                           (i > 107 && (i % 12) < 3);
-            const isCenter = i >= 66 && i <= 77 && (i % 12) >= 5 && (i % 12) <= 6;
-            
-            return (
-              <div
-                key={i}
-                className={`aspect-square ${
-                  isCorner || isCenter 
-                    ? 'bg-black' 
-                    : Math.random() > 0.6 ? 'bg-white' : 'bg-black'
-                }`}
-              />
-            );
-          })}
-        </div>
-        {/* Center logo */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="bg-orange-500 p-2 rounded">
-            <Wallet className="h-6 w-6 text-white" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-
-
   const handleSectionChange = (section: string) => {
     setActiveSection(section);
-    // Auto-close sidebar on mobile after selection
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
   };
 
   const getPageDescription = (section: string) => {
-    const descriptions = {
+    const descriptions: { [key: string]: string } = {
       wallet: 'Manage your digital assets and wallet settings',
       transactions: 'View and track your transaction history',
       portfolio: 'Monitor your investment performance',
       security: 'Configure security settings and preferences',
       overview: 'Dashboard overview and analytics'
     };
-    return descriptions[section as keyof typeof descriptions] || 'Dashboard';
+    return descriptions[section] || 'Dashboard';
   };
 
-  const sidebarLinks = [
+  const sidebarLinks: SidebarLinkProps[] = [
     {
       label: "Wallet",
       href: "#wallet",
@@ -494,18 +539,41 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; is
                 {/* Current Wallet Display */}
                 <div className="p-3 bg-card/20 rounded-lg border border-border/30">
                   <div className="text-xs text-muted-foreground mb-2">Current Account</div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="h-8 w-8 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center">
-                      <Wallet className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-foreground">Main Wallet</div>
-                      <div className="flex items-center gap-1">
-                        <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
-                        <span className="text-xs text-green-400">Connected</span>
-                      </div>
-                    </div>
-                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="flex items-center gap-2 w-full h-auto p-0 justify-start text-left mb-3 hover:bg-transparent">
+                        <div className="h-8 w-8 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0">
+                          <Wallet className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-foreground">
+                            {currentAccount?.accountIndex !== undefined ? `Account ${currentAccount.accountIndex + 1}` : '...'}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
+                            <span className="text-xs text-green-400">Connected</span>
+                          </div>
+                        </div>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-[250px]">
+                      {accountList.map((account) => (
+                        <DropdownMenuItem
+                          key={account.accountIndex}
+                          onClick={() => handleSwitchAccount(account.accountIndex)}
+                          disabled={account.accountIndex === currentAccount?.accountIndex}
+                        >
+                          <div className="flex flex-col">
+                            <span>Account {account.accountIndex + 1}</span>
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {formatAddress(account.address)}
+                            </span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <div className="flex items-center gap-2">
                     <div className="text-sm font-mono flex-1 text-foreground">
                       {currentAccount?.address && formatAddress(currentAccount.address)}
@@ -594,7 +662,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; is
                   <div className="flex flex-col items-center space-y-2">
                     {/* Connected wallet indicator */}
                     <div className="relative">
-                      <div className="h-8 w-8 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center" title={`Main Wallet - Connected\nBalance: ${balance}`}>
+                      <div className="h-8 w-8 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center" title={`Account ${currentAccount.accountIndex + 1} - Connected\nBalance: ${balance}`}>
                         <Wallet className="h-4 w-4 text-white" />
                       </div>
                       <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-400 rounded-full animate-pulse border-2 border-background"></div>
@@ -710,6 +778,15 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; is
                     <QrCode className="h-4 w-4" />
                     Receive
                   </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleAddWallet}
+                      className="flex items-center gap-2 border-border hover:bg-muted/50 cosmic-glow"
+                      disabled={addWalletLoading}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Wallet
+                    </Button>
                 </>
               )}
               
@@ -1014,12 +1091,23 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: SidebarLinkProps; is
         </div>
       </div>
 
-      {/* Receive Transaction Modal */}
-      <ReceiveTransaction 
-        isOpen={showReceiveQR}
-        onClose={() => setShowReceiveQR(false)}
-        address={currentAccount?.address || ''}
-      />
+      {/* Receive Transaction Modal with valid QR */}
+      {currentAccount && (
+        <Dialog open={showReceiveQR} onOpenChange={setShowReceiveQR}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Receive APT</DialogTitle>
+              <DialogDescription>
+                Scan this QR code to get your public key.
+              </DialogDescription>
+            </DialogHeader>
+            <AddressQRCode publicKey={currentAccount.publicKey} />
+            <div className="mt-2 text-center text-xs text-muted-foreground">
+              Public Key: <span className="font-mono break-all">{currentAccount.publicKey}</span>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Modals */}
       

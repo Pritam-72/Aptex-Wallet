@@ -10,7 +10,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ data: { user: User }; error: null }>;
   signOut: () => Promise<void>;
 }
 
@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     setUser(mockUser);
     setLoading(false);
+    return { data: { user: mockUser }, error: null };
   };
 
   const signOut = async () => {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,10 +20,9 @@ const GoogleIcon = () => (
 );
 
 const SupabaseAuthPage = () => {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { signIn, signUp, signInWithGoogle } = useAuth();
-  const accountType = searchParams.get('type') || 'individual';
+  const { signIn } = useAuth();
+  const accountType = 'individual';
   const isIndividual = accountType === 'individual';
   const [activeTab, setActiveTab] = useState('login');
   const [showPassword, setShowPassword] = useState(false);
@@ -76,49 +75,49 @@ const SupabaseAuthPage = () => {
   };
 
   // Signup handler
-  const handleSignup = async (e) => {
-    e.preventDefault();
-    if (signupData.password !== signupData.confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-    setLoading(true);
-    try {
-      const { data, error } = await signUp(
-        signupData.email,
-        signupData.password,
-        {
-          fullName: signupData.firstName + ' ' + signupData.lastName,
-          phone: signupData.phone,
-          accountType,
-          businessName: !isIndividual ? signupData.businessName : undefined,
-          businessType: !isIndividual ? signupData.businessType : undefined
-        }
-      );
-      if (error) throw error;
-      toast.success('Account created! Please check your email to confirm.');
-      setActiveTab('login');
-    } catch (error) {
-      toast.error(error.message || 'Failed to create account');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // const handleSignup = async (e) => {
+  //   e.preventDefault();
+  //   if (signupData.password !== signupData.confirmPassword) {
+  //     toast.error('Passwords do not match');
+  //     return;
+  //   }
+  //   setLoading(true);
+  //   try {
+  //     const { data, error } = await signUp(
+  //       signupData.email,
+  //       signupData.password,
+  //       {
+  //         fullName: signupData.firstName + ' ' + signupData.lastName,
+  //         phone: signupData.phone,
+  //         accountType,
+  //         businessName: !isIndividual ? signupData.businessName : undefined,
+  //         businessType: !isIndividual ? signupData.businessType : undefined
+  //       }
+  //     );
+  //     if (error) throw error;
+  //     toast.success('Account created! Please check your email to confirm.');
+  //     setActiveTab('login');
+  //   } catch (error) {
+  //     toast.error(error.message || 'Failed to create account');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   // Google OAuth handler
-  const handleGoogleSignIn = async () => {
-    setLoading(true);
-    try {
-      await signInWithGoogle();
-      // After OAuth, user will be redirected back and AuthContext will update
-      // We can't get user object here, so rely on ProtectedRoute to redirect
-      toast.success('Successfully logged in with Google!');
-    } catch (error) {
-      toast.error(error.message || 'Failed to sign in with Google');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // const handleGoogleSignIn = async () => {
+  //   setLoading(true);
+  //   try {
+  //     await signInWithGoogle();
+  //     // After OAuth, user will be redirected back and AuthContext will update
+  //     // We can't get user object here, so rely on ProtectedRoute to redirect
+  //     toast.success('Successfully logged in with Google!');
+  //   } catch (error) {
+  //     toast.error(error.message || 'Failed to sign in with Google');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   return (
     <section className="relative w-full min-h-screen py-8 sm:py-12 md:py-20 px-4 sm:px-6 md:px-12 flex flex-col items-center justify-center overflow-hidden bg-background">
@@ -222,7 +221,7 @@ const SupabaseAuthPage = () => {
                     type="button"
                     variant="outline"
                     className="w-full bg-white hover:bg-gray-50 text-gray-900 border-gray-300"
-                    onClick={handleGoogleSignIn}
+                    // onClick={handleGoogleSignIn}
                     disabled={loading}
                   >
                     <GoogleIcon />
@@ -232,7 +231,7 @@ const SupabaseAuthPage = () => {
               </TabsContent>
               {/* Signup Tab */}
               <TabsContent value="signup">
-                <form onSubmit={handleSignup} className="space-y-4">
+                <form onSubmit={() => {}} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="firstName">First Name</Label>
@@ -381,7 +380,7 @@ const SupabaseAuthPage = () => {
                     type="button"
                     variant="outline"
                     className="w-full bg-white hover:bg-gray-50 text-gray-900 border-gray-300"
-                    onClick={handleGoogleSignIn}
+                    // onClick={handleGoogleSignIn}
                     disabled={loading}
                   >
                     <GoogleIcon />
