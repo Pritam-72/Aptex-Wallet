@@ -29,9 +29,37 @@ const HeroSection = () => {
       setIsVisible(true);
     }, 300);
 
-    // (Removed manual UnicornStudio init here) - initialization is handled by the global script or AnimatedBackground
-
     return () => clearTimeout(timer);
+  }, []);
+
+  // Initialize UnicornStudio with exact implementation from their docs
+  useEffect(() => {
+    // Exact implementation from UnicornStudio docs
+    if (!(window as any).UnicornStudio) {
+      (window as any).UnicornStudio = { isInitialized: false };
+      
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/gh/hiunicornstudio/unicornstudio.js@v1.4.31/dist/unicornStudio.umd.js";
+      
+      script.onload = function() {
+        if (!(window as any).UnicornStudio.isInitialized) {
+          (window as any).UnicornStudio.init();
+          (window as any).UnicornStudio.isInitialized = true;
+          console.log('UnicornStudio loaded and initialized');
+        }
+      };
+      
+      (document.head || document.body).appendChild(script);
+    } else if (!(window as any).UnicornStudio.isInitialized) {
+      // If UnicornStudio exists but not initialized
+      try {
+        (window as any).UnicornStudio.init();
+        (window as any).UnicornStudio.isInitialized = true;
+        console.log('UnicornStudio re-initialized');
+      } catch (error) {
+        console.error('Error initializing UnicornStudio:', error);
+      }
+    }
   }, []);
 
   // Show redirect notice for logged-in users after 3 seconds
@@ -51,66 +79,72 @@ const HeroSection = () => {
   };
 
   return (
-    <section className="relative w-full pt-4 sm:pt-8 md:pt-12 pb-16 sm:pb-24 md:pb-32 px-4 sm:px-6 md:px-12 flex flex-col items-center justify-center overflow-hidden bg-background mt-16 sm:mt-20 md:mt-24">
-      {/* Your 3D Model Background - Exact implementation */}
-      <div 
-        className="absolute inset-0 z-0 flex items-center justify-center"
-        style={{ 
-          opacity: 0.8,
-          pointerEvents: 'none'
-        }}
-      >
+    <section className="relative w-full pt-4 sm:pt-8 md:pt-12 pb-16 sm:pb-24 md:pb-32 px-10 flex flex-col items-center justify-center overflow-hidden bg-background mt-14 sm:mt-17 md:mt-21">
+      {/* Rounded Container with Black Background */}
+      <div className="relative w-full max-w-full bg-black rounded-3xl overflow-hidden">
+        {/* UnicornStudio 3D Background */}
         <div 
-          data-us-project="hXMrWxpuGilKPHMEOelf" 
-          style={{
-            width: '1920px', 
-            height: '1080px'
+          className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
+          style={{ 
+            opacity: 0.8,
+            pointerEvents: 'none'
           }}
-        />
-      </div>
-      
-      {/* Subtle background effects for layering */}
-      <div className="absolute inset-0 cosmic-grid opacity-5 z-10"></div>
-      
-      {/* Redirect Notice for Logged-in Users */}
-      {showRedirectNotice && user && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-background border border-border rounded-lg shadow-lg p-4 max-w-sm mx-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold">Welcome back!</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowRedirectNotice(false)}
-              className="h-6 w-6 p-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mb-3">
-            Would you like to go to your dashboard?
-          </p>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              onClick={() => navigate(getDashboardRoute())}
-              className="flex-1"
-            >
-              <Wallet className="h-3 w-3 mr-1" />
-              Go to Dashboard
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowRedirectNotice(false)}
-            >
-              Stay Here
-            </Button>
-          </div>
+        >
+          <div 
+            data-us-project="hXMrWxpuGilKPHMEOelf" 
+            style={{
+              width: '1920px', 
+              height: '1080px',
+              transform: 'scale(1)',
+              transformOrigin: 'center center'
+            }}
+          />
         </div>
-      )}
-      
-      {/* Hero Content */}
-      <div className={`relative z-20 max-w-5xl text-center space-y-6 transition-all duration-700 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+        
+        {/* Subtle background effects for layering */}
+        <div className="absolute inset-0 cosmic-grid opacity-5 z-10"></div>
+        
+        {/* Container Content */}
+        <div className="relative z-20 px-4 sm:px-6 md:px-12 py-16 sm:py-24 md:py-32 flex flex-col items-center justify-center">
+          {/* Redirect Notice for Logged-in Users */}
+          {showRedirectNotice && user && (
+            <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-background border border-border rounded-lg shadow-lg p-4 max-w-sm mx-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold">Welcome back!</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowRedirectNotice(false)}
+                  className="h-6 w-6 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">
+                Would you like to go to your dashboard?
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => navigate(getDashboardRoute())}
+                  className="flex-1"
+                >
+                  <Wallet className="h-3 w-3 mr-1" />
+                  Go to Dashboard
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRedirectNotice(false)}
+                >
+                  Stay Here
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {/* Hero Content */}
+          <div className={`relative z-20 max-w-5xl text-center space-y-6 transition-all duration-700 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
         {/* Status Badge */}
         <div className="flex justify-center">
           <span className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-[8px] sm:text-[10px] font-medium rounded-full bg-muted text-white">
@@ -123,7 +157,7 @@ const HeroSection = () => {
 
         {/* Main Headline */}
         <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-medium tracking-tighter text-white leading-none">
-          <span className="text-cyan-300">Aptos Wallet</span>
+          <span className="text-cyan-200">Aptos Wallet</span>
           <span className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl block mt-1 sm:mt-2 text-white">
             <span className="block sm:inline">EMI, NFT &</span>
             <span className="block sm:inline sm:ml-2">INR Integration</span>
@@ -173,13 +207,13 @@ const HeroSection = () => {
           <span className="hidden sm:inline"> • </span>
           <span className="block sm:inline">Smart contract security</span>
           <span className="hidden sm:inline"> • </span>
-          <span className="block sm:inline">UPI integration ready</span>
-        </div>
-      </div>
+            <span className="block sm:inline">UPI integration ready</span>
+          </div>
+          </div>
 
-      {/* Feature Cards */}
-      <div className={`w-full max-w-7xl mt-12 sm:mt-16 md:mt-20 z-20 relative transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-20'}`}>
-        <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12 justify-center items-center px-2 sm:px-4">
+          {/* Feature Cards */}
+          <div className={`w-full max-w-7xl mt-12 sm:mt-16 md:mt-20 z-20 relative transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-20'}`}>
+            <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12 justify-center items-center px-2 sm:px-4">
           {isDesktop ? (
             <>
               {/* Individual Solutions Card (3D) */}
@@ -273,8 +307,10 @@ const HeroSection = () => {
                 </Button>
               </div>
 
-            </>
-          )}
+              </>
+            )}
+            </div>
+          </div>
         </div>
       </div>
     </section>
