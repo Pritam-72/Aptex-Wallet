@@ -27,6 +27,9 @@ module aptos_contract::wallet_system {
     const E_INSUFFICIENT_BALANCE: u64 = 14;
     const E_INVALID_SPLIT_DATA: u64 = 15;
     const E_EMI_NOT_DUE: u64 = 16;
+    const E_LOYALTY_NFT_ALREADY_EXISTS: u64 = 17;
+    const E_COUPON_NFT_NOT_FOUND: u64 = 18;
+    const E_COUPON_NFT_EXPIRED: u64 = 19;
 
     /// Payment request status
     const STATUS_PENDING: u8 = 0;
@@ -37,6 +40,20 @@ module aptos_contract::wallet_system {
     const EMI_STATUS_ACTIVE: u8 = 0;
     const EMI_STATUS_COMPLETED: u8 = 1;
     const EMI_STATUS_DEFAULTED: u8 = 2;
+
+    /// Loyalty NFT tiers
+    const LOYALTY_BRONZE: u8 = 0;
+    const LOYALTY_SILVER: u8 = 1;
+    const LOYALTY_GOLD: u8 = 2;
+    const LOYALTY_PLATINUM: u8 = 3;
+    const LOYALTY_DIAMOND: u8 = 4;
+
+    /// Transaction thresholds for loyalty NFTs
+    const BRONZE_THRESHOLD: u64 = 1;
+    const SILVER_THRESHOLD: u64 = 10;
+    const GOLD_THRESHOLD: u64 = 50;
+    const PLATINUM_THRESHOLD: u64 = 100;
+    const DIAMOND_THRESHOLD: u64 = 250;
 
     /// Time constants (in microseconds)
     const SECONDS_IN_MONTH: u64 = 2629746000000; // 30.44 days in microseconds
@@ -85,6 +102,65 @@ module aptos_contract::wallet_system {
         description: String,     // What the EMI is for
     }
 
+    /// Loyalty NFT structure
+    struct LoyaltyNFT has key, store {
+        tier: u8,                // Bronze, Silver, Gold, etc.
+        transactions_count: u64, // Number of transactions when minted
+        minted_at: u64,         // Timestamp when minted
+        metadata: LoyaltyMetadata,
+    }
+
+    /// Loyalty NFT metadata
+    struct LoyaltyMetadata has store, drop, copy {
+        name: String,
+        description: String,
+        image_url: String,
+        tier_name: String,
+        attributes: vector<String>, // Additional attributes
+    }
+
+    /// Coupon NFT structure - destroyable
+    struct CouponNFT has key, store {
+        id: u64,
+        company: address,        // Company that issued the coupon
+        discount_percentage: u64, // Discount percentage
+        discount_link: String,   // Link to redeem discount
+        description: String,     // Coupon description
+        expires_at: u64,         // Expiration timestamp
+        created_at: u64,         // Creation timestamp
+        metadata: CouponMetadata,
+        is_redeemed: bool,       // Whether coupon has been used
+    }
+
+    /// Coupon NFT metadata
+    struct CouponMetadata has store, drop, copy {
+        name: String,
+        description: String,
+        image_url: String,
+        company_name: String,
+        coupon_type: String,     // "discount", "gift", "cashback", etc.
+        attributes: vector<String>,
+    }
+
+    /// User statistics for loyalty tracking
+    struct UserStats has store, drop, copy {
+        total_transactions: u64,
+        last_transaction_date: u64,
+        loyalty_nfts_minted: vector<u8>, // Track which tiers have been minted
+    }
+
+    /// Coupon template for companies to create
+    struct CouponTemplate has store, drop, copy {
+        id: u64,
+        company: address,
+        discount_percentage: u64,
+        discount_link: String,
+        description: String,
+        lifetime_hours: u64,     // How many hours the coupon is valid
+        metadata: CouponMetadata,
+        is_active: bool,
+    }
+
     /// Main wallet registry resource
     struct WalletRegistry has key {
         // Existing mappings
@@ -107,10 +183,20 @@ module aptos_contract::wallet_system {
         user_emis: Table<address, vector<u64>>,        // EMIs user is paying
         company_emis: Table<address, vector<u64>>,     // EMIs company is receiving
         
+        // User statistics for loyalty system
+        user_stats: Table<address, UserStats>,
+        
+        // Coupon system
+        coupon_templates: Table<u64, CouponTemplate>,
+        company_coupon_templates: Table<address, vector<u64>>,
+        user_coupon_nfts: Table<address, vector<u64>>,
+        
         // Counters
         next_request_id: u64,
         next_split_id: u64,
         next_emi_id: u64,
+        next_coupon_template_id: u64,
+        next_coupon_nft_id: u64,
     }
 
     /// Events
@@ -197,6 +283,42 @@ module aptos_contract::wallet_system {
         timestamp: u64,
     }
 
+    #[event]
+    struct LoyaltyNFTMintedEvent has drop, store {
+        user: address,
+        tier: u8,
+        tier_name: String,
+        transactions_count: u64,
+        timestamp: u64,
+    }
+
+    #[event]
+    struct CouponNFTMintedEvent has drop, store {
+        coupon_nft_id: u64,
+        user: address,
+        company: address,
+        discount_percentage: u64,
+        expires_at: u64,
+        timestamp: u64,
+    }
+
+    #[event]
+    struct CouponNFTRedeemedEvent has drop, store {
+        coupon_nft_id: u64,
+        user: address,
+        company: address,
+        timestamp: u64,
+    }
+
+    #[event]
+    struct CouponTemplateCreatedEvent has drop, store {
+        template_id: u64,
+        company: address,
+        discount_percentage: u64,
+        lifetime_hours: u64,
+        timestamp: u64,
+    }
+
     /// Initialize the wallet system
     public entry fun initialize(admin: &signer) {
         let admin_addr = signer::address_of(admin);
@@ -216,12 +338,240 @@ module aptos_contract::wallet_system {
             emi_agreements: table::new(),
             user_emis: table::new(),
             company_emis: table::new(),
+            user_stats: table::new(),
+            coupon_templates: table::new(),
+            company_coupon_templates: table::new(),
+            user_coupon_nfts: table::new(),
             next_request_id: 1,
             next_split_id: 1,
             next_emi_id: 1,
+            next_coupon_template_id: 1,
+            next_coupon_nft_id: 1,
         };
         
         move_to(admin, registry);
+    }
+
+    /// Helper function to update user stats and check for loyalty NFT minting
+    fun update_user_stats_and_check_loyalty(
+        user_addr: address,
+        registry: &mut WalletRegistry
+    ) {
+        let current_time = timestamp::now_microseconds();
+        
+        // Initialize or update user stats
+        if (!table::contains(&registry.user_stats, user_addr)) {
+            let stats = UserStats {
+                total_transactions: 1,
+                last_transaction_date: current_time,
+                loyalty_nfts_minted: vector::empty(),
+            };
+            table::add(&mut registry.user_stats, user_addr, stats);
+        } else {
+            let stats = table::borrow_mut(&mut registry.user_stats, user_addr);
+            stats.total_transactions = stats.total_transactions + 1;
+            stats.last_transaction_date = current_time;
+        };
+        
+        let stats = table::borrow(&registry.user_stats, user_addr);
+        let transaction_count = stats.total_transactions;
+        
+        // Check for loyalty NFT minting eligibility
+        let should_mint_tier: Option<u8> = option::none();
+        
+        if (transaction_count >= DIAMOND_THRESHOLD && 
+            !vector::contains(&stats.loyalty_nfts_minted, &LOYALTY_DIAMOND)) {
+            should_mint_tier = option::some(LOYALTY_DIAMOND);
+        } else if (transaction_count >= PLATINUM_THRESHOLD && 
+                  !vector::contains(&stats.loyalty_nfts_minted, &LOYALTY_PLATINUM)) {
+            should_mint_tier = option::some(LOYALTY_PLATINUM);
+        } else if (transaction_count >= GOLD_THRESHOLD && 
+                  !vector::contains(&stats.loyalty_nfts_minted, &LOYALTY_GOLD)) {
+            should_mint_tier = option::some(LOYALTY_GOLD);
+        } else if (transaction_count >= SILVER_THRESHOLD && 
+                  !vector::contains(&stats.loyalty_nfts_minted, &LOYALTY_SILVER)) {
+            should_mint_tier = option::some(LOYALTY_SILVER);
+        } else if (transaction_count >= BRONZE_THRESHOLD && 
+                  !vector::contains(&stats.loyalty_nfts_minted, &LOYALTY_BRONZE)) {
+            should_mint_tier = option::some(LOYALTY_BRONZE);
+        };
+        
+        if (option::is_some(&should_mint_tier)) {
+            let tier = *option::borrow(&should_mint_tier);
+            mint_loyalty_nft_internal(user_addr, tier, transaction_count, registry);
+        };
+    }
+
+    /// Internal function to mint loyalty NFT
+    fun mint_loyalty_nft_internal(
+        user_addr: address,
+        tier: u8,
+        transactions_count: u64,
+        registry: &mut WalletRegistry
+    ) {
+        let current_time = timestamp::now_microseconds();
+        let tier_name = get_tier_name(tier);
+        let description = string::utf8(b"Loyalty NFT for completing ");
+        string::append(&mut description, u64_to_string(transactions_count));
+        string::append(&mut description, string::utf8(b" transactions"));
+        
+        let _metadata = LoyaltyMetadata {
+            name: tier_name,
+            description,
+            image_url: get_tier_image_url(tier),
+            tier_name,
+            attributes: get_tier_attributes(tier),
+        };
+        
+        // In a real implementation, you would create the actual NFT here
+        // LoyaltyNFT {
+        //     tier,
+        //     transactions_count,
+        //     minted_at: current_time,
+        //     metadata,
+        // };
+        
+        // Store NFT in user's account (in a real implementation, this would be handled differently)
+        // For now, we'll track it in the registry
+        
+        // Update user stats to mark this tier as minted
+        let stats = table::borrow_mut(&mut registry.user_stats, user_addr);
+        vector::push_back(&mut stats.loyalty_nfts_minted, tier);
+        
+        event::emit(LoyaltyNFTMintedEvent {
+            user: user_addr,
+            tier,
+            tier_name,
+            transactions_count,
+            timestamp: current_time,
+        });
+    }
+
+    /// Helper functions for loyalty NFT metadata
+    fun get_tier_name(tier: u8): String {
+        if (tier == LOYALTY_BRONZE) {
+            string::utf8(b"Bronze Loyalty")
+        } else if (tier == LOYALTY_SILVER) {
+            string::utf8(b"Silver Loyalty")
+        } else if (tier == LOYALTY_GOLD) {
+            string::utf8(b"Gold Loyalty")
+        } else if (tier == LOYALTY_PLATINUM) {
+            string::utf8(b"Platinum Loyalty")
+        } else if (tier == LOYALTY_DIAMOND) {
+            string::utf8(b"Diamond Loyalty")
+        } else {
+            string::utf8(b"Unknown Loyalty")
+        }
+    }
+
+    fun get_tier_image_url(tier: u8): String {
+        if (tier == LOYALTY_BRONZE) {
+            string::utf8(b"https://your-nft-storage.com/bronze-loyalty.png")
+        } else if (tier == LOYALTY_SILVER) {
+            string::utf8(b"https://your-nft-storage.com/silver-loyalty.png")
+        } else if (tier == LOYALTY_GOLD) {
+            string::utf8(b"https://your-nft-storage.com/gold-loyalty.png")
+        } else if (tier == LOYALTY_PLATINUM) {
+            string::utf8(b"https://your-nft-storage.com/platinum-loyalty.png")
+        } else if (tier == LOYALTY_DIAMOND) {
+            string::utf8(b"https://your-nft-storage.com/diamond-loyalty.png")
+        } else {
+            string::utf8(b"https://your-nft-storage.com/default-loyalty.png")
+        }
+    }
+
+    fun get_tier_attributes(tier: u8): vector<String> {
+        let attributes = vector::empty<String>();
+        vector::push_back(&mut attributes, string::utf8(b"type:loyalty_nft"));
+        vector::push_back(&mut attributes, string::utf8(b"category:rewards"));
+        
+        if (tier == LOYALTY_BRONZE) {
+            vector::push_back(&mut attributes, string::utf8(b"rarity:common"));
+            vector::push_back(&mut attributes, string::utf8(b"tier:bronze"));
+        } else if (tier == LOYALTY_SILVER) {
+            vector::push_back(&mut attributes, string::utf8(b"rarity:uncommon"));
+            vector::push_back(&mut attributes, string::utf8(b"tier:silver"));
+        } else if (tier == LOYALTY_GOLD) {
+            vector::push_back(&mut attributes, string::utf8(b"rarity:rare"));
+            vector::push_back(&mut attributes, string::utf8(b"tier:gold"));
+        } else if (tier == LOYALTY_PLATINUM) {
+            vector::push_back(&mut attributes, string::utf8(b"rarity:epic"));
+            vector::push_back(&mut attributes, string::utf8(b"tier:platinum"));
+        } else if (tier == LOYALTY_DIAMOND) {
+            vector::push_back(&mut attributes, string::utf8(b"rarity:legendary"));
+            vector::push_back(&mut attributes, string::utf8(b"tier:diamond"));
+        };
+        
+        attributes
+    }
+
+    /// Helper function to convert u64 to string (basic implementation)
+    fun u64_to_string(num: u64): String {
+        if (num == 0) {
+            return string::utf8(b"0")
+        };
+        
+        let digits = vector::empty<u8>();
+        let temp = num;
+        while (temp > 0) {
+            let digit = ((temp % 10) as u8) + 48; // 48 is ASCII for '0'
+            vector::push_back(&mut digits, digit);
+            temp = temp / 10;
+        };
+        
+        vector::reverse(&mut digits);
+        string::utf8(digits)
+    }
+
+    /// Helper function to randomly mint coupon NFT
+    fun maybe_mint_random_coupon_nft(user_addr: address, registry: &mut WalletRegistry) {
+        // Simple random logic - in practice, you might want more sophisticated logic
+        let current_time = timestamp::now_microseconds();
+        let random_factor = current_time % 100; // 0-99
+        
+        // 20% chance to get a coupon NFT
+        if (random_factor < 20) {
+            // Get a random active coupon template (simplified)
+            let template_count = registry.next_coupon_template_id - 1;
+            if (template_count > 0) {
+                let template_id = (current_time % template_count) + 1;
+                if (table::contains(&registry.coupon_templates, template_id)) {
+                    let template = table::borrow(&registry.coupon_templates, template_id);
+                    if (template.is_active) {
+                        mint_coupon_nft_internal(user_addr, template_id, registry);
+                    };
+                };
+            };
+        };
+    }
+
+    /// Internal function to mint coupon NFT from template
+    fun mint_coupon_nft_internal(
+        user_addr: address,
+        template_id: u64,
+        registry: &mut WalletRegistry
+    ) {
+        let template = table::borrow(&registry.coupon_templates, template_id);
+        let current_time = timestamp::now_microseconds();
+        let expires_at = current_time + (template.lifetime_hours * 3600000000); // Convert hours to microseconds
+        
+        let coupon_nft_id = registry.next_coupon_nft_id;
+        
+        // In a real implementation, you would create the actual NFT here
+        // For now, we'll just track it in the user's coupon list
+        let user_coupons = table::borrow_mut(&mut registry.user_coupon_nfts, user_addr);
+        vector::push_back(user_coupons, coupon_nft_id);
+        
+        registry.next_coupon_nft_id = registry.next_coupon_nft_id + 1;
+        
+        event::emit(CouponNFTMintedEvent {
+            coupon_nft_id,
+            user: user_addr,
+            company: template.company,
+            discount_percentage: template.discount_percentage,
+            expires_at,
+            timestamp: current_time,
+        });
     }
 
     /// Register a wallet ID for a user
@@ -253,6 +603,12 @@ module aptos_contract::wallet_system {
         };
         if (!table::contains(&registry.company_emis, user_addr)) {
             table::add(&mut registry.company_emis, user_addr, vector::empty());
+        };
+        if (!table::contains(&registry.company_coupon_templates, user_addr)) {
+            table::add(&mut registry.company_coupon_templates, user_addr, vector::empty());
+        };
+        if (!table::contains(&registry.user_coupon_nfts, user_addr)) {
+            table::add(&mut registry.user_coupon_nfts, user_addr, vector::empty());
         };
         
         event::emit(WalletIdRegisteredEvent {
@@ -350,14 +706,24 @@ module aptos_contract::wallet_system {
         assert!(request.to == payer_addr, error::permission_denied(E_NOT_AUTHORIZED));
         assert!(request.status == STATUS_PENDING, error::invalid_state(E_PAYMENT_REQUEST_NOT_FOUND));
         
+        // Store values before updating
+        let request_from = request.from;
+        let request_amount = request.amount;
+        
         request.status = STATUS_PAID;
         request.paid_at = option::some(timestamp::now_microseconds());
         
+        // Update user stats and check for loyalty NFT
+        update_user_stats_and_check_loyalty(payer_addr, registry);
+        
+        // Randomly mint coupon NFT (you can customize this logic)
+        maybe_mint_random_coupon_nft(payer_addr, registry);
+        
         event::emit(PaymentRequestPaidEvent {
             request_id,
-            from: request.from,
+            from: request_from,
             to: payer_addr,
-            amount: request.amount,
+            amount: request_amount,
             timestamp: timestamp::now_microseconds(),
         });
     }
@@ -665,6 +1031,105 @@ module aptos_contract::wallet_system {
         });
     }
 
+    /// Create coupon template (called by company)
+    public entry fun create_coupon_template(
+        company: &signer,
+        admin_addr: address,
+        discount_percentage: u64,
+        discount_link: String,
+        description: String,
+        lifetime_hours: u64,
+        company_name: String,
+        coupon_type: String,
+        image_url: String
+    ) acquires WalletRegistry {
+        let company_addr = signer::address_of(company);
+        let registry = borrow_global_mut<WalletRegistry>(admin_addr);
+        
+        assert!(discount_percentage > 0 && discount_percentage <= 100, error::invalid_argument(E_INVALID_AMOUNT));
+        assert!(lifetime_hours > 0, error::invalid_argument(E_INVALID_AMOUNT));
+        
+        let template_id = registry.next_coupon_template_id;
+        
+        let metadata = CouponMetadata {
+            name: string::utf8(b"Discount Coupon"),
+            description,
+            image_url,
+            company_name,
+            coupon_type,
+            attributes: vector::empty(),
+        };
+        
+        let template = CouponTemplate {
+            id: template_id,
+            company: company_addr,
+            discount_percentage,
+            discount_link,
+            description,
+            lifetime_hours,
+            metadata,
+            is_active: true,
+        };
+        
+        table::add(&mut registry.coupon_templates, template_id, template);
+        
+        // Add to company's templates
+        let company_templates = table::borrow_mut(&mut registry.company_coupon_templates, company_addr);
+        vector::push_back(company_templates, template_id);
+        
+        registry.next_coupon_template_id = registry.next_coupon_template_id + 1;
+        
+        event::emit(CouponTemplateCreatedEvent {
+            template_id,
+            company: company_addr,
+            discount_percentage,
+            lifetime_hours,
+            timestamp: timestamp::now_microseconds(),
+        });
+    }
+
+    /// Deactivate coupon template
+    public entry fun deactivate_coupon_template(
+        company: &signer,
+        admin_addr: address,
+        template_id: u64
+    ) acquires WalletRegistry {
+        let company_addr = signer::address_of(company);
+        let registry = borrow_global_mut<WalletRegistry>(admin_addr);
+        
+        assert!(table::contains(&registry.coupon_templates, template_id), 
+                error::not_found(E_COUPON_NFT_NOT_FOUND));
+        
+        let template = table::borrow_mut(&mut registry.coupon_templates, template_id);
+        assert!(template.company == company_addr, error::permission_denied(E_NOT_AUTHORIZED));
+        
+        template.is_active = false;
+    }
+
+    /// Manually mint coupon NFT to specific user (called by company)
+    public entry fun mint_coupon_nft_to_user(
+        company: &signer,
+        admin_addr: address,
+        user_wallet_id: String,
+        template_id: u64
+    ) acquires WalletRegistry {
+        let company_addr = signer::address_of(company);
+        let registry = borrow_global_mut<WalletRegistry>(admin_addr);
+        
+        assert!(table::contains(&registry.wallet_id_to_address, user_wallet_id), 
+                error::not_found(E_WALLET_ID_NOT_FOUND));
+        let user_addr = *table::borrow(&registry.wallet_id_to_address, user_wallet_id);
+        
+        assert!(table::contains(&registry.coupon_templates, template_id), 
+                error::not_found(E_COUPON_NFT_NOT_FOUND));
+        
+        let template = table::borrow(&registry.coupon_templates, template_id);
+        assert!(template.company == company_addr, error::permission_denied(E_NOT_AUTHORIZED));
+        assert!(template.is_active, error::invalid_state(E_COUPON_NFT_EXPIRED));
+        
+        mint_coupon_nft_internal(user_addr, template_id, registry);
+    }
+
     /// View functions
     
     /// Get address by wallet ID
@@ -796,6 +1261,88 @@ module aptos_contract::wallet_system {
             option::some(*table::borrow(&registry.address_to_upi_id, user_addr))
         } else {
             option::none()
+        }
+    }
+
+    /// Get user statistics for loyalty tracking
+    #[view]
+    public fun get_user_stats(admin_addr: address, user_addr: address): Option<UserStats> acquires WalletRegistry {
+        let registry = borrow_global<WalletRegistry>(admin_addr);
+        if (table::contains(&registry.user_stats, user_addr)) {
+            option::some(*table::borrow(&registry.user_stats, user_addr))
+        } else {
+            option::none()
+        }
+    }
+
+    /// Get coupon template details
+    #[view]
+    public fun get_coupon_template(admin_addr: address, template_id: u64): Option<CouponTemplate> acquires WalletRegistry {
+        let registry = borrow_global<WalletRegistry>(admin_addr);
+        if (table::contains(&registry.coupon_templates, template_id)) {
+            option::some(*table::borrow(&registry.coupon_templates, template_id))
+        } else {
+            option::none()
+        }
+    }
+
+    /// Get company's coupon templates
+    #[view]
+    public fun get_company_coupon_templates(admin_addr: address, company_addr: address): vector<u64> acquires WalletRegistry {
+        let registry = borrow_global<WalletRegistry>(admin_addr);
+        if (table::contains(&registry.company_coupon_templates, company_addr)) {
+            *table::borrow(&registry.company_coupon_templates, company_addr)
+        } else {
+            vector::empty()
+        }
+    }
+
+    /// Get user's coupon NFTs
+    #[view]
+    public fun get_user_coupon_nfts(admin_addr: address, user_addr: address): vector<u64> acquires WalletRegistry {
+        let registry = borrow_global<WalletRegistry>(admin_addr);
+        if (table::contains(&registry.user_coupon_nfts, user_addr)) {
+            *table::borrow(&registry.user_coupon_nfts, user_addr)
+        } else {
+            vector::empty()
+        }
+    }
+
+    /// Get user's loyalty NFT tiers that have been minted
+    #[view]
+    public fun get_user_loyalty_tiers(admin_addr: address, user_addr: address): vector<u8> acquires WalletRegistry {
+        let registry = borrow_global<WalletRegistry>(admin_addr);
+        if (table::contains(&registry.user_stats, user_addr)) {
+            let stats = table::borrow(&registry.user_stats, user_addr);
+            stats.loyalty_nfts_minted
+        } else {
+            vector::empty()
+        }
+    }
+
+    /// Check if user is eligible for specific loyalty tier
+    #[view]
+    public fun check_loyalty_tier_eligibility(admin_addr: address, user_addr: address, tier: u8): bool acquires WalletRegistry {
+        let registry = borrow_global<WalletRegistry>(admin_addr);
+        if (!table::contains(&registry.user_stats, user_addr)) {
+            return false
+        };
+        
+        let stats = table::borrow(&registry.user_stats, user_addr);
+        let transaction_count = stats.total_transactions;
+        
+        if (tier == LOYALTY_BRONZE && transaction_count >= BRONZE_THRESHOLD) {
+            !vector::contains(&stats.loyalty_nfts_minted, &LOYALTY_BRONZE)
+        } else if (tier == LOYALTY_SILVER && transaction_count >= SILVER_THRESHOLD) {
+            !vector::contains(&stats.loyalty_nfts_minted, &LOYALTY_SILVER)
+        } else if (tier == LOYALTY_GOLD && transaction_count >= GOLD_THRESHOLD) {
+            !vector::contains(&stats.loyalty_nfts_minted, &LOYALTY_GOLD)
+        } else if (tier == LOYALTY_PLATINUM && transaction_count >= PLATINUM_THRESHOLD) {
+            !vector::contains(&stats.loyalty_nfts_minted, &LOYALTY_PLATINUM)
+        } else if (tier == LOYALTY_DIAMOND && transaction_count >= DIAMOND_THRESHOLD) {
+            !vector::contains(&stats.loyalty_nfts_minted, &LOYALTY_DIAMOND)
+        } else {
+            false
         }
     }
 }
