@@ -4,13 +4,11 @@ import { motion } from 'framer-motion';
 interface SidebarHeaderProps {
   sidebarOpen: boolean;
   currentAccount: any;
-  balance: string;
 }
 
 export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
   sidebarOpen,
-  currentAccount,
-  balance
+  currentAccount
 }) => {
   return (
     <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden ultra-minimal-scrollbar">
@@ -32,21 +30,6 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
         )}
       </motion.div>
 
-      {/* Quick Stats */}
-      {currentAccount && (
-        <motion.div
-          className={`mb-4 p-3 bg-card/30 rounded-lg border border-border/30 ${
-            !sidebarOpen ? 'hidden' : ''
-          }`}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: sidebarOpen ? 1 : 0, y: sidebarOpen ? 0 : 20 }}
-          transition={{ delay: 0.1 }}
-        >
-          <div className="text-xs text-muted-foreground mb-1">Balance</div>
-          <div className="text-lg font-bold text-foreground">{balance}</div>
-          <div className="text-xs text-green-400">+2.3% today</div>
-        </motion.div>
-      )}
     </div>
   );
 };

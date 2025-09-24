@@ -376,7 +376,6 @@ const SimpleDashboard = () => {
           <SidebarHeader
             sidebarOpen={sidebarOpen}
             currentAccount={currentAccount}
-            balance={balance}
           />
 
           {/* Navigation Links */}
