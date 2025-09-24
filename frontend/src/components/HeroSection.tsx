@@ -5,6 +5,7 @@ import { PinContainer } from '@/components/ui/3d-pin';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import AnimatedBackground from '@/components/AnimatedBackground';
 
 // Custom hook for viewport detection
 function useIsDesktop() {
@@ -50,13 +51,11 @@ const HeroSection = () => {
 
   return (
     <section className="relative w-full pt-4 sm:pt-8 md:pt-12 pb-16 sm:pb-24 md:pb-32 px-4 sm:px-6 md:px-12 flex flex-col items-center justify-center overflow-hidden bg-background mt-16 sm:mt-20 md:mt-24">
-      {/* Background Effects */}
-      <div className="absolute inset-0 cosmic-grid opacity-20 sm:opacity-30"></div>
+      {/* 3D Animated Background with Unicorn Studio */}
+      <AnimatedBackground projectId="cm294jqwv1hkdml0hncxmdyvp" overlay="light" />
       
-      {/* Gradient glow effect - responsive sizing */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[400px] md:w-[600px] h-[300px] sm:h-[400px] md:h-[600px] rounded-full">
-        <div className="w-full h-full opacity-5 sm:opacity-8 md:opacity-10 bg-primary blur-[60px] sm:blur-[90px] md:blur-[120px]"></div>
-      </div>
+      {/* Subtle background effects for layering */}
+      <div className="absolute inset-0 cosmic-grid opacity-5"></div>
       
       {/* Redirect Notice for Logged-in Users */}
       {showRedirectNotice && user && (

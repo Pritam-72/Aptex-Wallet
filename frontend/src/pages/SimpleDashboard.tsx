@@ -9,9 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { WalletSetup } from '@/components/WalletSetup';
-import { WalletConnect } from '@/components/WalletConnect';
 import { SendTransaction } from '@/components/SendTransaction';
+import { ReceiveTransaction } from '@/components/ReceiveTransaction';
+import { TransactionHistory } from '@/components/TransactionHistory';
 import * as XLSX from 'xlsx';
 import WalletInfo from '@/components/WalletInfo';
 
@@ -90,13 +90,12 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
     if (savedState !== null) return JSON.parse(savedState);
     return window.innerWidth >= 1024; // lg breakpoint
   });
-  const [showWalletSetup, setShowWalletSetup] = useState(false);
-  const [showWalletConnect, setShowWalletConnect] = useState(false);
   const [showSendTransaction, setShowSendTransaction] = useState(false);
   const [showReceiveQR, setShowReceiveQR] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [address, setAddress] = useState('');
-  const [balance, setBalance] = useState('0.00 APT');
+  // Built-in wallet - always connected
+  const [isConnected, setIsConnected] = useState(true);
+  const [address, setAddress] = useState('0x742d35Cc6663C0532d8c5E9C4267B53A0D7C9b1F');
+  const [balance, setBalance] = useState('12.5623 APT');
 
   // Single wallet dashboard for all users
 
@@ -154,22 +153,13 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Built-in wallet initialization
   useEffect(() => {
-    // Check if wallet exists and show appropriate modal
-    const checkWalletStatus = async () => {
-      if (!isConnected) {
-        // Mock check - replace with actual wallet detection
-        const hasWallet = localStorage.getItem('wallet_encrypted');
-        if (!hasWallet) {
-          setShowWalletSetup(true);
-        } else {
-          setShowWalletConnect(true);
-        }
-      }
-    };
-    
-    checkWalletStatus();
-  }, [isConnected]);
+    // Initialize wallet with default values
+    setIsConnected(true);
+    setAddress('0x742d35Cc6663C0532d8c5E9C4267B53A0D7C9b1F');
+    setBalance('12.5623 APT');
+  }, []);
 
   useEffect(() => {
     // Refresh balance periodically if connected
@@ -190,32 +180,11 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const handleWalletSetupComplete = () => {
-    setShowWalletSetup(false);
-    setShowWalletConnect(true);
-  };
-  
-  const handleDisconnect = () => {
-    setIsConnected(false);
-    setAddress('');
-    setBalance('0.00 APT');
-    setShowWalletConnect(true);
-  };
-
-  const handleConnect = () => {
-    // Mock wallet connection
-    setIsConnected(true);
-    setAddress('0x742d35Cc6663C0532d8c5E9C4267B53A0D7C9b1F');
-    setBalance('1.23456789 APT');
-    setShowWalletConnect(false);
-  };
+  // Built-in wallet - no need for connection functions
 
   const handleLogout = async () => {
     try {
-      // First disconnect the wallet to clean up any wallet-related state
-      if (isConnected) {
-        handleDisconnect();
-      }
+      // Built-in wallet stays connected, just sign out user
       // Then sign out from authentication
       await signOut();
     } catch (error) {
@@ -272,61 +241,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
     </div>
   );
 
-  // Mock data for transactions
-  const transactions = [
-    {
-      id: 'tx_001',
-      type: 'sent',
-      description: 'Coffee Shop',
-      amount: '0.05',
-      fiatAmount: '₹125.50',
-      status: 'completed',
-      time: '2 mins ago',
-      hash: '0x1234...5678'
-    },
-    {
-      id: 'tx_002', 
-      type: 'received',
-      description: 'Salary Credit',
-      amount: '0.5',
-      fiatAmount: '₹1,255.00',
-      status: 'completed',
-      time: '1 hour ago',
-      hash: '0x2345...6789'
-    },
-    {
-      id: 'tx_003',
-      type: 'sent',
-      description: 'Online Store',
-      amount: '0.12',
-      fiatAmount: '₹301.20',
-      status: 'pending',
-      time: '3 hours ago',
-      hash: '0x3456...7890'
-    }
-  ];
 
-  const exportTransactionsToExcel = () => {
-    try {
-      const exportData = transactions.map(transaction => ({
-        'ID': transaction.id,
-        'Type': transaction.type,
-        'Description': transaction.description,
-        'Amount_APT': transaction.amount,
-        'Amount_INR': transaction.fiatAmount,
-        'Status': transaction.status,
-        'Time': transaction.time,
-        'Hash': transaction.hash
-      }));
-
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
-      XLSX.writeFile(workbook, `cryppal_transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
-    } catch (error) {
-      console.error('Export failed:', error);
-    }
-  };
 
   const handleSectionChange = (section: string) => {
     setActiveSection(section);
@@ -511,20 +426,20 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowWalletConnect(true)}
+                    onClick={() => setActiveSection('security')}
                     className="w-full border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Account
+                    <Shield className="h-4 w-4 mr-2" />
+                    Security
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleDisconnect}
+                    onClick={() => setActiveSection('settings')}
                     className="w-full border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                   >
-                    <Lock className="h-4 w-4 mr-2" />
-                    Disconnect
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
                   </Button>
                 </div>
               </motion.div>
@@ -544,15 +459,15 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
                   </div>
                 </div>
                 
-                {/* Add Account Button */}
+                {/* Quick Action Button */}
                 <div className="relative">
                   <Button
-                    onClick={() => setShowWalletConnect(true)}
+                    onClick={() => setShowSendTransaction(true)}
                     className="w-full bg-black hover:bg-gray-900 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] border-0"
                     size="lg"
                   >
-                    <Plus className="h-5 w-5 mr-2" />
-                    Add Account
+                    <Send className="h-5 w-5 mr-2" />
+                    Send APT
                   </Button>
                   {/* Subtle glow effect */}
                   <div className="absolute inset-0 bg-black/20 rounded-md blur-lg -z-10 opacity-75"></div>
@@ -587,11 +502,11 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setShowWalletConnect(true)}
+                        onClick={() => setActiveSection('settings')}
                         className="h-7 w-7 p-1 hover:bg-muted/50 rounded-lg"
-                        title="Add Account"
+                        title="Settings"
                       >
-                        <Plus className="h-3 w-3" />
+                        <Settings className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
@@ -602,13 +517,13 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
                       <Wallet className="h-4 w-4 text-white" />
                     </div>
                     <Button
-                      variant="ghost"
+                      variant="ghost" 
                       size="sm"
-                      onClick={() => setShowWalletConnect(true)}
+                      onClick={() => setActiveSection('settings')}
                       className="h-8 w-8 p-1 hover:bg-muted/50 rounded-lg"
-                      title="Add Account"
+                      title="Settings"
                     >
-                      <Plus className="h-4 w-4" />
+                      <Settings className="h-4 w-4" />
                     </Button>
                   </div>
                 )}
@@ -710,10 +625,9 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
                 <WalletInfo
                   address={address}
                   balance={balance}
-                  network="sepolia"
+                  network="mainnet"
                   isConnected={isConnected}
                   onRefresh={refreshBalance}
-                  onDisconnect={handleDisconnect}
                 />
               )}
 
@@ -833,34 +747,19 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {transactions.slice(0, 3).map((tx) => (
-                      <div key={tx.id} className="flex items-center justify-between p-3 bg-muted/20 backdrop-blur-sm rounded border border-border/30 hover:border-primary/20 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                            tx.type === 'sent' ? 'bg-red-500/20 border border-red-500/30' : 'bg-green-500/20 border border-green-500/30'
-                          }`}>
-                            {tx.type === 'sent' ? (
-                              <Send className="h-4 w-4 text-red-400" />
-                            ) : (
-                              <ArrowUpDown className="h-4 w-4 text-green-400" />
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-medium text-sm text-foreground">{tx.description}</div>
-                            <div className="text-xs text-muted-foreground">{tx.time}</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`font-medium text-sm ${
-                            tx.type === 'sent' ? 'text-red-400' : 'text-green-400'
-                          }`}>
-                            {tx.type === 'sent' ? '-' : '+'}{tx.amount} APT
-                          </div>
-                          <div className="text-xs text-muted-foreground">{tx.fiatAmount}</div>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="text-center py-8">
+                    <History className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-foreground mb-2">No Recent Transactions</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Connect your wallet to view transaction history
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => setActiveSection('transactions')}
+                      className="border-border hover:bg-muted/50"
+                    >
+                      View Transaction History
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -869,58 +768,7 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
 
           {/* Transactions Section */}
           {activeSection === 'transactions' && (
-            <div className="space-y-6">
-              <Card className="cosmic-glow bg-card/50 backdrop-blur-sm border-border/50">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-foreground">Transaction History</CardTitle>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={exportTransactionsToExcel}
-                      className="border-border hover:bg-muted/50 cosmic-glow"
-                    >
-                      Export Excel
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {transactions.map((tx) => (
-                      <div key={tx.id} className="flex items-center justify-between p-4 border border-border/30 rounded-lg hover:bg-muted/20 hover:border-primary/20 transition-all duration-200 cosmic-glow">
-                        <div className="flex items-center gap-4">
-                          <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
-                            tx.type === 'sent' ? 'bg-red-500/20 border border-red-500/30' : 'bg-green-500/20 border border-green-500/30'
-                          }`}>
-                            {tx.type === 'sent' ? (
-                              <Send className="h-5 w-5 text-red-400" />
-                            ) : (
-                              <ArrowUpDown className="h-5 w-5 text-green-400" />
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-medium text-foreground">{tx.description}</div>
-                            <div className="text-sm text-muted-foreground">{tx.time}</div>
-                            <div className="text-xs text-muted-foreground font-mono">{tx.hash}</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`font-bold ${
-                            tx.type === 'sent' ? 'text-red-400' : 'text-green-400'
-                          }`}>
-                            {tx.type === 'sent' ? '-' : '+'}{tx.amount} APT
-                          </div>
-                          <div className="text-sm text-muted-foreground">{tx.fiatAmount}</div>
-                          <Badge variant={tx.status === 'completed' ? 'default' : 'secondary'} className="mt-1">
-                            {tx.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <TransactionHistory />
           )}
 
           {/* Portfolio Section */}
@@ -993,84 +841,14 @@ const EnhancedSidebarLink = ({ link, isCollapsed }: { link: any; isCollapsed: bo
         </div>
       </div>
 
-      {/* Receive QR Modal */}
-      <Dialog open={showReceiveQR} onOpenChange={setShowReceiveQR}>
-        <DialogContent className="max-w-md bg-background/95 backdrop-blur-md border border-border cosmic-glow">
-          <DialogHeader className="pb-6">
-            <DialogTitle className="flex items-center gap-3 text-xl font-medium text-foreground">
-              <QrCode className="h-5 w-5" />
-              Receive Payments
-            </DialogTitle>
-            <DialogDescription className="text-muted-foreground text-sm mt-1">
-              Share this QR code or address to receive payments
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6">
-            {/* QR Code Section */}
-            <div className="flex justify-center">
-              {address && <AddressQRCode address={address} />}
-            </div>
-            {/* Wallet Address Section */}
-            <div className="space-y-3">
-              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                WALLET ADDRESS
-              </label>
-              <div className="bg-card/50 border border-border/50 rounded-lg p-3 cosmic-glow">
-                <div className="font-mono text-sm text-foreground break-all">
-                  {address}
-                </div>
-              </div>
-            </div>
-            {/* Network Info */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-card/50 border border-border/50 rounded-lg p-3 cosmic-glow">
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">NETWORK</div>
-                <div className="text-sm text-foreground mt-1">Sepolia</div>
-              </div>
-              <div className="bg-card/50 border border-border/50 rounded-lg p-3 cosmic-glow">
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">TYPE</div>
-                <div className="text-sm text-foreground mt-1">Aptos</div>
-              </div>
-            </div>
-            {/* Copy Button */}
-            <Button 
-              onClick={() => copyToClipboard(address || '')}
-              className="w-full h-11 bg-primary/20 hover:bg-primary/30 text-foreground border border-primary/30 cosmic-glow"
-            >
-              <Copy className="h-4 w-4 mr-2" />
-              Copy Address
-            </Button>
-            {/* Security Notice */}
-            <div className="bg-card/30 border border-border/30 rounded-lg p-4 mt-2 cosmic-glow">
-              <div className="flex items-start gap-3">
-                <Shield className="h-4 w-4 text-yellow-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Security Notice</div>
-                  <div className="text-xs text-muted-foreground/80 mt-1">
-                    This address can receive APT and Aptos tokens on Aptos network. Always verify the network before sending funds.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Receive Transaction Modal */}
+      <ReceiveTransaction 
+        isOpen={showReceiveQR}
+        onClose={() => setShowReceiveQR(false)}
+        address={address || ''}
+      />
 
       {/* Modals */}
-      <WalletSetup
-        isOpen={showWalletSetup}
-        onClose={() => setShowWalletSetup(false)}
-        onComplete={handleWalletSetupComplete}
-      />
-      
-      <WalletConnect
-        isOpen={showWalletConnect}
-        onClose={() => setShowWalletConnect(false)}
-        onSetupNew={() => {
-          setShowWalletConnect(false);
-          setShowWalletSetup(true);
-        }}
-      />
       
       <SendTransaction
         isOpen={showSendTransaction}

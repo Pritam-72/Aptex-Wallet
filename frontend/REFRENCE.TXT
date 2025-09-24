@@ -1,1354 +1,1410 @@
-# CrypPal Dashboard UI - Complete File Collection
+# CrypPal QR Scanner and Transaction Components
 
-This document contains all the files needed to recreate the CrypPal cryptocurrency wallet dashboard UI shown in your images. The dashboard features wallet management, balance displays, transaction history, and various crypto-related functionalities.
+Complete collection of QR scanning, QR code generation, and transaction files from your crypPal cryptocurrency wallet dashboard.
 
-## Table of Contents
+## QR Scanner Components
 
-1. [Main Dashboard Pages](#main-dashboard-pages)
-2. [Core Components](#core-components)
-3. [Context Files](#context-files)
-4. [Utility Files](#utility-files)
-5. [Configuration Files](#configuration-files)
-6. [Smart Contract](#smart-contract)
-7. [UI Component Library](#ui-component-library)
-
----
-
-## Main Dashboard Pages
-
-### 1. Enhanced User Dashboard (`src/pages/EnhancedUserDashboard.tsx`)
+### 1. Enhanced QR Scanner (`src/components/QRScannerNew.tsx`)
 
 ```tsx
-import React, { useState, useEffect } from 'react';
-import { Copy, Eye, EyeOff, Wallet, Send, QrCode, RefreshCw, Settings, History, Shield, CreditCard, BarChart3, ExternalLink, Menu, TrendingUp, Lock, Plus, Minus, ArrowUpDown, X, Bug, LogOut } from 'lucide-react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { QrCode, Camera, Upload, X, Check, Send, AlertTriangle, Loader2 } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { WalletSetup } from '@/components/WalletSetup';
-import { WalletConnect } from '@/components/WalletConnect';
-import { SendTransaction } from '@/components/SendTransaction';
-import { WalletLoginDiagnostics } from '@/components/WalletLoginDiagnostics';
-import * as XLSX from 'xlsx';
-import WalletInfo from '@/components/WalletInfo';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
+import { paymentService, type QRPaymentData, type PaymentRequest } from '@/services/PaymentService';
+import { ethers } from 'ethers';
+import { BrowserQRCodeReader } from '@zxing/browser';
+import jsQR from 'jsqr';
+import { isValidAddress, getExplorerUrl } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-const EnhancedUserDashboard = () => {
-  const navigate = useNavigate();
-  const { isConnected, address, balance, refreshBalance, disconnectWallet, getWalletInfo, hasWalletInDatabase } = useWallet();
-  const { user, signOut } = useAuth();
-  const [showBalance, setShowBalance] = useState(true);
-  const [activeSection, setActiveSection] = useState('wallet');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showWalletSetup, setShowWalletSetup] = useState(false);
-  const [showWalletConnect, setShowWalletConnect] = useState(false);
-  const [showSendTransaction, setShowSendTransaction] = useState(false);
-  const [showReceiveQR, setShowReceiveQR] = useState(false);
+interface QRScannerProps {
+  onScan?: (data: string) => void;
+  onClose?: () => void;
+  onPaymentComplete?: (txHash: string) => void;
+  cardClassName?: string;
+  showCloseButton?: boolean;
+  onSuccessDialogClose?: () => void;
+  scanButtonProps?: React.ComponentProps<typeof Button> & { tooltip?: string };
+  uploadButtonProps?: React.ComponentProps<typeof Button> & { tooltip?: string };
+}
 
-  useEffect(() => {
-    // Check if wallet exists and show appropriate modal
-    const checkWalletStatus = async () => {
-      if (!isConnected) {
-        // Check if user has a wallet in database or localStorage
-        const walletInfo = getWalletInfo();
-        const hasDbWallet = user ? await hasWalletInDatabase() : false;
-        
-        if (!walletInfo && !hasDbWallet) {
-          setShowWalletSetup(true);
-        } else if ((walletInfo || hasDbWallet)) {
-          setShowWalletConnect(true);
+export const QRScanner: React.FC<QRScannerProps> = ({ 
+  onScan, onClose, onPaymentComplete, cardClassName, showCloseButton = true, 
+  onSuccessDialogClose, scanButtonProps = {}, uploadButtonProps = {} 
+}) => {
+  const { isConnected, sendTransaction, address, balance } = useWallet();
+  const { convertETHToINR } = useExchangeRate();
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedData, setScannedData] = useState<string | null>(null);
+  const [parsedData, setParsedData] = useState<QRPaymentData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [manualInput, setManualInput] = useState('');
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest>({
+    to: '',
+    amount: '',
+    memo: ''
+  });
+  const [gasPriority, setGasPriority] = useState<'slow' | 'standard' | 'fast' | 'rapid'>('standard');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const qrReaderRef = useRef<BrowserQRCodeReader | null>(null);
+  const [lastInputMethod, setLastInputMethod] = useState<'scan' | 'upload' | 'manual' | null>(null);
+  const [showSuccessCard, setShowSuccessCard] = useState(false);
+  const [successTxHash, setSuccessTxHash] = useState<string | null>(null);
+
+  // Helper to get minimum INR for 1 wei
+  const getMinInrForOneWei = () => {
+    const ethToInr = convertETHToINR(1);
+    if (ethToInr > 0) {
+      return (1 / ethToInr).toFixed(8);
+    }
+    return '0';
+  };
+  const minInrForOneWei = getMinInrForOneWei();
+
+  // Helper to stop camera stream
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const handleStartScan = async () => {
+    setIsScanning(true);
+    setError(null);
+    setScannedData(null);
+    setParsedData(null);
+    setShowPaymentForm(false);
+    setLastInputMethod('scan');
+    stopCamera();
+
+    let timeoutId: NodeJS.Timeout | null = null;
+    let stopped = false;
+
+    try {
+      if (!qrReaderRef.current) {
+        qrReaderRef.current = new BrowserQRCodeReader();
+      }
+      const videoInputDevices = await BrowserQRCodeReader.listVideoInputDevices();
+      if (videoInputDevices.length === 0) {
+        setError('No camera devices found');
+        setIsScanning(false);
+        stopCamera();
+        return;
+      }
+      const selectedDeviceId = videoInputDevices[0].deviceId;
+
+      // Start 15s timeout
+      timeoutId = setTimeout(() => {
+        stopped = true;
+        setIsScanning(false);
+        setError('No QR Detected');
+        stopCamera();
+      }, 15000);
+
+      const result = await qrReaderRef.current.decodeOnceFromVideoDevice(selectedDeviceId, videoRef.current!);
+      if (stopped) return;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (result && result.getText()) {
+        // Validate QR (must be ETH address or payment QR)
+        const data = result.getText();
+        const parsed = paymentService.parseQRCode(data);
+        if (parsed.address && ethers.isAddress(parsed.address)) {
+          handleQRDataReceived(data);
+        } else {
+          setError('Invalid QR code scanned.');
+          setIsScanning(false);
+          stopCamera();
+        }
+      } else {
+        setError('No QR Detected');
+        setIsScanning(false);
+        stopCamera();
+      }
+    } catch (err: any) {
+      if (!stopped) {
+        setError('Camera error or permission denied');
+        setIsScanning(false);
+        stopCamera();
+      }
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  };
+
+  const handleQRDataReceived = (data: string) => {
+    setScannedData(data);
+
+    // Accept plain ETH address or parsed QR
+    let parsed = paymentService.parseQRCode(data);
+    if ((!parsed.address || !ethers.isAddress(parsed.address)) && ethers.isAddress(data.trim())) {
+      parsed = { address: data.trim(), type: 'address' };
+    }
+    setParsedData(parsed);
+
+    if (parsed.address && ethers.isAddress(parsed.address)) {
+      setPaymentRequest({
+        to: parsed.address,
+        amount: parsed.amount || '',
+        memo: parsed.memo || ''
+      });
+      setShowPaymentForm(true);
+      setIsScanning(false);
+      stopCamera();
+    }
+
+    if (onScan) {
+      onScan(data);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    setLastInputMethod('upload');
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setIsScanning(true);
+    setError(null);
+    setScannedData(null);
+    setParsedData(null);
+    setShowPaymentForm(false);
+
+    // Reset file input so user can re-upload the same file if needed
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please upload a valid image file.');
+      setIsScanning(false);
+      return;
+    }
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const imageDataUrl = e.target?.result as string;
+        if (!qrReaderRef.current) {
+          qrReaderRef.current = new BrowserQRCodeReader();
+        }
+        const img = document.createElement('img');
+        img.src = imageDataUrl;
+        img.onload = async () => {
+          try {
+            // Try to decode all possible QR codes in the image (fallback to single if needed)
+            let results: any;
+            try {
+              results = await qrReaderRef.current!.decodeFromImageElement(img);
+            } catch (e) {
+              results = null;
+            }
+            if (results && results.getText) {
+              // Single result
+              handleQRDataReceived(results.getText());
+            } else {
+              // Fallback: try jsQR
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, img.width, img.height);
+                const imageData = ctx.getImageData(0, 0, img.width, img.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code && code.data) {
+                  handleQRDataReceived(code.data);
+                  setIsScanning(false);
+                  return;
+                }
+              }
+              setError('No QR Detected');
+            }
+          } catch (err) {
+            setError('Failed to decode QR from image.');
+          } finally {
+            setIsScanning(false);
+          }
+        };
+        img.onerror = () => {
+          setError('Could not load the image.');
+          setIsScanning(false);
+        };
+      };
+      reader.onerror = () => {
+        setError('Failed to read image file.');
+        setIsScanning(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setError('Unexpected error while processing image.');
+      setIsScanning(false);
+    }
+  };
+
+  const handleManualSubmit = () => {
+    setLastInputMethod('manual');
+    if (manualInput.trim()) {
+      if (!isValidAddress(manualInput.trim())) {
+        setError('Invalid Ethereum address. Please enter a valid address.');
+        return;
+      }
+      handleQRDataReceived(manualInput);
+    }
+  };
+
+  const handlePayment = async () => {
+    // First check if wallet is connected
+    if (!isConnected || !address) {
+      setError('Please connect your wallet first');
+      return;
+    }
+
+    // Validate payment request
+    if (!paymentRequest || !paymentRequest.to || !paymentRequest.amount) {
+      setError('Invalid payment request. Please scan again.');
+      return;
+    }
+
+    // Check if amount is too small (less than 1 wei)
+    const ethToInr = convertETHToINR(1);
+    const ethValue = parseFloat(paymentRequest.amount) / ethToInr;
+    if (isNaN(ethValue) || ethValue < 0.000000000000000001) {
+      setError(`Amount too small. The minimum you can send is ₹${minInrForOneWei} (1 wei). Please increase the amount.`);
+      return;
+    }
+
+    const validation = paymentService.validatePaymentRequest(paymentRequest, ethToInr);
+    if (!validation.valid) {
+      setError(validation.error || 'Invalid payment request');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    setError(null);
+
+    try {
+      const gasMap = {
+        slow: 'ultra-low' as const,
+        standard: 'economy' as const,
+        fast: 'standard' as const,
+        rapid: 'standard' as const
+      };
+
+      // Double check wallet connection before sending
+      if (!isConnected || !address) {
+        throw new Error('Wallet connection lost. Please reconnect your wallet.');
+      }
+
+      const result = await sendTransaction(
+        paymentRequest.to,
+        paymentRequest.amount,
+        gasMap[gasPriority]
+      );
+
+      if (result.success && result.hash) {
+        if (onPaymentComplete) {
+          onPaymentComplete(result.hash);
+        }
+        setSuccessTxHash(result.hash);
+        setShowSuccessCard(true);
+        setShowPaymentForm(false);
+      } else {
+        // If the error indicates a wallet session issue, show appropriate message
+        if (result.error?.toLowerCase().includes('session') || 
+            result.error?.toLowerCase().includes('connect') ||
+            result.error?.toLowerCase().includes('wallet')) {
+          setError('Wallet session expired. Please reconnect your wallet.');
+        } else {
+          setError(result.error || 'Payment failed');
         }
       }
-    };
-    
-    checkWalletStatus();
-  }, [isConnected, getWalletInfo, user]);
-
-  useEffect(() => {
-    // Refresh balance periodically if connected
-    if (isConnected) {
-      const interval = setInterval(() => {
-        refreshBalance();
-      }, 30000); // Every 30 seconds
-
-      return () => clearInterval(interval);
-    }
-  }, [isConnected, refreshBalance]);
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
-
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  const handleWalletSetupComplete = () => {
-    setShowWalletSetup(false);
-    setShowWalletConnect(true);
-  };
-  
-  const handleDisconnect = () => {
-    disconnectWallet();
-    setShowWalletConnect(true);
-  };
-
-  const handleLogout = async () => {
-    try {
-      // First disconnect the wallet to clean up any wallet-related state
-      if (isConnected) {
-        disconnectWallet();
+    } catch (error: any) {
+      // Handle specific error cases
+      const errorMessage = error.message || 'Payment failed';
+      if (errorMessage.toLowerCase().includes('session') || 
+          errorMessage.toLowerCase().includes('connect') ||
+          errorMessage.toLowerCase().includes('wallet')) {
+        setError('Wallet session expired. Please reconnect your wallet.');
+      } else {
+        setError(errorMessage);
       }
-      // Then sign out from authentication
-      await signOut();
-    } catch (error) {
-      console.error('Error during logout:', error);
-      // Still attempt to sign out even if wallet disconnect fails
-      await signOut();
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
 
-  // Add QR code generation for the wallet address
-  const generateAddressQR = () => {
-    setShowReceiveQR(true);
+  const resetScanner = () => {
+    setScannedData(null);
+    setParsedData(null);
+    setShowPaymentForm(false);
+    setError(null);
+    setManualInput('');
+    stopCamera();
   };
 
-  // Mock QR code component (you can replace with a real QR generator)
-  const AddressQRCode = ({ address }: { address: string }) => (
-    <div className="bg-white p-6 rounded-lg border border-gray-700">
-      <div className="w-48 h-48 bg-black flex items-center justify-center relative mx-auto rounded">
-        {/* Enhanced QR-like pattern */}
-        <div className="grid grid-cols-12 gap-0.5 w-44 h-44">
-          {Array.from({ length: 144 }, (_, i) => {
-            const isCorner = (i < 36 && (i % 12) < 3) || 
-                           (i < 36 && (i % 12) > 8) || 
-                           (i > 107 && (i % 12) < 3);
-            const isCenter = i >= 66 && i <= 77 && (i % 12) >= 5 && (i % 12) <= 6;
-            
-            return (
-              <div
-                key={i}
-                className={`aspect-square ${
-                  isCorner || isCenter 
-                    ? 'bg-black' 
-                    : Math.random() > 0.6 ? 'bg-white' : 'bg-black'
-                }`}
-              />
-            );
-          })}
-        </div>
-        {/* Center logo */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="bg-orange-500 p-2 rounded">
-            <Wallet className="h-6 w-6 text-white" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Mock data for transactions
-  const transactions = [
-    {
-      id: 'tx_001',
-      type: 'sent',
-      merchant: 'Coffee Shop',
-      amount: '0.05',
-      fiatAmount: '₹125.50',
-      status: 'completed',
-      time: '2 mins ago',
-      hash: '0x1234...5678'
-    },
-    {
-      id: 'tx_002', 
-      type: 'received',
-      merchant: 'Salary Credit',
-      amount: '0.5',
-      fiatAmount: '₹1,255.00',
-      status: 'completed',
-      time: '1 hour ago',
-      hash: '0x2345...6789'
-    },
-    {
-      id: 'tx_003',
-      type: 'sent',
-      merchant: 'Online Store',
-      amount: '0.12',
-      fiatAmount: '₹301.20',
-      status: 'pending',
-      time: '3 hours ago',
-      hash: '0x3456...7890'
-    }
-  ];
-
-  const exportTransactionsToExcel = () => {
-    try {
-      const exportData = transactions.map(transaction => ({
-        'ID': transaction.id,
-        'Type': transaction.type,
-        'Merchant': transaction.merchant,
-        'Amount_APT': transaction.amount,
-        'Amount_INR': transaction.fiatAmount,
-        'Status': transaction.status,
-        'Time': transaction.time,
-        'Hash': transaction.hash
-      }));
-
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
-      XLSX.writeFile(workbook, `cryppal_transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
-    } catch (error) {
-      console.error('Export failed:', error);
-    }
+  const handleStopScan = () => {
+    setIsScanning(false);
+    stopCamera();
   };
 
-  const sidebarLinks = [
-    {
-      label: "Wallet",
-      href: "#",
-      icon: <Wallet className="text-neutral-700 h-5 w-5 flex-shrink-0" />,
-      onClick: () => setActiveSection('wallet')
-    },
-    {
-      label: "Send",
-      href: "#",
-      icon: <Send className="text-neutral-700 h-5 w-5 flex-shrink-0" />,
-      onClick: () => setShowSendTransaction(true)
-    },
-    {
-      label: "Transactions",
-      href: "#",
-      icon: <History className="text-neutral-700 h-5 w-5 flex-shrink-0" />,
-      onClick: () => setActiveSection('transactions')
-    },
-    {
-      label: "Portfolio",
-      href: "#",
-      icon: <BarChart3 className="text-neutral-700 h-5 w-5 flex-shrink-0" />,
-      onClick: () => setActiveSection('portfolio')
-    },
-    {
-      label: "Security",
-      href: "#",
-      icon: <Shield className="text-neutral-700 h-5 w-5 flex-shrink-0" />,
-      onClick: () => setActiveSection('security')
-    },
-    {
-      label: "Diagnostics",
-      href: "#",
-      icon: <Bug className="text-neutral-700 h-5 w-5 flex-shrink-0" />,
-      onClick: () => setActiveSection('diagnostics')
+  // Success card close handler
+  const handleSuccessCardClose = () => {
+    setShowSuccessCard(false);
+    setSuccessTxHash(null);
+    if (onSuccessDialogClose) {
+      onSuccessDialogClose();
+    } else {
+      resetScanner();
     }
-  ];
+  };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden ultra-minimal-scrollbar">
-            <div className="flex items-center gap-2 mb-8">
-              <div className="h-8 w-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <Wallet className="h-5 w-5 text-white" />
+    <div className="space-y-4">
+      {showSuccessCard && successTxHash ? (
+        <Card className={cardClassName || "w-full max-w-md mx-auto rounded-xl border border-gray-700 bg-gray-900 shadow p-2"}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-white text-lg font-semibold">
+              <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gray-800 border border-gray-700 mr-2">
+                <Check className="h-5 w-5 text-green-400" />
+              </span>
+              Payment Sent Successfully
+            </CardTitle>
+            <CardDescription className="text-gray-400 text-sm mt-1">
+              Your payment was sent. Here is your transaction info:
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-2 text-xs text-gray-300">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 w-14">From</span>
+                <span className="font-mono bg-gray-800 px-2 py-1 rounded border border-gray-700 break-all flex-1">{address}</span>
               </div>
-              <span className="font-bold text-xl">CrypPal</span>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 w-14">To</span>
+                <span className="font-mono bg-gray-800 px-2 py-1 rounded border border-gray-700 break-all flex-1">{paymentRequest.to}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 w-14">Time</span>
+                <span className="font-mono bg-gray-800 px-2 py-1 rounded border border-gray-700 flex-1">{new Date().toLocaleString()}</span>
+              </div>
             </div>
-            
-            <div className="mt-8 flex flex-col gap-2">
-              {sidebarLinks.map((link, idx) => (
-                <SidebarLink key={idx} link={link} />
-              ))}
-            </div>
-          </div>
-          
-          <div className="pt-4">
-            {isConnected ? (
-              <div className="space-y-2">
-                <div className="text-xs text-gray-500">Connected Wallet</div>
-                <div className="flex items-center gap-2">
-                  <div className="text-sm font-mono flex-1">{address && formatAddress(address)}</div>
-                  {/* Add QR icon next to wallet address */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={generateAddressQR}
-                    className="h-8 w-8 p-1 hover:bg-gray-100"
-                    title="Show QR Code"
-                  >
-                    <QrCode className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => copyToClipboard(address || '')}
-                    className="h-8 w-8 p-1 hover:bg-gray-100"
-                    title="Copy Address"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
+            <div className="mt-2">
+              <div className="text-xs text-gray-500 mb-1">Transaction Hash</div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs bg-gray-800 text-white p-2 rounded border border-gray-700 break-all flex-1 select-all">{successTxHash}</span>
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={handleDisconnect}
-                  className="w-full"
+                  size="icon"
+                  className="h-7 w-7 p-0 bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white relative group"
+                  onClick={() => navigator.clipboard.writeText(successTxHash)}
+                  title="Copy Hash"
                 >
-                  <Lock className="h-4 w-4 mr-2" />
-                  Disconnect
-                </Button>
-              </div>
-            ) : (
-              <Button
-                onClick={() => setShowWalletConnect(true)}
-                className="w-full"
-              >
-                <Wallet className="h-4 w-4 mr-2" />
-                Connect Wallet
-              </Button>
-            )}
-            
-            {/* Logout Button */}
-            <div className="pt-4 border-t border-gray-200">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
-            </div>
-          </div>
-        </SidebarBody>
-      </Sidebar>
-
-      <div className="flex-1 overflow-auto">
-        <div className="p-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-              <h1 className="text-2xl font-bold">Dashboard</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              {isConnected && (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={refreshBalance}
-                    className="flex items-center gap-2"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Refresh
-                  </Button>
-                  {/* Add QR button in header as well */}
-                  <Button
-                    variant="outline"
-                    onClick={generateAddressQR}
-                    className="flex items-center gap-2"
-                  >
-                    <QrCode className="h-4 w-4" />
-                    Receive
-                  </Button>
-                </>
-              )}
-              
-              {/* User Menu */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">{user?.email}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  title="Logout"
-                >
-                  <LogOut className="h-4 w-4" />
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-4 w-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75v-1.5A2.25 2.25 0 0 1 10.5 3h7.5A2.25 2.25 0 0 1 20.25 5.25v7.5A2.25 2.25 0 0 1 18 15h-1.5M5.25 8.25V18A2.25 2.25 0 0 1 3 20.25h-7.5A2.25 2.25 0 0 1 5.25 18V5.25A2.25 2.25 0 0 1 7.5 3h7.5A2.25 2.25 0 0 1 20.25 5.25v7.5A2.25 2.25 0 0 1 18 15h-1.5" />
+                  </svg>
+                  <span className="absolute left-1/2 -translate-x-1/2 top-8 bg-gray-800 text-xs text-gray-200 rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                    Copied!
+                  </span>
                 </Button>
               </div>
             </div>
-          </div>
-          
-          {!isConnected && (
-            <div className="mb-6 border border-border bg-secondary/20 rounded-lg p-4 flex items-start gap-3">
-              <div className="mt-0.5 h-5 w-5 rounded-full bg-muted/20 flex items-center justify-center flex-shrink-0">
-                <Wallet className="h-3 w-3 text-muted-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-foreground font-medium mb-1">
-                  Wallet Connection Required
-                </p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Connect your wallet to access all dashboard features and manage your digital assets.
-                </p>
-              </div>
-              <Button
-                onClick={() => setShowWalletConnect(true)}
-                variant="outline"
-                size="sm"
-                className="border-border bg-background hover:bg-muted/20 text-foreground text-xs px-3 py-1.5 h-auto flex-shrink-0"
-              >
-                Connect
-              </Button>
-            </div>
-          )}
-
-          {/* Wallet Section */}
-          {activeSection === 'wallet' && (
-            <div className="space-y-6">
-              {/* Enhanced Wallet Information */}
-              {isConnected && address && (
-                <WalletInfo
-                  address={address}
-                  balance={balance || undefined}
-                  network="sepolia"
-                  isConnected={isConnected}
-                  onRefresh={refreshBalance}
-                  onDisconnect={handleDisconnect}
-                />
-              )}
-
-              {/* Balance Card - Keep for legacy or additional info */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <Wallet className="h-5 w-5" />
-                      Wallet Balance
-                    </CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowBalance(!showBalance)}
-                    >
-                      {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="text-3xl font-bold">
-                        {showBalance ? (balance ? `${parseFloat(balance).toFixed(8)} APT` : '0.0000 APT') : '••••••'}
-                      </div>
-                      <div className="text-gray-600">
-                        {showBalance ? (balance ? `≈ ₹${(parseFloat(balance) * 251100).toFixed(2)}` : '≈ ₹0.00') : '••••••'}
-                      </div>
-                    </div>
-                    
-                    {address && (
-                      <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Wallet Address</span>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => copyToClipboard(address)}
-                              className="h-6 w-6 p-1"
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={generateAddressQR}
-                              className="h-6 w-6 p-1"
-                            >
-                              <QrCode className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="font-mono text-sm text-gray-800 break-all bg-white p-2 rounded border">
-                          {address}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <Button className="w-full" onClick={() => setShowSendTransaction(true)}>
-                        <Send className="h-4 w-4 mr-2" />
-                        Send
-                      </Button>
-                      <Button variant="outline" className="w-full" onClick={generateAddressQR}>
-                        <QrCode className="h-4 w-4 mr-2" />
-                        Receive
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Quick Actions */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setShowSendTransaction(true)}>
-                  <CardContent className="flex items-center justify-center p-6">
-                    <div className="text-center">
-                      <Send className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                      <div className="font-medium">Send APT</div>
-                      <div className="text-sm text-gray-500">Transfer to others</div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={generateAddressQR}>
-                  <CardContent className="flex items-center justify-center p-6">
-                    <div className="text-center">
-                      <QrCode className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                      <div className="font-medium">Receive</div>
-                      <div className="text-sm text-gray-500">Show QR code</div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveSection('transactions')}>
-                  <CardContent className="flex items-center justify-center p-6">
-                    <div className="text-center">
-                      <History className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                      <div className="font-medium">History</div>
-                      <div className="text-sm text-gray-500">View transactions</div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Recent Transactions Preview */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Recent Transactions</CardTitle>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setActiveSection('transactions')}
-                    >
-                      View All
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {transactions.slice(0, 3).map((tx) => (
-                      <div key={tx.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-full bg-gray-200`}>
-                            {tx.type === 'sent' ? 
-                              <Minus className="h-4 w-4 text-gray-500" /> : 
-                              <Plus className="h-4 w-4 text-gray-500" />
-                            }
-                          </div>
-                          <div>
-                            <div className="font-medium">{tx.merchant}</div>
-                            <div className="text-sm text-gray-500">{tx.time}</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-medium text-gray-500">
-                            {tx.type === 'sent' ? '-' : '+'}{tx.amount} APT
-                          </div>
-                          <Badge variant={tx.status === 'completed' ? 'default' : 'secondary'}>
-                            {tx.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Other sections would go here - Transactions, Portfolio, Security, Diagnostics */}
-        </div>
-      </div>
-
-      {/* Receive QR Modal */}
-      <Dialog open={showReceiveQR} onOpenChange={setShowReceiveQR}>
-        <DialogContent className="max-w-md bg-black border border-gray-800">
-          <DialogHeader className="pb-6">
-            <DialogTitle className="flex items-center gap-3 text-xl font-medium text-white">
-              <QrCode className="h-5 w-5" />
-              Receive Payments
-            </DialogTitle>
-            <DialogDescription className="text-gray-400 text-sm mt-1">
-              Share this QR code or address to receive payments
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6">
-            {/* QR Code Section */}
-            <div className="flex justify-center">
-              {address && <AddressQRCode address={address} />}
-            </div>
-            {/* Wallet Address Section */}
-            <div className="space-y-3">
-              <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">
-                WALLET ADDRESS
-              </label>
-              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3">
-                <div className="font-mono text-sm text-white break-all">
-                  {address}
-                </div>
-              </div>
-            </div>
-            {/* Network Info */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3">
-                <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">NETWORK</div>
-                <div className="text-sm text-white mt-1">Sepolia</div>
-              </div>
-              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3">
-                <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">TYPE</div>
-                <div className="text-sm text-white mt-1">Aptos</div>
-              </div>
-            </div>
-            {/* Copy Button */}
-            <Button 
-              onClick={() => copyToClipboard(address || '')}
-              className="w-full h-11 bg-gray-700 hover:bg-gray-600 text-white border border-gray-600"
+            <a
+              href={getExplorerUrl(successTxHash)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center text-gray-400 hover:text-white underline mt-2 text-xs"
             >
-              <Copy className="h-4 w-4 mr-2" />
-              Copy Address
-            </Button>
-            {/* Security Notice */}
-            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mt-2">
-              <div className="flex items-start gap-3">
-                <Shield className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <div className="text-xs font-medium text-gray-400 uppercase tracking-wider">Security Notice</div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    This address can receive APT and ERC-20 tokens on Aptos network. Always verify the network before sending funds.
-                  </div>
+              View on Etherscan
+            </a>
+            <Button onClick={handleSuccessCardClose} className="mt-4 w-full bg-gray-800 text-white hover:bg-gray-700 border border-gray-700">OK</Button>
+          </CardContent>
+        </Card>
+      ) : showPaymentForm && parsedData ? (
+        // Only show Confirm Payment card
+        <Card className={cardClassName || "w-full max-w-md mx-auto rounded-xl border border-muted shadow p-2"}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              Confirm Payment
+            </CardTitle>
+            <CardDescription>
+              Review and confirm your payment details
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!isConnected && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>Please connect your wallet to make payments</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <Label>To Address</Label>
+                <Input
+                  value={paymentRequest.to}
+                  onChange={(e) => setPaymentRequest(prev => ({ ...prev, to: e.target.value }))}
+                  className="font-mono"
+                />
+              </div>
+
+              <div>
+                <Label>Amount (INR)</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="^[0-9]*[.,]?[0-9]*$"
+                  min="0"
+                  value={paymentRequest.amount}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Only allow non-negative numbers
+                    if (/^\d*\.?\d*$/.test(val) && (val === '' || parseFloat(val) >= 0)) {
+                      setPaymentRequest(prev => ({ ...prev, amount: val }));
+                    }
+                  }}
+                  className="font-mono"
+                  placeholder={`Enter amount in INR (min: ₹${minInrForOneWei})`}
+                />
+                {paymentRequest.amount && (
+                  <>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      ≈ {parseFloat(paymentRequest.amount) > 0 && convertETHToINR(1) > 0
+                        ? `${(parseFloat(paymentRequest.amount) / convertETHToINR(1)).toFixed(6)} ETH`
+                        : '0 ETH'}
+                    </p>
+                    {parseFloat(paymentRequest.amount) / convertETHToINR(1) < 0.000000000000000001 && (
+                      <p className="text-xs text-red-400 mt-1">Amount too small. The minimum you can send is ₹{minInrForOneWei} (1 wei).</p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div>
+                <Label>Memo (Optional)</Label>
+                <Input
+                  value={paymentRequest.memo}
+                  onChange={(e) => setPaymentRequest(prev => ({ ...prev, memo: e.target.value }))}
+                  placeholder="Payment description..."
+                />
+              </div>
+
+              <div>
+                <Label>Gas Priority</Label>
+                <Select value={gasPriority} onValueChange={(value: any) => setGasPriority(value)}>
+                  <SelectTrigger className="bg-black text-white border border-gray-800 rounded-md shadow-sm focus:ring-2 focus:ring-gray-700 focus:border-gray-700">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black text-white border border-gray-800 rounded-md shadow-lg">
+                    <SelectItem value="slow" className="hover:bg-gray-800 font-medium">Slow (Lower cost)</SelectItem>
+                    <SelectItem value="standard" className="hover:bg-gray-800 font-medium">Standard</SelectItem>
+                    <SelectItem value="fast" className="hover:bg-gray-800 font-medium">Fast</SelectItem>
+                    <SelectItem value="rapid" className="hover:bg-gray-800 font-medium">Rapid (Higher cost)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {balance && (
+                <div className="text-sm text-muted-foreground">
+                  Wallet Balance: {parseFloat(balance).toFixed(6)} ETH
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                onClick={handlePayment} 
+                className="w-full"
+                disabled={isProcessingPayment || !paymentRequest.to || !paymentRequest.amount || parseFloat(paymentRequest.amount) / convertETHToINR(1) < 0.000000000000000001}
+              >
+                {isProcessingPayment ? 'Processing...' : 'Send Payment'}
+              </Button>
+              <Button variant="outline" onClick={() => setShowPaymentForm(false)}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        // Only show QR Scanner card
+        <Card className={cardClassName || "w-full max-w-md mx-auto rounded-xl border border-muted shadow p-2"}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5" />
+                QR Scanner
+              </CardTitle>
+              {showCloseButton && onClose && (
+                <Button variant="ghost" size="sm" onClick={onClose}>
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <CardDescription>
+              Scan a QR code to receive payment information or enter manually
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="qr-error-minimal flex items-center gap-2 px-4 py-2 rounded-md border">
+                <AlertTriangle className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-200 font-medium">{error}</span>
+              </div>
+            )}
+
+            {/* Camera Preview (show inside card when scanning) */}
+            {isScanning && (
+              <div className="flex flex-col items-center">
+                <video ref={videoRef} style={{ width: 300, height: 300 }} autoPlay muted playsInline />
+                <p className="mt-2 text-sm text-muted-foreground">Point your camera at a QR code</p>
+              </div>
+            )}
+
+            {/* Scan/Upload Buttons (disable while scanning or via props) */}
+            <div className="grid grid-cols-2 gap-2">
+              {scanButtonProps.tooltip && (scanButtonProps.disabled || isScanning) ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="w-full">
+                        <Button
+                          onClick={handleStartScan}
+                          disabled={isScanning || scanButtonProps.disabled}
+                          className="flex items-center gap-2 w-full"
+                          {...scanButtonProps}
+                        >
+                          {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                          {isScanning ? 'Scanning...' : 'Scan to Pay'}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{scanButtonProps.tooltip}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <Button
+                  onClick={handleStartScan}
+                  disabled={isScanning || scanButtonProps.disabled}
+                  className="flex items-center gap-2 w-full"
+                  {...scanButtonProps}
+                >
+                  {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  {isScanning ? 'Scanning...' : 'Scan to Pay'}
+                </Button>
+              )}
+              {isScanning ? (
+                <Button
+                  variant="outline"
+                  onClick={handleStopScan}
+                  className="flex items-center gap-2 w-full"
+                >
+                  <X className="h-4 w-4" />
+                  Stop Scanning
+                </Button>
+              ) : uploadButtonProps.tooltip && uploadButtonProps.disabled ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="w-full">
+                        <Button
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex items-center gap-2 w-full"
+                          disabled={uploadButtonProps.disabled}
+                          {...uploadButtonProps}
+                        >
+                          <Upload className="h-4 w-4" />
+                          Upload Image
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{uploadButtonProps.tooltip}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 w-full"
+                  disabled={uploadButtonProps.disabled}
+                  {...uploadButtonProps}
+                >
+                  <Upload className="h-4 w-4" />
+                  Upload Image
+                </Button>
+              )}
+            </div>
+
+            {/* Manual Input (hide while scanning) */}
+            {!isScanning && (
+              <div className="space-y-2">
+                <Label>Or enter manually:</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter address or payment data..."
+                    value={manualInput}
+                    onChange={(e) => setManualInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleManualSubmit()}
+                  />
+                  <Button onClick={handleManualSubmit} disabled={!manualInput.trim()}>
+                    <Check className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+            )}
 
-      {/* Modals */}
-      <WalletSetup
-        isOpen={showWalletSetup}
-        onClose={() => setShowWalletSetup(false)}
-        onComplete={handleWalletSetupComplete}
-      />
-      
-      <WalletConnect
-        isOpen={showWalletConnect}
-        onClose={() => setShowWalletConnect(false)}
-        onSetupNew={() => {
-          setShowWalletConnect(false);
-          setShowWalletSetup(true);
-        }}
-      />
-      
-      <SendTransaction
-        isOpen={showSendTransaction}
-        onClose={() => setShowSendTransaction(false)}
-      />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            {/* Scanned Data Display */}
+            {scannedData && parsedData && !showPaymentForm && (lastInputMethod === 'scan' || lastInputMethod === 'upload') && (
+              <div className="space-y-4">
+                <div className="qr-success-minimal flex items-center gap-2 px-4 py-2 rounded-md border">
+                  <Check className="h-4 w-4 text-gray-300" />
+                  <span className="text-sm text-gray-200 font-medium">QR Code scanned successfully!</span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Type:</span>
+                    <Badge variant={parsedData.type === 'unknown' ? 'destructive' : 'default'}>
+                      {parsedData.type}
+                    </Badge>
+                  </div>
+
+                  {parsedData.address && (
+                    <div>
+                      <span className="font-semibold">Address:</span>
+                      <div className="font-mono text-sm break-all bg-muted p-2 rounded">
+                        {parsedData.address}
+                      </div>
+                    </div>
+                  )}
+
+                  {parsedData.amount && (
+                    <div>
+                      <span className="font-semibold">Amount:</span>
+                      <span className="ml-2">{parsedData.amount} ETH</span>
+                      <span className="text-muted-foreground ml-2">
+                        (≈ ₹{convertETHToINR(parseFloat(parsedData.amount)).toLocaleString()})
+                      </span>
+                    </div>
+                  )}
+
+                  {parsedData.memo && (
+                    <div>
+                      <span className="font-semibold">Memo:</span>
+                      <span className="ml-2">{parsedData.memo}</span>
+                    </div>
+                  )}
+
+                  {parsedData.type === 'unknown' && (
+                    <div>
+                      <span className="font-semibold">Raw Data:</span>
+                      <span className="font-mono text-sm break-all">{scannedData}</span>
+                    </div>
+                  )}
+                </div>
+
+                {parsedData.address && ethers.isAddress(parsedData.address) && (
+                  null
+                )}
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={resetScanner}>
+                    Scan Again
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
-
-export default EnhancedUserDashboard;
 ```
 
-### 2. User Demo Dashboard Component (`src/components/UserDemoDashboard.tsx`)
+### 2. Basic QR Scanner (`src/components/QRScanner.tsx`)
 
 ```tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { 
-  Wallet, 
-  Send, 
-  QrCode, 
-  History, 
-  Shield, 
-  Settings,
-  Download,
-  CheckCircle,
-  Copy,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  Menu,
-  RefreshCw,
-  Zap,
-  TrendingUp,
-  ArrowUpDown,
-  LayoutDashboard
-} from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { QrCode, Camera, Upload, X, Check, Send, AlertTriangle, Loader2 } from 'lucide-react';
+import { useWallet } from '@/contexts/WalletContext';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
+import { paymentService, type QRPaymentData, type PaymentRequest } from '@/services/PaymentService';
+import { ethers } from 'ethers';
 
-const UserDemoDashboard = () => {
-  const [isVisible, setIsVisible] = useState(false);
-  const [showBalance, setShowBalance] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const navigate = useNavigate();
-  const { user } = useAuth();
+interface QRScannerProps {
+  onScan?: (data: string) => void;
+  onClose?: () => void;
+  onPaymentComplete?: (txHash: string) => void;
+}
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsVisible(true);
-    }, 300);
+export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, onPaymentComplete }) => {
+  const { isConnected, sendTransaction, address, balance } = useWallet();
+  const { rate } = useExchangeRate();
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedData, setScannedData] = useState<string | null>(null);
+  const [parsedData, setParsedData] = useState<QRPaymentData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [manualInput, setManualInput] = useState('');
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest>({
+    to: '',
+    amount: '',
+    memo: ''
+  });
+  const [gasPriority, setGasPriority] = useState<'slow' | 'standard' | 'fast' | 'rapid'>('standard');
+  const [inrAmount, setInrAmount] = useState('');
+  const [ethAmount, setEthAmount] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Mock QR data for demonstration
+  const mockQRData = [
+    'ethereum:0x742C1C4C8DbE2b0De8B15976Da9F6bB7F3D15C5d?amount=0.001',
+    'cryppal://pay?to=0x9aaDd7805d4bf47Ea3cc8E3571524a84024840ee&amount=0.005&memo=Coffee%20Payment',
+    'ethereum:0x123456789abcdef123456789abcdef123456789a?amount=0.01&gas=21000'
+  ];
 
-    return () => clearTimeout(timer);
-  }, []);
+  const handleStartScan = () => {
+    setIsScanning(true);
+    setError(null);
+    
+    // Simulate camera access (in real implementation, you'd use a QR scanner library)
+    setTimeout(() => {
+      const randomData = mockQRData[Math.floor(Math.random() * mockQRData.length)];
+      handleQRDataReceived(randomData);
+    }, 2000);
+  };
 
-  // Demo data matching real user dashboard
-  const demoTransactions = [
-    {
-      id: 1,
-      merchant: 'Coffee House',
-      amount: '2 APT',
-      fiatAmount: '₹500',
-      time: '5 mins ago',
-      status: 'Confirmed',
-      type: 'payment',
-      icon: '☕'
-    },
-    {
-      id: 2,
-      merchant: 'Online Store',
-      amount: '15 APT',
-      fiatAmount: '₹3,750',
-      time: '2 hours ago',
-      status: 'Confirmed',
-      type: 'payment',
-      icon: '🛍️'
-    },
-    {
-      id: 3,
-      merchant: 'Food Truck',
-      amount: '8 APT',
-      fiatAmount: '₹2,000',
-      time: 'Yesterday',
-      status: 'Confirmed',
-      type: 'payment',
-      icon: '🍔'
+  const handleQRDataReceived = (data: string) => {
+    setScannedData(data);
+    setIsScanning(false);
+    
+    // Parse the QR data
+    const parsed = paymentService.parseQRCode(data);
+    setParsedData(parsed);
+    
+    // Set up payment form if it's a payment request
+    if (parsed.address && ethers.isAddress(parsed.address)) {
+      setPaymentRequest({
+        to: parsed.address,
+        amount: parsed.amount || '',
+        memo: parsed.memo || ''
+      });
+      setShowPaymentForm(true);
     }
-  ];
+    
+    if (onScan) {
+      onScan(data);
+    }
+  };
 
-  const sidebarLinks = [
-    { label: 'My Wallet', icon: Wallet, active: true },
-    { label: 'Scan & Pay', icon: Send, active: false },
-    { label: 'Payment History', icon: History, active: false },
-    { label: 'Security', icon: Shield, active: false },
-    { label: 'Settings', icon: Settings, active: false }
-  ];
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // In a real implementation, you'd decode the QR from the image
+      const mockData = mockQRData[0];
+      handleQRDataReceived(mockData);
+    }
+  };
 
-  const balanceHistory = [
-    { date: 'Mon', apt: 3.12, inr: 693600 },
-    { date: 'Tue', apt: 3.18, inr: 706920 },
-    { date: 'Wed', apt: 3.25, inr: 722500 },
-    { date: 'Thu', apt: 3.28, inr: 729360 },
-    { date: 'Today', apt: 3.28, inr: 729360 }
-  ];
+  const handleManualSubmit = () => {
+    if (manualInput.trim()) {
+      handleQRDataReceived(manualInput);
+    }
+  };
+
+  const handlePayment = async () => {
+    if (!isConnected) {
+      setError('Please connect your wallet first');
+      return;
+    }
+
+    const validation = paymentService.validatePaymentRequest(paymentRequest, 1); // Using default rate of 1
+    if (!validation.valid) {
+      setError(validation.error || 'Invalid payment request');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    setError(null);
+
+    try {
+      const result = await sendTransaction(
+        paymentRequest.to,
+        ethAmount, // always use calculated ETH
+        gasPriority === 'rapid' ? 'standard' : gasPriority === 'fast' ? 'standard' : gasPriority === 'slow' ? 'ultra-low' : 'economy'
+      );
+
+      if (result.success && result.hash) {
+        if (onPaymentComplete) {
+          onPaymentComplete(result.hash);
+        }
+        setShowPaymentForm(false);
+        setScannedData(null);
+        setParsedData(null);
+      } else {
+        setError(result.error || 'Payment failed');
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Payment failed';
+      setError(errorMessage);
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const resetScanner = () => {
+    setScannedData(null);
+    setParsedData(null);
+    setShowPaymentForm(false);
+    setError(null);
+    setManualInput('');
+  };
+
+  // When INR amount changes, calculate ETH using live rate
+  useEffect(() => {
+    if (inrAmount && !isNaN(parseFloat(inrAmount)) && parseFloat(inrAmount) > 0 && rate > 0) {
+      setEthAmount((parseFloat(inrAmount) / rate).toFixed(6));
+    } else {
+      setEthAmount('0');
+    }
+  }, [inrAmount, rate]);
 
   return (
-    <section className="relative w-full py-12 md:py-20 px-6 md:px-12 flex flex-col items-center justify-center overflow-hidden bg-background mt-20 md:mt-28">
-      {/* Background Effects */}
-      <div className="absolute inset-0 cosmic-grid opacity-30"></div>
-      
-      {/* Gradient glow effect */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full">
-        <div className="w-full h-full opacity-10 bg-primary blur-[120px]"></div>
-      </div>
-      
-      {/* Hero Content */}
-      <div className={`relative z-10 max-w-4xl text-center space-y-6 transition-all duration-700 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-        {/* Status Badge */}
-        <div className="flex justify-center">
-          <span className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-[8px] sm:text-[10px] font-medium rounded-full bg-muted text-white">
-            <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
-            Personal Crypto Wallet
-            <Wallet className="h-2.5 w-2.5 text-primary" />
-          </span>
-        </div>
-        
-        {/* Main Headline */}
-        <h1 className="text-4xl md:text-6xl lg:text-7xl font-medium tracking-tighter text-balance text-foreground">
-          CrypPal User Dashboard
-        </h1>
-        
-        {/* Subheading */}
-        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-balance">
-          Manage your digital assets with complete control. Send, receive, and track your crypto transactions with ease.
-        </p>
-        
-        {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center pt-6 items-center">
-          {user ? (
-            <Button 
-              className="bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground text-base h-12 px-8 transition-all duration-200 min-h-[48px]"
-              onClick={() => navigate('/user-dashboard')}
-            >
-              <LayoutDashboard className="h-4 w-4 mr-2" />
-              Go to Dashboard
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <QrCode className="h-5 w-5" />
+            QR Scanner
+          </CardTitle>
+          {onClose && (
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <X className="h-4 w-4" />
             </Button>
-          ) : (
-            <>
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground text-base h-12 px-8 transition-all duration-200 min-h-[48px]">
-                <Wallet className="h-4 w-4 mr-2" />
-                Create Wallet
-              </Button>
-              <Button variant="outline" className="border-border text-foreground hover:bg-accent hover:text-accent-foreground text-base h-12 px-8 transition-all duration-200 min-h-[48px]">
-                <QrCode className="h-4 w-4 mr-2" />
-                Scan QR Code
-              </Button>
-            </>
           )}
         </div>
-        
-        {/* Trust Indicator */}
-        <div className="pt-6 text-sm text-muted-foreground">
-          Non-custodial • Your keys, your crypto • Secure by design
-        </div>
-      </div>
+        <CardDescription>
+          Scan a QR code or enter payment details manually
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-      {/* Interactive Dashboard Preview */}
-      <div className={`w-full max-w-7xl mt-16 z-10 transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-20'}`}>
-        <div className="cosmic-glow relative rounded-xl overflow-hidden border border-border backdrop-blur-sm bg-card shadow-lg">
-          {/* Dashboard Header */}
-          <div className="bg-card backdrop-blur-md w-full border-b border-border">
-            <div className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-4">
-                <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
-                  <Wallet className="h-4 w-4 text-primary" />
-                </div>
-                <span className="text-foreground font-medium">CrypPal Wallet Dashboard</span>
+        {!scannedData && (
+          <div className="space-y-4">
+            {/* Camera Scan */}
+            <div className="text-center space-y-3">
+              <div className="h-32 w-32 mx-auto rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
+                {isScanning ? (
+                  <div className="text-center">
+                    <Camera className="h-8 w-8 mx-auto text-primary animate-pulse" />
+                    <p className="text-xs text-muted-foreground mt-2">Scanning...</p>
+                  </div>
+                ) : (
+                  <QrCode className="h-8 w-8 text-gray-400" />
+                )}
               </div>
-              
-              <div className="flex items-center gap-3">
-                {/* APT Balance Display */}
-                <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-muted text-foreground text-sm">
-                  <div className="h-3 w-3 rounded-full bg-primary"></div>
-                  <span>{showBalance ? '3.28 APT' : '••••••'}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowBalance(!showBalance)}
-                    className="h-6 w-6 p-0"
-                  >
-                    {showBalance ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                  </Button>
-                </div>
-                
-                <Button size="sm" className="h-8 px-3 text-sm">
-                  <QrCode className="h-3 w-3 mr-1" />
-                  Scan
-                </Button>
+              <Button 
+                onClick={handleStartScan} 
+                disabled={isScanning}
+                className="w-full"
+              >
+                <Camera className="h-4 w-4 mr-2" />
+                {isScanning ? 'Scanning...' : 'Start Camera Scan'}
+              </Button>
+            </div>
 
-                <Button size="sm" variant="outline" className="h-8 px-3 text-sm">
-                  <Settings className="h-3 w-3" />
+            {/* File Upload */}
+            <div className="text-center">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <Button 
+                variant="outline" 
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload QR Image
+              </Button>
+            </div>
+
+            {/* Manual Input */}
+            <div className="space-y-2">
+              <Label htmlFor="manual-input">Or enter manually:</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="manual-input"
+                  value={manualInput}
+                  onChange={(e) => setManualInput(e.target.value)}
+                  placeholder="Wallet address or payment data"
+                />
+                <Button onClick={handleManualSubmit} disabled={!manualInput.trim()}>
+                  <Check className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           </div>
-          
-          {/* Dashboard Content Area */}
-          <div className="flex h-[600px] overflow-hidden">
-            {/* Sidebar */}
-            <div className={`${sidebarOpen ? 'w-64' : 'w-16'} border-r border-border p-4 space-y-4 bg-card transition-all duration-300`}>
-              <div className="flex items-center justify-between mb-6">
-                {sidebarOpen && <span className="text-xs text-muted-foreground uppercase">Wallet Features</span>}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="h-6 w-6 p-0"
-                >
-                  <Menu className="h-3 w-3" />
-                </Button>
-              </div>
-              
-              <div className="space-y-1">
-                {sidebarLinks.map((link, idx) => {
-                  const IconComponent = link.icon;
-                  return (
-                    <div
-                      key={idx}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors ${
-                        link.active 
-                          ? 'bg-primary/10 text-primary' 
-                          : 'text-muted-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      <IconComponent className="h-4 w-4 flex-shrink-0" />
-                      {sidebarOpen && <span className="text-sm">{link.label}</span>}
-                    </div>
-                  );
-                })}
-              </div>
-              
-              {sidebarOpen && (
-                <div className="mt-8 space-y-3">
-                  <div className="text-xs text-muted-foreground uppercase">Quick Actions</div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-muted/50 cursor-pointer">
-                      <Send className="h-3 w-3 text-blue-600" />
-                      <span className="text-sm">Send APT</span>
-                    </div>
-                    <div className="flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-muted/50 cursor-pointer">
-                      <Download className="h-3 w-3 text-green-600" />
-                      <span className="text-sm">Receive</span>
-                    </div>
-                    <div className="flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-muted/50 cursor-pointer">
-                      <TrendingUp className="h-3 w-3 text-purple-600" />
-                      <span className="text-sm">Portfolio</span>
-                    </div>
-                  </div>
+        )}
+
+        {/* Scanned Result */}
+        {scannedData && parsedData && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-green-600">
+              <Check className="h-5 w-5" />
+              <span className="font-medium">QR Code Scanned Successfully!</span>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <h4 className="font-medium">Payment Details:</h4>
+              {parsedData.address && (
+                <div>
+                  <span className="text-sm text-gray-600">To: </span>
+                  <span className="font-mono text-sm">{parsedData.address}</span>
+                </div>
+              )}
+              {parsedData.amount && (
+                <div>
+                  <span className="text-sm text-gray-600">Amount: </span>
+                  <span className="font-medium">{parsedData.amount} ETH</span>
+                </div>
+              )}
+              {parsedData.memo && (
+                <div>
+                  <span className="text-sm text-gray-600">Memo: </span>
+                  <span>{decodeURIComponent(parsedData.memo)}</span>
+                </div>
+              )}
+              {parsedData.gas && (
+                <div>
+                  <span className="text-sm text-gray-600">Gas Limit: </span>
+                  <span>{parsedData.gas}</span>
+                </div>
+              )}
+              {parsedData.type === 'unknown' && (
+                <div>
+                  <span className="text-sm text-gray-600">Raw Data: </span>
+                  <span className="font-mono text-sm break-all">{parsedData.raw}</span>
                 </div>
               )}
             </div>
-            
-            {/* Main Content */}
-            <div className="flex-1 p-4 bg-background overflow-hidden">
-              {/* Balance Card */}
-              <Card className="p-4 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Balance</p>
-                    <p className="text-2xl font-bold text-foreground">
-                      {showBalance ? '3.28 APT' : '••••••'}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {showBalance ? '≈ ₹4,290' : '••••••'}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" className="h-8 px-3">
-                      <Send className="h-3 w-3 mr-1" />
-                      Send
-                    </Button>
-                    <Button size="sm" variant="outline" className="h-8 px-3">
-                      <Download className="h-3 w-3 mr-1" />
-                      Receive
-                    </Button>
-                  </div>
-                </div>
-                
-                {/* Portfolio Chart Placeholder */}
-                <div className="h-32 bg-muted/20 rounded-lg flex items-center justify-center mb-4">
-                  <div className="text-center">
-                    <TrendingUp className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Balance History Chart</p>
-                  </div>
-                </div>
-              </Card>
-              
-              {/* Payment History */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium text-foreground">Payment History</h3>
-                  <Badge variant="secondary" className="text-xs">{demoTransactions.length}</Badge>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" className="h-8 px-3 text-sm">
-                    <RefreshCw className="h-3 w-3 mr-1" />
-                    Refresh
-                  </Button>
-                  <Button size="sm" className="h-8 px-3 text-sm">
-                    <QrCode className="h-3 w-3 mr-1" />
-                    Scan QR
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Transaction List */}
-              <div className="space-y-3">
-                {demoTransactions.map((transaction) => (
-                  <Card key={transaction.id} className="p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center">
-                          <span className="text-sm">{transaction.icon}</span>
-                        </div>
-                        <div>
-                          <div className="font-medium text-foreground">-{transaction.amount}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {transaction.fiatAmount} • {transaction.merchant} • {transaction.time}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                          {transaction.status}
-                        </Badge>
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
-                          <ExternalLink className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+
+            <div className="flex gap-2">
+              <Button 
+                className="flex-1"
+                onClick={() => {
+                  // This would trigger the payment flow
+                  console.log('Proceeding with payment:', parsedData);
+                }}
+              >
+                Proceed to Pay
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setScannedData(null);
+                  setManualInput('');
+                }}
+              >
+                Scan Again
+              </Button>
             </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Feature Cards */}
-      <div className={`w-full max-w-7xl mt-12 z-10 transition-all duration-1000 delay-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-20'}`}>
-        <div className="grid md:grid-cols-3 gap-6">
-          <Card className="p-6 bg-card/50 backdrop-blur-sm border-border hover:shadow-lg transition-shadow">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Wallet className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Your Wallet</h3>
-                <p className="text-sm text-muted-foreground">Complete control</p>
+        {/* Payment Form - INR Input */}
+        {showPaymentForm && (
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="to-address">To</Label>
+              <Input
+                id="to-address"
+                value={paymentRequest.to}
+                onChange={(e) => setPaymentRequest({ ...paymentRequest, to: e.target.value })}
+                placeholder="Recipient's wallet address"
+                disabled={isProcessingPayment}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="inrAmount">Amount (INR)</Label>
+              <Input
+                id="inrAmount"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={inrAmount}
+                onChange={e => {
+                  const val = e.target.value.replace(/[^\d.]/g, '');
+                  setInrAmount(val.startsWith('-') ? '' : val);
+                }}
+                placeholder="Enter amount in INR"
+                className="mt-2 h-11 bg-background border-border"
+                disabled={isProcessingPayment}
+              />
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                <span>ETH to be sent:</span>
+                <span className="font-mono font-semibold">{ethAmount} ETH</span>
               </div>
             </div>
-            <p className="text-muted-foreground text-sm">
-              Non-custodial wallet where you own your private keys. Your crypto, your control, always.
-            </p>
-          </Card>
 
-          <Card className="p-6 bg-card/50 backdrop-blur-sm border-border hover:shadow-lg transition-shadow">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <QrCode className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">QR Payments</h3>
-                <p className="text-sm text-muted-foreground">Scan and pay</p>
-              </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="memo">Memo</Label>
+              <Input
+                id="memo"
+                value={paymentRequest.memo}
+                onChange={(e) => setPaymentRequest({ ...paymentRequest, memo: e.target.value })}
+                placeholder="Optional memo for the payment"
+                disabled={isProcessingPayment}
+              />
             </div>
-            <p className="text-muted-foreground text-sm">
-              Scan merchant QR codes to pay instantly. Fast, secure, and hassle-free transactions.
-            </p>
-          </Card>
 
-          <Card className="p-6 bg-card/50 backdrop-blur-sm border-border hover:shadow-lg transition-shadow">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Shield className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Security</h3>
-                <p className="text-sm text-muted-foreground">Military-grade</p>
-              </div>
+            <div className="flex gap-2">
+              <Button 
+                className="flex-1"
+                onClick={handlePayment}
+                disabled={isProcessingPayment}
+              >
+                {isProcessingPayment ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : 'Send Payment'}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={resetScanner}
+                disabled={isProcessingPayment}
+              >
+                Cancel
+              </Button>
             </div>
-            <p className="text-muted-foreground text-sm">
-              Advanced encryption and security features keep your digital assets safe and secure.
-            </p>
-          </Card>
-        </div>
-      </div>
-    </section>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
-
-export default UserDemoDashboard;
 ```
 
 ---
 
-## Core Components
+## Send Transaction Component
 
-### 3. Wallet Setup Component (`src/components/WalletSetup.tsx`)
+### 3. Send Transaction (`src/components/SendTransaction.tsx`)
 
 ```tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Copy, Wallet, Shield, AlertTriangle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { Send, AlertTriangle, CheckCircle, Clock, ExternalLink, QrCode } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
+import { QRScanner } from './QRScannerNew';
 
-interface WalletSetupProps {
+interface SendTransactionProps {
   isOpen: boolean;
   onClose: () => void;
-  onComplete: () => void;
+  recipientAddress?: string;
+  onPaymentComplete?: () => void;
 }
 
-export const WalletSetup: React.FC<WalletSetupProps> = ({ isOpen, onClose, onComplete }) => {
-  const { generateNewWallet, importWallet, encryptAndSaveWallet, isLoading, isInitialized } = useWallet();
+export const SendTransaction: React.FC<SendTransactionProps> = ({ 
+  isOpen, 
+  onClose, 
+  recipientAddress = '',
+  onPaymentComplete
+}) => {
+  const { sendTransaction, balance, address, isLoading, isConnected } = useWallet();
+  const { rate: ethToInr } = useExchangeRate();
   
-  const [step, setStep] = useState(1);
-  const [walletData, setWalletData] = useState<any>(null);
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [mnemonic, setMnemonic] = useState('');
-  const [privateKey, setPrivateKey] = useState('');
-  const [importType, setImportType] = useState<'mnemonic' | 'privateKey'>('mnemonic');
-  const [showMnemonic, setShowMnemonic] = useState(true);
-  const [shuffledMnemonic, setShuffledMnemonic] = useState<string[]>([]);
-  const [confirmationAttempt, setConfirmationAttempt] = useState<string[]>([]);
-  const [isConfirmed, setIsConfirmed] = useState(false);
+  const [toAddress, setToAddress] = useState(recipientAddress);
+  const [inrAmount, setInrAmount] = useState(''); // INR input
+  const [ethAmount, setEthAmount] = useState(''); // Calculated ETH
+  const [priority, setPriority] = useState<'ultra-low' | 'low' | 'economy' | 'standard'>('low');
+  const [txHash, setTxHash] = useState('');
+  const [estimatedGas, setEstimatedGas] = useState<any>(null);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
 
-  // Stepper for progress indication
-  const steps = [
-    'Secure Wallet',
-    'Confirm Phrase',
-    'Create Password',
-    'Complete'
-  ];
-
-  const resetState = () => {
-    setStep(1);
-    setWalletData(null);
-    setPassword('');
-    setConfirmPassword('');
-    setMnemonic('');
-    setPrivateKey('');
-    setShowMnemonic(true);
-    setShuffledMnemonic([]);
-    setConfirmationAttempt([]);
-    setIsConfirmed(false);
+  const resetForm = () => {
+    setToAddress(recipientAddress);
+    setInrAmount('');
+    setEthAmount('');
+    setPriority('low');
+    setTxHash('');
+    setEstimatedGas(null);
   };
 
-  // Clear temp data on close
   const handleClose = () => {
-    resetState();
+    resetForm();
     onClose();
   };
 
-  const handleGenerateWallet = async () => {
-    if (!isInitialized) {
-      alert('Wallet system is still initializing. Please wait...');
+  // Helper to get minimum INR for 1 wei
+  const getMinInrForOneWei = () => {
+    if (ethToInr > 0) {
+      return (1 / ethToInr).toFixed(8);
+    }
+    return '0';
+  };
+  const minInrForOneWei = getMinInrForOneWei();
+
+  const validateForm = () => {
+    if (!toAddress || !inrAmount) return false;
+    if (parseFloat(inrAmount) <= 0) return false;
+    // Check if amount is at least 1 wei
+    if (ethToInr > 0 && parseFloat(inrAmount) / ethToInr < 0.000000000000000001) return false;
+    return true;
+  };
+
+  const handleSend = async () => {
+    if (!validateForm()) {
+      setLocalError(`Amount too small. The minimum you can send is ₹${minInrForOneWei} (1 wei). Please increase the amount.`);
       return;
     }
-    setLocalError(null);
-    try {
-      const newWallet = await generateNewWallet();
-      setWalletData(newWallet);
-      setShuffledMnemonic(newWallet.mnemonic.split(' ').sort(() => 0.5 - Math.random()));
-      setStep(2);
-    } catch (error) {
-      setWalletData(null);
-      setStep(2);
-      setLocalError('Failed to generate wallet. Please try again.');
-      console.error('Failed to generate wallet:', error);
-    }
-  };
 
-  const handleImportWallet = async () => {
+    // Add wallet connection check
+    if (!isConnected) {
+      setLocalError('Wallet not connected. Please connect your wallet first.');
+      return;
+    }
+
     setLocalError(null);
     try {
-      const value = importType === 'mnemonic' ? mnemonic : privateKey;
-      const importedWallet = await importWallet(importType, value);
-      setWalletData(importedWallet);
-      setStep(4); // Skip mnemonic backup and confirmation for imported wallets
+      // Add detailed error logging for debugging
+      console.log('[SendTransaction] Sending:', { toAddress, inrAmount, priority });
+      const tx = await sendTransaction(toAddress, inrAmount, priority); // Pass INR, not ETH
+      if (tx.success) {
+        setTxHash(tx.hash);
+        if (onPaymentComplete) onPaymentComplete();
+      } else {
+        setLocalError((tx.error ? `[Backend] ${tx.error}` : 'Transaction failed. Please try again.'));
+        console.error('[SendTransaction] Backend error:', tx.error);
+      }
     } catch (error) {
       const errorMessage = (error as Error).message;
-      if (errorMessage.toLowerCase().includes('mnemonic') || errorMessage.toLowerCase().includes('seed')) {
-        setLocalError('Invalid mnemonic phrase. Please check and try again.');
-      } else if (errorMessage.toLowerCase().includes('private key') || errorMessage.toLowerCase().includes('key')) {
-        setLocalError('Invalid private key. Please check and try again.');
-      } else {
-        setLocalError('Failed to import wallet. Please check your input and try again.');
-      }
-      console.error('Failed to import wallet:', error);
+      setLocalError(`[Catch] ${errorMessage}`);
+      console.error('[SendTransaction] Exception:', error);
     }
   };
 
-  const handleSaveWallet = async () => {
-    if (password !== confirmPassword) return;
-    if (password.length < 8) return;
-
-    setLocalError(null);
-    try {
-      await encryptAndSaveWallet(password);
-      setStep(5);
-      // Don't call onComplete immediately - let user view success screen
-    } catch (error) {
-      setLocalError('Failed to save wallet. Please try again.');
-      console.error('Failed to save wallet:', error);
+  const priorityOptions = {
+    'ultra-low': {
+      label: 'Ultra Low',
+      description: '~$0.01 • 10-30 min',
+      savings: '90% savings'
+    },
+    'low': {
+      label: 'Low',
+      description: '~$0.02 • 5-15 min',
+      savings: '70% savings'
+    },
+    'economy': {
+      label: 'Economy',
+      description: '~$0.05 • 2-5 min',
+      savings: '50% savings'
+    },
+    'standard': {
+      label: 'Standard',
+      description: '~$0.10 • 1-2 min',
+      savings: 'baseline'
     }
   };
 
-  // Add a new function to handle completion after user views success
-  const handleComplete = () => {
-    onComplete();
-    handleClose();
-  };
-
-  const handleConfirmMnemonic = () => {
-    if (confirmationAttempt.join(' ') === walletData.mnemonic) {
-      setIsConfirmed(true);
-      setStep(4);
+  // When INR amount changes, calculate ETH
+  useEffect(() => {
+    if (inrAmount && !isNaN(parseFloat(inrAmount)) && parseFloat(inrAmount) > 0 && ethToInr > 0) {
+      setEthAmount((parseFloat(inrAmount) / ethToInr).toFixed(6));
     } else {
-      alert('Recovery phrase does not match. Please try again.');
-      setConfirmationAttempt([]);
+      setEthAmount('0');
     }
-  };
+  }, [inrAmount, ethToInr]);
 
-  const handleWordSelect = (word: string) => {
-    setConfirmationAttempt([...confirmationAttempt, word]);
-  };
-
-  const handleWordDeselect = (index: number) => {
-    setConfirmationAttempt(confirmationAttempt.filter((_, i) => i !== index));
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
-
-  // Add enhanced password validation
-  const validatePassword = (password: string) => {
-    const requirements = {
-      length: password.length >= 8,
-      uppercase: /[A-Z]/.test(password),
-      lowercase: /[a-z]/.test(password),
-      number: /\d/.test(password),
-      special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
-    };
-    
-    const score = Object.values(requirements).filter(Boolean).length;
-    return { requirements, score };
-  };
-
-  const getPasswordStrength = (score: number) => {
-    if (score < 2) return { text: 'Weak', color: 'text-red-500' };
-    if (score < 4) return { text: 'Fair', color: 'text-yellow-500' };
-    if (score < 5) return { text: 'Good', color: 'text-blue-500' };
-    return { text: 'Strong', color: 'text-green-500' };
+  // Handler for QR scan result
+  const handleQRScan = (data: string) => {
+    // Use the paymentService to parse the QR data
+    const parsed = paymentService.parseQRCode(data);
+    if (parsed.address) setToAddress(parsed.address);
+    if (parsed.amount) setInrAmount(parsed.amount);
+    if (parsed.memo) setLocalError(parsed.memo); // Optionally set as memo if you have a memo field
+    setShowQRScanner(false);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="w-full max-w-full md:max-w-xl rounded-xl md:rounded-2xl p-4 md:p-10 overflow-y-auto max-h-[90vh] minimal-scrollbar shadow-2xl bg-background/95 backdrop-blur-md">
-        <DialogHeader className="p-6 text-center border-b border-border/40">
-          <DialogTitle className="flex items-center justify-center gap-3 text-2xl font-bold text-foreground">
-            <Wallet className="h-7 w-7 text-primary" />
-            Create Your Wallet
+      <DialogContent className="max-w-md rounded-2xl border border-muted shadow-lg p-4">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Send className="h-5 w-5" />
+            Send ETH
           </DialogTitle>
           <DialogDescription>
-            Follow these steps to secure your new Aptos wallet.
+            Send Ethereum to another address
           </DialogDescription>
         </DialogHeader>
 
-        {/* Stepper */}
-        <div className="flex items-center justify-center px-6 py-4">
-          {steps.map((label, idx) => (
-            <React.Fragment key={label}>
-              <div className="flex flex-col items-center gap-2 text-center">
-                <div className={`rounded-full w-8 h-8 flex items-center justify-center font-semibold transition-all duration-300 ${step > idx + 1 ? 'bg-primary text-primary-foreground' : step === idx + 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                  {step > idx + 1 ? <CheckCircle className="h-5 w-5" /> : idx + 1}
-                </div>
-                <span className={`text-xs font-medium ${step >= idx + 1 ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
+        <div className="space-y-6">
+          {/* Show confirmation if txHash exists, otherwise show form/QRScanner */}
+          {txHash ? (
+            <div className="flex flex-col items-center space-y-6 py-6 bg-neutral-900 rounded-xl">
+              <div className="flex flex-col items-center space-y-2">
+                <CheckCircle className="h-16 w-16 text-neutral-100" />
+                <h2 className="text-xl font-bold text-neutral-100">Transaction Sent!</h2>
+                <p className="text-neutral-400 text-base">Your transaction has been submitted to the network.</p>
               </div>
-              {idx < steps.length - 1 && <div className={`flex-1 h-0.5 mx-4 ${step > idx + 1 ? 'bg-primary' : 'bg-border'}`} />}
-            </React.Fragment>
-          ))}
-        </div>
-
-        <div className="p-6">
-        {/* Step 1: Choose action */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <Tabs defaultValue="generate" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="generate">Generate New</TabsTrigger>
-                <TabsTrigger value="import">Import</TabsTrigger>
-              </TabsList>
-              <TabsContent value="generate" className="pt-6">
-                <div className="text-center p-6 bg-muted/50 rounded-lg">
-                  <h3 className="text-lg font-semibold text-foreground mb-2">Generate a New Wallet</h3>
-                  <p className="text-muted-foreground mb-4 text-sm">
-                    Create a new secure wallet with a 12-word recovery phrase.
-                  </p>
-                  <Button 
-                    onClick={handleGenerateWallet} 
-                    className="w-full h-11 bg-primary hover:bg-primary/90 focus:bg-primary/95 focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-medium transition-all duration-200 rounded-md"
-                    disabled={isLoading}
+              <div className="w-full max-w-md bg-neutral-800 rounded-xl border border-neutral-700 shadow p-4 flex flex-col items-center space-y-3">
+                <span className="text-xs font-medium text-neutral-400 mb-1">Transaction Hash</span>
+                <div className="flex items-center w-full">
+                  <code className="text-xs bg-neutral-900 p-2 rounded flex-1 break-all select-all text-neutral-100 border border-neutral-700">
+                    {txHash}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-2 relative group"
+                    onClick={() => {
+                      navigator.clipboard.writeText(txHash);
+                    }}
+                    title="Copy Hash"
                   >
-                    {isLoading ? 'Generating...' : 'Generate Wallet'}
+                    {/* Modern filled copy icon */}
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20" className="h-4 w-4 text-neutral-400 group-hover:text-neutral-100 transition-colors">
+                      <rect x="7" y="7" width="9" height="9" rx="2"/>
+                      <rect x="4" y="4" width="9" height="9" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                    </svg>
+                    <span className="absolute left-1/2 -translate-x-1/2 top-8 bg-neutral-800 text-xs text-neutral-100 rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                      Copied!
+                    </span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-1"
+                    onClick={() => window.open(`https://sepolia.etherscan.io/tx/${txHash}`, '_blank')}
+                    title="View on Etherscan"
+                  >
+                    <ExternalLink className="h-4 w-4 text-neutral-400 hover:text-neutral-100 transition-colors" />
                   </Button>
                 </div>
-              </TabsContent>
-              <TabsContent value="import" className="pt-6 space-y-4">
-                <Tabs value={importType} onValueChange={(v) => setImportType(v as 'mnemonic' | 'privateKey')}>
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="mnemonic">Recovery Phrase</TabsTrigger>
-                    <TabsTrigger value="privateKey">Private Key</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="mnemonic" className="pt-4">
-                    <Label htmlFor="mnemonic">12-word Recovery Phrase</Label>
-                    <Input
-                      id="mnemonic"
-                      type="text"
-                      placeholder="e.g. roast dog debris..."
-                      value={mnemonic}
-                      onChange={(e) => {
-                        setMnemonic(e.target.value);
-                        if (localError) setLocalError(null);
-                      }}
-                      className="mt-2 h-11 bg-background border-border hover:border-muted-foreground/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 rounded-md"
-                    />
-                  </TabsContent>
-                  <TabsContent value="privateKey" className="pt-4">
-                    <Label htmlFor="privateKey">Private Key</Label>
-                    <Input
-                      id="privateKey"
-                      type="password"
-                      placeholder="e.g. 0x..."
-                      value={privateKey}
-                      onChange={(e) => {
-                        setPrivateKey(e.target.value);
-                        if (localError) setLocalError(null);
-                      }}
-                      className="mt-2 h-11 bg-background border-border hover:border-muted-foreground/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 rounded-md"
-                    />
-                  </TabsContent>
-                </Tabs>
-                <Button 
-                  onClick={handleImportWallet} 
-                  className="w-full h-11 bg-primary hover:bg-primary/90 focus:bg-primary/95 focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-medium transition-all duration-200 rounded-md"
-                  disabled={isLoading || (!mnemonic && !privateKey)}
-                >
-                  {isLoading ? 'Importing...' : 'Import Wallet'}
-                </Button>
-              </TabsContent>
-            </Tabs>
-            {localError && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{localError}</AlertDescription>
-              </Alert>
-            )}
-          </div>
-        )}
-
-        {/* Step 2: Show mnemonic and address */}
-        {step === 2 && !walletData && (
-          <div className="space-y-4 text-center">
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                Failed to generate wallet data. Please try again.
-              </AlertDescription>
-            </Alert>
-            <Button onClick={() => setStep(1)} className="w-full">
-              Go Back
-            </Button>
-          </div>
-        )}
-
-        {step === 2 && walletData && (
-          <div className
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="inline-flex items-center px-2 py-1 rounded bg-neutral-700 text-neutral-100 text-xs font-semibold">
+                    <Clock className="h-4 w-4 mr-1" />
+                    Pending
+                  </span>
+                  <span className="text-xs text-neutral-400">It may take 5-15 min to confirm.</span>
+                </div>
+              </div>
+              <Button onClick={handleClose} className="w-full max-w-md mt-4 text-base font-semibold py-3 rounded-lg bg-neutral-800 text-neutral-100 border-none hover:bg-neutral-700">
+                Done
+              </Button>
+            </div>
+          ) : showQRScanner ? (
+            <QRScanner
+              onScan={handleQRScan}
+              onClose={() => setShowQRScanner(false)}
+              cardClassName="rounded-xl border border-muted shadow p-2"
+            />
+          ) : (
+            <>
+              {/* Scan to Pay Button */}
+              <Button
+                variant="outline"
+                className="w-full mb-2"
+                onClick={() => setShowQRScanner(true)}
+                disabled={showQRScanner}
+              >
+                <QrCode className="h-4 w-4 mr-2" />
+                Scan to Pay
+              </Button>
+              {/* Form Content */}
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="toAddress">Recipient Address</Label>
+                  <Input
+                    id="toAddress"
+                    type="text"
+                    placeholder="0x..."
+                    value={toAddress}
+                    onChange={(e) => {
+                      setToAddress(e.target.value);
+                      if (localError) setLocalError(null);
+                    }}
+                    className="mt-2 font-mono text-sm h-11 bg-background border-border hover:border-muted-foreground/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 rounded-md"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="inrAmount">Amount (INR)</Label>
+                  <Input
+                    id="inrAmount"
+                    type="text"
+                    inputMode="decimal"
+                    value={inrAmount}
+                    onChange={e => {
+                      const val = e.target.value.replace(/[^\d.]/g, '');
+                      setInrAmount(val.startsWith('-') ? '' : val);
+                    }}
+                    placeholder={`Enter amount in INR (min: ₹${minInrForOneWei})`}
+                    autoFocus
+                    className="mt-2 h-11 bg-background border-border rounded-md"
+                  />
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                    <span>ETH to be sent:</span>
+                    <span className="font-mono font-semibold">{parseFloat(ethAmount).toFixed(8)} ETH</span>
+                    <span className="ml-2 text-xs text-gray-500">(Conversion: ₹{inrAmount || '0'} → {parseFloat(ethAmount).toFixed(8)} ETH @ ₹{ethToInr} / ETH)</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                    <span>Wallet Balance:</span>
+                    <span className="font-mono">{parseFloat(balance || '0').toFixed(8)} ETH</span>
+                  </div>
+                  {/* Show a warning if ETH amount is too low for a transaction */}
+                  {ethAmount && parseFloat(ethAmount) > 0 && parseFloat(ethAmount) < 0.00000001 && (
+                    <div className="text-xs text-yellow-600 mt-1">Amount may be too low for a valid transaction.</div>
+                  )}
+                  {inrAmount && ethToInr > 0 && parseFloat(inrAmount) / ethToInr < 0.000000000000000001 && (
+                    <div className="text-xs text-red-600 mt-1">Amount too small. The minimum you can send is ₹{minInrForOneWei} (1 wei).</div>
+                  )}
+                </div>
+                <div>
+                  <Label>Transaction Priority</Label>
+                  <Select value={priority} onValueChange={(value: any) => setPriority(value)}>
+                    

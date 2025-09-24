@@ -18,6 +18,7 @@ import {
   CreditCard,
   Zap
 } from 'lucide-react';
+import AnimatedBackground from '@/components/AnimatedBackground';
 
 const HowItWorksSection = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -109,8 +110,11 @@ const HowItWorksSection = () => {
       id="how-it-works-section"
       className="relative w-full py-20 md:py-32 px-6 md:px-12 bg-background overflow-hidden"
     >
-      {/* Rounded Container with Black Edges */}
-      <div className="absolute inset-x-6 md:inset-x-12 inset-y-8 md:inset-y-12 bg-muted/30 rounded-3xl"></div>
+      {/* 3D Animated Background */}
+      <AnimatedBackground projectId="cm294jqwv1hkdml0hncxmdyvp" overlay="light" className="inset-x-6 md:inset-x-12 inset-y-8 md:inset-y-12" />
+      
+      {/* Subtle overlay for the container effect */}
+      <div className="absolute inset-x-6 md:inset-x-12 inset-y-8 md:inset-y-12 bg-muted/5 rounded-3xl"></div>
       <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8">
         {/* Section Header */}
         <div className={`text-center mb-16 transition-all duration-700 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>          <div className="flex justify-center mb-6">
@@ -274,9 +278,6 @@ const HowItWorksSection = () => {
               <Button className="bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground text-base h-12 px-8 transition-all duration-200">
                 <UserPlus className="mr-2 h-4 w-4" />
                 Create Wallet Now
-              </Button>
-              <Button variant="outline" className="border-border text-foreground hover:bg-accent hover:text-accent-foreground text-base h-12 px-8 transition-all duration-200">
-                Watch Demo
               </Button>
             </div>
           </div>

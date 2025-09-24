@@ -69,7 +69,7 @@ export const Navbar = () => { // Renamed from HeroHeader
         const baseItems = [
             { name: 'Features', to: '/#features-section', description: 'Advanced payment features' },
             { name: 'How It Works', to: '/#how-it-works-section', description: 'Simple 4-step process' },
-            { name: 'FAQs', to: '/#faq-section', description: 'Common questions answered' },
+            { name: 'About', to: '/about', description: 'Learn more about our mission' },
             { name: 'Markets', to: '/market', description: 'Crypto markets & prices' },
         ];
 

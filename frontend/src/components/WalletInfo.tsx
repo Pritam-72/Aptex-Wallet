@@ -11,7 +11,7 @@ interface WalletInfoProps {
   network: string;
   isConnected: boolean;
   onRefresh: () => void;
-  onDisconnect: () => void;
+  onDisconnect?: () => void;
 }
 
 const WalletInfo: React.FC<WalletInfoProps> = ({
@@ -130,18 +130,20 @@ const WalletInfo: React.FC<WalletInfoProps> = ({
           <Button
             variant="outline"
             onClick={onRefresh}
-            className="flex-1 h-10"
+            className={`${onDisconnect ? 'flex-1' : 'w-full'} h-10`}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh Balance
           </Button>
-          <Button
-            variant="destructive"
-            onClick={onDisconnect}
-            className="flex-1 h-10"
-          >
-            Disconnect Wallet
-          </Button>
+          {onDisconnect && (
+            <Button
+              variant="destructive"
+              onClick={onDisconnect}
+              className="flex-1 h-10"
+            >
+              Disconnect Wallet
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -10,6 +10,7 @@ import {
   Users,
   Zap
 } from 'lucide-react';
+import AnimatedBackground from '@/components/AnimatedBackground';
 
 const FAQSection = () => {
   const faqs = [
@@ -132,15 +133,19 @@ const FAQSection = () => {
     setMinimized(prev => ({ ...prev, [categoryIndex]: !prev[categoryIndex] }));
   };
 
-  return (    <section 
+  return (
+    <section 
       id="faq-section"
       className="relative w-full py-20 md:py-32 px-6 md:px-12 bg-background overflow-hidden"
     >
-      {/* Rounded Container with Black Edges */}
-      <div className="absolute inset-x-6 md:inset-x-12 inset-y-8 md:inset-y-12 bg-muted/30 rounded-3xl"></div>
+      {/* 3D Animated Background */}
+      <AnimatedBackground projectId="cm294jqwv1hkdml0hncxmdyvp" overlay="light" className="inset-x-6 md:inset-x-12 inset-y-8 md:inset-y-12" />
       
-      {/* Background Effects */}
-      <div className="absolute inset-0 cosmic-grid opacity-10"></div>
+      {/* Subtle overlay for the container effect */}
+      <div className="absolute inset-x-6 md:inset-x-12 inset-y-8 md:inset-y-12 bg-muted/5 rounded-3xl"></div>
+      
+      {/* Background Effects - Keep some for layering */}
+      <div className="absolute inset-0 cosmic-grid opacity-3"></div>
       
       <div className="relative z-10 max-w-5xl mx-auto px-4 md:px-8">
         {/* Section Header */}

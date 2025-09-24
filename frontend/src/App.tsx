@@ -4,8 +4,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, useLocation, Navigate, Outlet } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { WalletProvider } from "@/contexts/WalletContext";
 import Index from "./pages/Index";
 import LandingPage from "./pages/LandingPage";
+import AboutPage from "./pages/AboutPage";
 import UserPage from "./pages/UserPage";
 import SimpleDashboard from "./pages/SimpleDashboard";
 import SupabaseAuthPage from "./pages/SupabaseAuthPage";
@@ -106,6 +108,7 @@ const AppContent = () => {
         } />
         {/* Landing page route that all users can access */}
         <Route path="/home" element={<LandingPage />} />
+        <Route path="/about" element={<AboutPage />} />
         <Route path="/market" element={<Index />} />
         {/* Make /user public route */}
         <Route path="/user" element={<UserPage />} />
@@ -141,9 +144,11 @@ const App = () => {
     <TooltipProvider>
       <BrowserRouter>
         <AuthProvider>
-          <Toaster />
-          <Sonner position="top-right" />
-          <AppContent />
+          <WalletProvider>
+            <Toaster />
+            <Sonner position="top-right" />
+            <AppContent />
+          </WalletProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

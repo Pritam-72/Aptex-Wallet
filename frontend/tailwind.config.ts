@@ -17,7 +17,11 @@ export default {
       screens: {
         "2xl": "1400px",
       },
-    },    extend: {
+    },
+    extend: {
+      screens: {
+        'xs': '475px',
+      },
       borderWidth: {
         'thin': '0.5px',
         'ultra-thin': '0.25px',

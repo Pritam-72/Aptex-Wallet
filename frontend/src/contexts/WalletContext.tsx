@@ -13,15 +13,16 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [address, setAddress] = useState<string | null>(null);
-  const [balance, setBalance] = useState('0.0');
+  // Built-in wallet - always connected
+  const [isConnected, setIsConnected] = useState(true);
+  const [address, setAddress] = useState<string | null>('0x742d35Cc6663C0532d8c5E9C4267B53A0D7C9b1F');
+  const [balance, setBalance] = useState('12.5623');
 
   const connectWallet = async () => {
-    // Mock wallet connection
+    // Built-in wallet - already connected, just refresh state
     setIsConnected(true);
     setAddress('0x742d35Cc6663C0532d8c5E9C4267B53A0D7C9b1F');
-    setBalance('1.5623');
+    setBalance('12.5623');
   };
 
   const disconnectWallet = () => {
