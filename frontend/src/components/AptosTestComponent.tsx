@@ -129,7 +129,7 @@ const AptosTestComponent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black p-4 space-y-6">
+    <div className="min-h-screen bg-black px-4 pt-16 pb-4 space-y-6">
       <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
       
       <div className="relative z-10 max-w-4xl mx-auto space-y-6">
