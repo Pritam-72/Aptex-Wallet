@@ -16,7 +16,13 @@ import {
   Building,
   Clock,
   Sparkles,
-  Medal
+  Medal,
+  FileImage,
+  Download,
+  Hash,
+  User,
+  CreditCard,
+  Eye
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
@@ -45,6 +51,19 @@ interface LoyaltyNFT {
   attributes: string[];
 }
 
+interface InvoiceNFT {
+  id: string;
+  transactionHash: string;
+  from: string;
+  to: string;
+  amount: string;
+  type: 'sent' | 'received';
+  timestamp: Date;
+  status: 'confirmed';
+  generatedAt: Date;
+  invoiceImageUrl?: string;
+}
+
 interface CollectablesSectionProps {
   userAddress: string;
 }
@@ -52,6 +71,7 @@ interface CollectablesSectionProps {
 export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAddress }) => {
   const [offerNFTs, setOfferNFTs] = useState<OfferNFT[]>([]);
   const [loyaltyNFTs, setLoyaltyNFTs] = useState<LoyaltyNFT[]>([]);
+  const [invoiceNFTs, setInvoiceNFTs] = useState<InvoiceNFT[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -75,8 +95,48 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
       if (storedLoyaltyNFTs) {
         setLoyaltyNFTs(JSON.parse(storedLoyaltyNFTs));
       }
+
+      // Load Invoice NFTs from transaction history
+      loadInvoiceNFTs();
     } catch (error) {
       console.error('Error loading NFTs:', error);
+    }
+  };
+
+  // Load Invoice NFTs from transaction history
+  const loadInvoiceNFTs = () => {
+    try {
+      // Get the current wallet's public key to access transaction history
+      const walletData = localStorage.getItem('cryptal_wallet');
+      if (walletData) {
+        const parsedData = JSON.parse(walletData);
+        const currentIndex = parsedData.currentAccountIndex || 0;
+        const publicKey = parsedData.accounts?.[currentIndex]?.publicKey;
+        
+        if (publicKey) {
+          const storedTransactions = localStorage.getItem(`transactions_${publicKey}`);
+          if (storedTransactions) {
+            const transactions = JSON.parse(storedTransactions);
+            
+            // Convert transactions to Invoice NFTs
+            const invoices: InvoiceNFT[] = transactions.map((tx: any, index: number) => ({
+              id: `invoice-${tx.txHash || Date.now()}-${index}`,
+              transactionHash: tx.txHash || `mock-${Date.now()}-${index}`,
+              from: tx.from,
+              to: tx.to,
+              amount: tx.aptosAmount || tx.ethAmount || '0',
+              type: tx.type,
+              timestamp: new Date(tx.timestamp),
+              status: 'confirmed' as const,
+              generatedAt: new Date(tx.timestamp)
+            })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()); // Sort by newest first
+            
+            setInvoiceNFTs(invoices);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading invoice NFTs:', error);
     }
   };
 
@@ -131,6 +191,89 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
     return new Date(expiryDate) < new Date();
   };
 
+  // Handle invoice NFT download
+  const handleDownloadInvoice = async (invoice: InvoiceNFT) => {
+    try {
+      // Import the invoice generator functions
+      const { downloadInvoice } = await import('@/utils/invoiceGenerator');
+      
+      const invoiceData = {
+        transactionHash: invoice.transactionHash,
+        from: invoice.from,
+        to: invoice.to,
+        amount: invoice.amount,
+        type: invoice.type,
+        timestamp: invoice.timestamp,
+        status: invoice.status
+      };
+
+      const success = await downloadInvoice(invoiceData);
+      
+      if (success) {
+        toast({
+          title: "Invoice Downloaded! 📄",
+          description: "Your transaction invoice NFT has been saved to your device.",
+          duration: 4000,
+        });
+      }
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      toast({
+        title: "Download Error",
+        description: "Failed to download invoice. Please try again.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+  };
+
+  // Handle invoice NFT preview
+  const handlePreviewInvoice = async (invoice: InvoiceNFT) => {
+    try {
+      // Import the invoice generator functions
+      const { previewInvoice } = await import('@/utils/invoiceGenerator');
+      
+      const invoiceData = {
+        transactionHash: invoice.transactionHash,
+        from: invoice.from,
+        to: invoice.to,
+        amount: invoice.amount,
+        type: invoice.type,
+        timestamp: invoice.timestamp,
+        status: invoice.status
+      };
+
+      const imageDataURL = await previewInvoice(invoiceData);
+      
+      // Open preview in new tab
+      const newWindow = window.open('', '_blank');
+      if (newWindow) {
+        newWindow.document.write(`
+          <html>
+            <head><title>Invoice NFT Preview</title></head>
+            <body style="margin:0;padding:20px;background:#000;display:flex;justify-content:center;align-items:center;min-height:100vh;">
+              <img src="${imageDataURL}" alt="Invoice NFT" style="max-width:100%;height:auto;border:1px solid #333;border-radius:8px;" />
+            </body>
+          </html>
+        `);
+      }
+      
+      toast({
+        title: "Invoice Preview Opened! 👀",
+        description: "Your invoice NFT preview has been opened in a new tab.",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error previewing invoice:', error);
+      toast({
+        title: "Preview Error",
+        description: "Failed to preview invoice. Please try again.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -144,7 +287,7 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
       </div>
 
       <Tabs defaultValue="offers" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 bg-card/50 border border-border/50">
+        <TabsList className="grid w-full grid-cols-3 bg-card/50 border border-border/50">
           <TabsTrigger value="offers" className="data-[state=active]:bg-muted/30 data-[state=active]:text-foreground">
             <Gift className="h-4 w-4 mr-2" />
             Offers ({offerNFTs.length})
@@ -152,6 +295,10 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
           <TabsTrigger value="loyalty" className="data-[state=active]:bg-muted/30 data-[state=active]:text-foreground">
             <Crown className="h-4 w-4 mr-2" />
             Loyalty ({loyaltyNFTs.length})
+          </TabsTrigger>
+          <TabsTrigger value="invoices" className="data-[state=active]:bg-muted/30 data-[state=active]:text-foreground">
+            <FileImage className="h-4 w-4 mr-2" />
+            Invoices ({invoiceNFTs.length})
           </TabsTrigger>
         </TabsList>
 
@@ -373,6 +520,150 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
                           </div>
                           <p className={`text-sm ${tierInfo.color} font-medium`}>
                             Exclusive {nft.tier} member benefits
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Invoices Tab */}
+        <TabsContent value="invoices" className="space-y-4">
+          {invoiceNFTs.length === 0 ? (
+            <Card className="bg-card/50 border-border/50 cosmic-glow">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <FileImage className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">No Invoice NFTs Yet</h3>
+                <p className="text-muted-foreground text-center max-w-md">
+                  Make transactions to generate unique invoice NFTs that can be downloaded as proof of payment.
+                </p>
+                <div className="mt-6 space-y-2 text-center">
+                  <div className="text-xs text-muted-foreground">
+                    • Each transaction creates a unique NFT-style invoice
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    • Download as high-resolution PNG images
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    • Perfect for record-keeping and proof of payment
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {invoiceNFTs.map((invoice, index) => {
+                const isRecent = new Date().getTime() - invoice.timestamp.getTime() < 7 * 24 * 60 * 60 * 1000; // 7 days
+                
+                return (
+                  <motion.div
+                    key={invoice.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.1 }}
+                  >
+                    <Card className="bg-card/50 border-border/50 hover:bg-card/70 transition-all duration-300 cosmic-glow">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                              invoice.type === 'sent' 
+                                ? 'bg-muted/20 text-muted-foreground' 
+                                : 'bg-muted/30 text-foreground'
+                            }`}>
+                              {invoice.type === 'sent' ? '↗️' : '↙️'}
+                            </div>
+                            <div>
+                              <CardTitle className="text-sm text-foreground">
+                                Invoice #{invoice.id.split('-').pop()?.slice(-4)}
+                              </CardTitle>
+                              <CardDescription className="text-xs text-muted-foreground capitalize">
+                                {invoice.type} Transaction
+                              </CardDescription>
+                            </div>
+                          </div>
+                          {isRecent && (
+                            <Badge className="bg-muted/20 text-foreground border border-border/30 text-xs">
+                              New
+                            </Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Amount Display */}
+                        <div className="text-center py-3 bg-muted/10 rounded-lg border border-border/30">
+                          <div className="text-xl font-bold text-foreground flex items-center justify-center gap-1">
+                            <CreditCard className="h-4 w-4" />
+                            {parseFloat(invoice.amount).toFixed(4)} APT
+                          </div>
+                          <p className="text-muted-foreground text-xs mt-1">Transaction Amount</p>
+                        </div>
+
+                        {/* Transaction Details */}
+                        <div className="space-y-3">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Hash className="h-3 w-3" />
+                              <span>Transaction Hash</span>
+                            </div>
+                            <div className="font-mono text-xs text-foreground bg-muted/10 p-2 rounded border border-border/30">
+                              {invoice.transactionHash.slice(0, 15)}...{invoice.transactionHash.slice(-10)}
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <User className="h-3 w-3" />
+                              <span>{invoice.type === 'sent' ? 'To' : 'From'}</span>
+                            </div>
+                            <div className="font-mono text-xs text-foreground bg-muted/10 p-2 rounded border border-border/30">
+                              {invoice.type === 'sent' 
+                                ? `${invoice.to.slice(0, 15)}...${invoice.to.slice(-10)}`
+                                : `${invoice.from.slice(0, 15)}...${invoice.from.slice(-10)}`
+                              }
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            <span>Generated: {formatDate(invoice.generatedAt.toISOString())}</span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2 pt-3 border-t border-border/30">
+                          <Button
+                            onClick={() => handlePreviewInvoice(invoice)}
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 text-xs hover:bg-blue-600/10 hover:border-blue-600/20 hover:text-blue-400"
+                          >
+                            <Eye className="h-3 w-3 mr-2" />
+                            Preview
+                          </Button>
+                          <Button
+                            onClick={() => handleDownloadInvoice(invoice)}
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 text-xs hover:bg-green-600/10 hover:border-green-600/20 hover:text-green-400"
+                          >
+                            <Download className="h-3 w-3 mr-2" />
+                            Download
+                          </Button>
+                        </div>
+
+                        {/* NFT Badge */}
+                        <div className="bg-muted/10 p-2 rounded-lg border border-border/30">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                            <FileImage className="h-3 w-3" />
+                            <span>NFT Certificate</span>
+                          </div>
+                          <p className="text-xs text-foreground">
+                            Unique digital invoice with transaction verification
                           </p>
                         </div>
                       </CardContent>
