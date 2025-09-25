@@ -17,6 +17,25 @@ import * as bip39 from 'bip39';
 const config = new AptosConfig({ network: Network.DEVNET });
 export const aptos = new Aptos(config);
 
+// Test network connectivity
+export const testAptosConnection = async (): Promise<boolean> => {
+  try {
+    console.log('🔍 Testing Aptos devnet connection...');
+    const ledgerInfo = await aptos.getLedgerInfo();
+    console.log('✅ Aptos devnet connection successful');
+    console.log('📊 Ledger info:', {
+      chainId: ledgerInfo.chain_id,
+      epoch: ledgerInfo.epoch,
+      ledgerVersion: ledgerInfo.ledger_version,
+      ledgerTimestamp: ledgerInfo.ledger_timestamp
+    });
+    return true;
+  } catch (error) {
+    console.error('❌ Aptos devnet connection failed:', error);
+    return false;
+  }
+};
+
 export interface AptosWalletData {
   address: string;
   mnemonic: string;
@@ -29,6 +48,48 @@ export interface TransactionResult {
   success: boolean;
   gasUsed?: number;
   message?: string;
+}
+
+export interface AptosTransaction {
+  version: string;
+  hash: string;
+  sender: string;
+  sequence_number: string;
+  max_gas_amount: string;
+  gas_unit_price: string;
+  gas_used: string;
+  success: boolean;
+  vm_status: string;
+  accumulator_root_hash: string;
+  timestamp: string;
+  payload?: {
+    type: string;
+    function: string;
+    arguments: any[];
+    type_arguments: string[];
+  };
+  changes?: any[];
+  events?: {
+    sequence_number: string;
+    type: string;
+    data: {
+      amount?: string;
+      sender?: string;
+      receiver?: string;
+    };
+  }[];
+}
+
+export interface ProcessedTransaction {
+  hash: string;
+  timestamp: Date;
+  type: 'sent' | 'received' | 'other';
+  status: 'confirmed' | 'failed';
+  amount: string;
+  from: string;
+  to: string;
+  gasUsed?: string;
+  function?: string;
 }
 
 /**
@@ -153,18 +214,181 @@ export const importWalletFromPrivateKey = async (privateKey: string): Promise<Ap
  */
 export const getWalletBalance = async (address: string): Promise<string> => {
   try {
+    console.log('🔍 Fetching balance for address:', address);
+    
+    // Validate address format
+    if (!address || !address.startsWith('0x')) {
+      throw new Error('Invalid address format');
+    }
+    
     const accountAddress = AccountAddress.fromString(address);
+    console.log('📍 Parsed account address:', accountAddress.toString());
+    
+    // Use the Aptos client to get APT amount directly
     const balance = await aptos.getAccountAPTAmount({
       accountAddress
     });
     
+    console.log('💰 Raw balance (octas):', balance);
+    
     // Convert from octas to APT (1 APT = 100,000,000 octas)
     const aptBalance = (balance / 100_000_000).toFixed(8);
+    console.log('✅ Converted balance (APT):', aptBalance);
+    
     return aptBalance;
   } catch (error) {
-    console.error('Error fetching wallet balance:', error);
-    // Return 0 if account doesn't exist or other error
+    console.error('❌ Error fetching wallet balance for', address, ':', error);
+    
+    // Provide more specific error information
+    if (error instanceof Error) {
+      if (error.message.includes('Resource not found')) {
+        console.log('ℹ️ Account not found on devnet, returning 0 balance');
+        return '0.00000000';
+      } else if (error.message.includes('Invalid address')) {
+        console.error('🚫 Invalid address format provided');
+        throw error;
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        console.error('🌐 Network error while fetching balance');
+        throw new Error('Network error: Unable to fetch balance from Aptos devnet');
+      }
+    }
+    
+    // Return 0 for unknown errors
+    console.log('⚠️ Unknown error, returning 0 balance');
     return '0.00000000';
+  }
+};
+
+/**
+ * Get account transactions from Aptos devnet
+ */
+export const getAccountTransactions = async (
+  address: string,
+  limit: number = 25
+): Promise<ProcessedTransaction[]> => {
+  try {
+    console.log('🔍 Fetching transactions for address:', address);
+    
+    const accountAddress = AccountAddress.fromString(address);
+    
+    // Get account transactions from Aptos
+    const transactions = await aptos.getAccountTransactions({
+      accountAddress,
+      options: {
+        limit,
+        orderBy: [{ ledger_version: 'desc' }]
+      }
+    });
+    
+    console.log('📦 Raw transactions fetched:', transactions.length);
+    
+    const processedTransactions: ProcessedTransaction[] = [];
+    
+    for (const tx of transactions) {
+      try {
+        const transaction = tx as AptosTransaction;
+        
+        // Convert timestamp from microseconds to milliseconds
+        const timestamp = new Date(parseInt(transaction.timestamp) / 1000);
+        
+        let type: 'sent' | 'received' | 'other' = 'other';
+        let amount = '0';
+        let toAddress = '';
+        let fromAddress = transaction.sender;
+        let functionName = '';
+        
+        // Process payload for coin transfer transactions
+        if (transaction.payload?.function === '0x1::coin::transfer' || 
+            transaction.payload?.function === '0x1::aptos_coin::transfer') {
+          functionName = 'Transfer';
+          
+          if (transaction.payload.arguments && transaction.payload.arguments.length >= 2) {
+            toAddress = transaction.payload.arguments[0] as string;
+            const amountInOctas = transaction.payload.arguments[1] as string;
+            amount = (parseInt(amountInOctas) / 100_000_000).toFixed(8);
+            
+            // Determine if sent or received
+            if (transaction.sender.toLowerCase() === address.toLowerCase()) {
+              type = 'sent';
+            } else if (toAddress.toLowerCase() === address.toLowerCase()) {
+              type = 'received';
+              fromAddress = transaction.sender;
+            }
+          }
+        } else if (transaction.payload?.function) {
+          functionName = transaction.payload.function.split('::').pop() || 'Unknown';
+        }
+        
+        // Also check events for transfers
+        if (transaction.events && transaction.events.length > 0) {
+          for (const event of transaction.events) {
+            if (event.type.includes('withdraw') || event.type.includes('deposit') || 
+                event.type.includes('transfer')) {
+              if (event.data.amount) {
+                const eventAmount = (parseInt(event.data.amount) / 100_000_000).toFixed(8);
+                if (parseFloat(eventAmount) > parseFloat(amount)) {
+                  amount = eventAmount;
+                }
+              }
+              
+              if (event.data.sender && event.data.receiver) {
+                fromAddress = event.data.sender;
+                toAddress = event.data.receiver;
+                
+                if (event.data.sender.toLowerCase() === address.toLowerCase()) {
+                  type = 'sent';
+                } else if (event.data.receiver.toLowerCase() === address.toLowerCase()) {
+                  type = 'received';
+                }
+              }
+            }
+          }
+        }
+        
+        // If still no amount found but it's a successful transaction, check for gas
+        if (amount === '0' && transaction.gas_used) {
+          const gasInAPT = (parseInt(transaction.gas_used) * parseInt(transaction.gas_unit_price) / 100_000_000).toFixed(8);
+          if (parseFloat(gasInAPT) > 0) {
+            amount = gasInAPT;
+            type = 'sent'; // Gas fees are always "sent"
+            functionName = functionName || 'Gas Fee';
+          }
+        }
+        
+        const processedTx: ProcessedTransaction = {
+          hash: transaction.hash,
+          timestamp,
+          type,
+          status: transaction.success ? 'confirmed' : 'failed',
+          amount,
+          from: fromAddress,
+          to: toAddress || '',
+          gasUsed: transaction.gas_used,
+          function: functionName
+        };
+        
+        processedTransactions.push(processedTx);
+        
+      } catch (txError) {
+        console.error('Error processing transaction:', txError);
+        // Continue with other transactions
+      }
+    }
+    
+    console.log('✅ Processed transactions:', processedTransactions.length);
+    return processedTransactions;
+    
+  } catch (error) {
+    console.error('❌ Error fetching account transactions:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Resource not found')) {
+        console.log('ℹ️ No transactions found for this account');
+        return [];
+      }
+    }
+    
+    throw new Error('Failed to fetch transaction history');
   }
 };
 
@@ -351,6 +575,7 @@ export default {
   importWalletFromMnemonic,
   importWalletFromPrivateKey,
   getWalletBalance,
+  getAccountTransactions,
   sendAptosTransaction,
   fundAccountWithDevnetAPT,
   checkAccountExists,
@@ -359,6 +584,7 @@ export default {
   isValidAptosAddress,
   formatAddress,
   encryptWalletData,
+  testAptosConnection,
   decryptWalletData,
   aptos
 };

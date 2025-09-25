@@ -7,18 +7,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Download, Search, Filter, ExternalLink, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
+import { getAccountTransactions, ProcessedTransaction } from '@/utils/aptosWalletUtils';
 import * as XLSX from 'xlsx';
 
-// Transaction interface
+// Updated transaction interface to match real Aptos transactions
 interface PaymentTransaction {
   from: string;
   to: string;
+  ethAmount: string; // Keep same field names for compatibility
   aptosAmount: string;
   inrAmount: number;
   timestamp: Date;
   txHash?: string;
-  type: 'sent' | 'received';
-  status: 'confirmed' | 'pending' | 'failed';
+  type: 'sent' | 'received' | 'other';
+  status: 'confirmed' | 'failed';
+  gasUsed?: string;
+  function?: string;
 }
 
 export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refreshFlag }) => {
@@ -48,9 +52,43 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
     setError(null);
 
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('🔍 Loading real transaction history for:', address);
       
+      // Fetch real transactions from Aptos devnet
+      const aptosTransactions = await getAccountTransactions(address, 50);
+      
+      // Convert to our PaymentTransaction format
+      const convertedTransactions: PaymentTransaction[] = aptosTransactions.map((tx): PaymentTransaction => {
+        // Determine the proper type for UI display
+        let displayType: 'sent' | 'received' | 'other' = tx.type;
+        
+        // For contract interactions or unknown types, keep as 'other'
+        if (tx.type === 'other' && tx.function && !tx.function.includes('Transfer')) {
+          displayType = 'other';
+        } else if (tx.type === 'other') {
+          // If it's 'other' but no specific function, treat as 'sent' (likely gas fee)
+          displayType = 'sent';
+        }
+        
+        return {
+          from: tx.from,
+          to: tx.to,
+          ethAmount: tx.amount, // Using same field name for compatibility
+          inrAmount: convertAPTToINR(tx.amount),
+          timestamp: tx.timestamp,
+          txHash: tx.hash,
+          type: displayType,
+          status: tx.status,
+          gasUsed: tx.gasUsed,
+          function: tx.function
+        };
+      });
+      
+      console.log('✅ Loaded', convertedTransactions.length, 'real transactions');
+      setTransactions(convertedTransactions);
+    } catch (error: any) {
+      setError(error.message || 'Failed to load transactions');
+      console.error('Transaction fetch error:', error);
       // Mock transaction data - expanded for UI testing
       const mockTransactions: PaymentTransaction[] = [
         {
@@ -265,12 +303,14 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
     }
   };
 
-  const getTypeIcon = (type: 'sent' | 'received') => {
+  const getTypeIcon = (type: 'sent' | 'received' | 'other') => {
     switch (type) {
       case 'sent':
         return <ArrowUpCircle className="h-5 w-5 text-red-500" />;
       case 'received':
         return <ArrowDownCircle className="h-5 w-5 text-green-500" />;
+      case 'other':
+        return <Clock className="h-5 w-5 text-blue-500" />; // Contract interaction icon
       default:
         return <div className="h-5 w-5" />; // Placeholder
     }
@@ -370,7 +410,8 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
             <div className="text-center p-8">
               <div className="flex flex-col items-center justify-center space-y-3">
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                <p className="text-muted-foreground">Loading on-chain data...</p>
+                <p className="text-muted-foreground">Loading transactions from Aptos devnet...</p>
+                <p className="text-xs text-muted-foreground">This may take a few seconds</p>
               </div>
             </div>
           ) : filteredTransactions.length > 0 ? (
@@ -394,6 +435,8 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Amount:</span>
                       <div className="text-right">
+                        <div className="font-medium text-foreground">{parseFloat(tx.ethAmount).toFixed(6)} APT</div>
+                        <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.ethAmount).toLocaleString()}</div>
                         <div className="font-medium text-foreground">{parseFloat(tx.aptosAmount).toFixed(6)} APT</div>
                         <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.aptosAmount).toLocaleString()}</div>
                       </div>
@@ -411,7 +454,7 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Hash:</span>
                       <a 
-                        href={`https://sepolia.etherscan.io/tx/${tx.txHash}`} 
+                        href={`https://explorer.aptoslabs.com/txn/${tx.txHash}?network=devnet`} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="flex items-center text-primary hover:text-primary/80 transition-colors"
@@ -420,6 +463,13 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                         <ExternalLink className="h-3 w-3 ml-1" />
                       </a>
                     </div>
+                    
+                    {tx.function && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Function:</span>
+                        <span className="text-xs font-medium text-foreground">{tx.function}</span>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -456,7 +506,8 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                   <td colSpan={6} className="text-center p-12">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                      <p className="text-muted-foreground">Loading on-chain data...</p>
+                      <p className="text-muted-foreground">Loading transactions from Aptos devnet...</p>
+                      <p className="text-xs text-muted-foreground">This may take a few seconds</p>
                     </div>
                   </td>
                 </tr>
@@ -478,6 +529,11 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                       </div>
                     </td>
                     <td className="p-4">
+                      <div className="font-medium text-foreground">{parseFloat(tx.ethAmount).toFixed(6)} APT</div>
+                      <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.ethAmount).toLocaleString()}</div>
+                      {tx.function && (
+                        <div className="text-xs text-blue-400 mt-1">{tx.function}</div>
+                      )}
                       <div className="font-medium text-foreground">{parseFloat(tx.aptosAmount).toFixed(2)} APT</div>
                       <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.aptosAmount).toLocaleString()}</div>
                     </td>
@@ -487,7 +543,7 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                     <td className="p-4">{getStatusBadge(tx.status || 'confirmed')}</td>
                     <td className="p-4">
                       <a 
-                        href={`https://sepolia.etherscan.io/tx/${tx.txHash}`} 
+                        href={`https://explorer.aptoslabs.com/txn/${tx.txHash}?network=devnet`} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="flex items-center text-primary hover:text-primary/80 transition-colors"
