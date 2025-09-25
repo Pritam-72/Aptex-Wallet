@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Wallet, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Wallet, Loader2, CheckCircle, AlertCircle, Upload, FileText, Shield } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useWallet } from '../contexts/WalletContext';
 
@@ -18,12 +18,19 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
   onClose,
   onSuccess
 }) => {
-  const { registerWalletId, isConnected, address } = useWallet();
+  const { registerWalletId, isConnected, address, setIdentityVerified } = useWallet();
   const [walletId, setWalletId] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [txHash, setTxHash] = useState('');
+  
+  // Identity verification states
+  const [identityFile, setIdentityFile] = useState<File | null>(null);
+  const [isVerificationLoading, setIsVerificationLoading] = useState(false);
+  const [verificationSuccess, setVerificationSuccess] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +72,9 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
         setSuccess(false);
         setTxHash('');
         setIsLoading(false);
+        setIdentityFile(null);
+        setVerificationSuccess(false);
+        setVerificationError('');
         onSuccess?.();
         onClose();
       }, 3000);
@@ -75,11 +85,15 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
   };
 
   const handleClose = () => {
-    if (!isLoading) {
+    if (!isLoading && !isVerificationLoading) {
       setWalletId('');
       setError('');
       setSuccess(false);
       setTxHash('');
+      setIdentityFile(null);
+      setIsVerificationLoading(false);
+      setVerificationSuccess(false);
+      setVerificationError('');
       onClose();
     }
   };
@@ -89,6 +103,52 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
       // Generate a suggestion based on address
       const shortAddress = address.slice(-8);
       setWalletId(`wallet_${shortAddress}`);
+    }
+  };
+
+  const handleIdentityUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setVerificationError('');
+    
+    // Validate file type (accept common document formats)
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      setVerificationError('Please select a valid document file (PNG, JPEG, PDF, or WebP)');
+      return;
+    }
+
+    // Validate file size (limit to 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setVerificationError('File is too large. Please select a smaller file (max 10MB)');
+      return;
+    }
+
+    setIdentityFile(file);
+    setIsVerificationLoading(true);
+
+    try {
+      // Mock API call - simulate processing time
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Mock verification success
+      setVerificationSuccess(true);
+      setIsVerificationLoading(false);
+      
+      // Update identity verification status in wallet context
+      setIdentityVerified(true);
+    } catch (err: any) {
+      setVerificationError('Failed to verify identity document. Please try again.');
+      setIsVerificationLoading(false);
+    }
+  };
+
+  const handleUploadClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
     }
   };
 
@@ -147,7 +207,7 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
                 value={walletId}
                 onChange={(e) => setWalletId(e.target.value.toLowerCase())}
                 className="bg-gray-800/50 border-gray-600 text-white placeholder-gray-400 focus:border-white/50 flex-1"
-                disabled={isLoading || success}
+                disabled={isLoading || success || isVerificationLoading}
                 autoComplete="off"
               />
               <Button
@@ -155,7 +215,7 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={generateSuggestion}
-                disabled={isLoading || success}
+                disabled={isLoading || success || isVerificationLoading}
                 className="bg-transparent border-gray-600 text-white hover:bg-gray-800/50 whitespace-nowrap"
               >
                 Auto
@@ -177,20 +237,102 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
             </div>
           </div>
 
+          {/* Identity Verification Section */}
+          <div className="space-y-3">
+            <Label className="text-white flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Identity Verification
+            </Label>
+            
+            {verificationError && (
+              <Alert className="bg-red-500/10 border-red-500/20 text-red-300">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{verificationError}</AlertDescription>
+              </Alert>
+            )}
+
+            {verificationSuccess && (
+              <Alert className="bg-green-500/10 border-green-500/20 text-green-300">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <AlertDescription className="font-medium">
+                      Identity document verified successfully!
+                    </AlertDescription>
+                    <p className="text-xs text-green-400 mt-1">
+                      Document: {identityFile?.name}
+                    </p>
+                  </div>
+                </div>
+              </Alert>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={handleUploadClick}
+                variant="outline"
+                disabled={isLoading || success || isVerificationLoading}
+                className="flex-1 bg-transparent border-gray-600 text-white hover:bg-gray-800/50"
+              >
+                {isVerificationLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Verifying...
+                  </>
+                ) : verificationSuccess ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Verified
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload ID Document
+                  </>
+                )}
+              </Button>
+              
+              {identityFile && !verificationSuccess && !isVerificationLoading && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-800/30 rounded-lg border border-gray-700">
+                  <FileText className="h-4 w-4 text-gray-400" />
+                  <span className="text-xs text-gray-300 truncate max-w-32">
+                    {identityFile.name}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-gray-400">
+              Upload a government-issued ID document (PNG, JPEG, PDF, or WebP) for identity verification. 
+              This helps secure your wallet and enables additional features.
+            </p>
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,application/pdf,image/webp"
+              onChange={handleIdentityUpload}
+              className="hidden"
+              title="Select an identity document"
+            />
+          </div>
+
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={handleClose}
-              disabled={isLoading}
+              disabled={isLoading || isVerificationLoading}
               className="flex-1 bg-transparent border-gray-600 text-white hover:bg-gray-800/50"
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || success}
+              disabled={isLoading || success || isVerificationLoading}
               className="flex-1 bg-white hover:bg-gray-100 text-black font-medium"
             >
               {isLoading ? (
@@ -219,6 +361,12 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
             <strong>Note:</strong> Once registered, others can send payment requests to your wallet ID 
             instead of using your long address. This makes transactions easier and more user-friendly.
             You need to register a wallet ID before you can receive payment requests.
+            {verificationSuccess && (
+              <span className="block mt-2">
+                <strong>Identity Verified:</strong> Your identity has been verified, which enables 
+                enhanced security features and higher transaction limits.
+              </span>
+            )}
           </p>
         </div>
       </DialogContent>

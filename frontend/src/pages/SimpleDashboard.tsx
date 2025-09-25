@@ -10,7 +10,8 @@ import {
   Shield,
   Menu,
   Copy,
-  UserPlus
+  UserPlus,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -45,6 +46,7 @@ import { SidebarFooter } from '@/components/dashboard/SidebarFooter';
 import { SidebarHeader } from '@/components/dashboard/SidebarHeader';
 import { RequestMoney } from '@/components/RequestMoney';
 import { RegisterWallet } from '@/components/RegisterWallet';
+import { WalletDetails } from '@/components/WalletDetails';
 
 const SimpleDashboard = () => {
   const navigate = useNavigate();
@@ -74,6 +76,7 @@ const SimpleDashboard = () => {
 const [showRequestMoney, setShowRequestMoney] = useState(false);
 
   const [showRegisterWallet, setShowRegisterWallet] = useState(false);
+  const [showWalletDetails, setShowWalletDetails] = useState(false);
 
   // Persist sidebar state
   useEffect(() => {
@@ -307,6 +310,10 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
     setShowRegisterWallet(true);
   };
 
+  const handleWalletDetails = () => {
+    setShowWalletDetails(true);
+  };
+
   const sidebarLinks: SidebarLinkProps[] = [
     {
       label: "Wallet",
@@ -325,19 +332,20 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       isAction: true
     },
     {
-
       label: "Register ID",
-
       href: "#register",
-
       icon: <UserPlus className="h-7 w-7 flex-shrink-0" />,
-
       onClick: handleRegisterWallet,
-
       isActive: false,
-
       isAction: true
-
+    },
+    {
+      label: "Wallet Details",
+      href: "#details",
+      icon: <FileText className="h-7 w-7 flex-shrink-0" />,
+      onClick: handleWalletDetails,
+      isActive: false,
+      isAction: true
     },
     {
       label: "Transactions",
@@ -573,6 +581,11 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
 
           }}
 
+        />
+
+        <WalletDetails
+          isOpen={showWalletDetails}
+          onClose={() => setShowWalletDetails(false)}
         />
 
         {showReceiveQR && currentAccount && (

@@ -203,7 +203,7 @@ export const RequestMoney: React.FC<RequestMoneyProps> = ({
             />
             <p className="text-xs text-gray-400">
               {amount && !isNaN(parseFloat(amount)) && (
-                <>Approximately ₹{(parseFloat(amount) * 1000).toFixed(2)} INR</>
+                <>Approximately ₹{(parseFloat(amount) * 5019.44).toFixed(2)} INR</>
               )}
             </p>
           </div>
