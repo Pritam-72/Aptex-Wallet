@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Menu, RefreshCw, QrCode, Plus, LogOut } from 'lucide-react';
+import { Menu, QrCode, Plus, LogOut } from 'lucide-react';
 
 interface DashboardHeaderProps {
   activeSection: string;
@@ -8,7 +8,6 @@ interface DashboardHeaderProps {
   setSidebarOpen: (open: boolean) => void;
   currentAccount: any;
   user: any;
-  onRefreshBalance: () => void;
   onShowReceiveQR: () => void;
   onAddWallet: () => void;
   onLogout: () => void;
@@ -32,7 +31,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   setSidebarOpen,
   currentAccount,
   user,
-  onRefreshBalance,
   onShowReceiveQR,
   onAddWallet,
   onLogout,
@@ -62,14 +60,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       <div className="flex items-center gap-2">
         {currentAccount && (
           <>
-            <Button
-              variant="outline"
-              onClick={onRefreshBalance}
-              className="flex items-center gap-2 border-border hover:bg-muted/50 cosmic-glow"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </Button>
             <Button
               variant="outline"
               onClick={onShowReceiveQR}

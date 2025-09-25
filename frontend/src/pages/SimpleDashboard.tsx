@@ -403,7 +403,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       icon: <Zap className="h-7 w-7 flex-shrink-0" />,
       onClick: handleAutoPay,
       isActive: activeSection === 'autopay',
-      shortcut: '⌘6'
+      shortcut: '⌘2'
     },
     {
       label: "Collectables",
@@ -411,7 +411,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       icon: <Gem className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('collectables'),
       isActive: activeSection === 'collectables',
-      shortcut: '⌘2'
+      shortcut: '⌘3'
     },
     {
       label: "Transactions",
@@ -419,7 +419,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       icon: <History className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('transactions'),
       isActive: activeSection === 'transactions',
-      shortcut: '⌘3'
+      shortcut: '⌘4'
     },
     {
       label: "Security",
@@ -427,7 +427,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       icon: <Shield className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('security'),
       isActive: activeSection === 'security',
-      shortcut: '⌘4'
+      shortcut: '⌘5'
     },
     {
       label: "Events",
@@ -435,7 +435,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       icon: <Calendar className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('events'),
       isActive: activeSection === 'events',
-      shortcut: '⌘5'
+      shortcut: '⌘6'
     }
   ];
 
@@ -546,7 +546,6 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
           setSidebarOpen={setSidebarOpen}
           currentAccount={currentAccount}
           user={user}
-          onRefreshBalance={refreshBalance}
           onShowReceiveQR={generateAddressQR}
           onAddWallet={handleAddWallet}
           onLogout={handleLogout}
