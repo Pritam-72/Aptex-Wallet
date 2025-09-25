@@ -1,6 +1,6 @@
-# Aptos Wallet with EMI, NFT & INR Integration
+# Aptos Wallet with Autopay, NFT & INR Integration
 
-## 🔑 Core Wallet (Baseline Features)
+## Core Wallet (Baseline Features)
 
 -   **Account Management**: Create, import, and manage Aptos wallets
     (mnemonic / hardware wallet integration).
@@ -8,9 +8,9 @@
 
 ------------------------------------------------------------------------
 
-## 💡 Differentiators (Your Add-ons)`
+## Differentiators (Our Add-ons)
 
-### 1. **EMI Option (Crypto-based EMI)**
+### 1. **Autopay Option (Crypto-based Autopay)**
 
 -   Users can buy products/services and pay in **monthly installments**
     (in Aptos tokens).
@@ -43,7 +43,7 @@
 
 ------------------------------------------------------------------------
 
-## 🌍 Extended Features
+## Extended Features
 
 -   **Salary Streaming in Aptos**: Employers can stream salaries in APT,
     while employees see their balance in INR equivalent (real-time
@@ -59,7 +59,7 @@
 
 ------------------------------------------------------------------------
 
-## 🔮 Pitchable Angle
+## Pitchable Angle
 
 > *"We're building a smart wallet on Aptos that makes money move like
 > messages. With UPI--crypto bridging, EMI options, and NFT-backed
