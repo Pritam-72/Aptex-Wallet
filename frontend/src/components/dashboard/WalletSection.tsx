@@ -66,7 +66,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
                 {showBalance ? `${parseFloat(balance || '0').toFixed(8)} APT` : '••••••••'}
               </div>
               <div className="text-muted-foreground">
-                {showBalance ? `≈ ₹${(parseFloat(balance || '0') * 5019.44).toFixed(2)}` : '••••••'}
+                {showBalance ? `≈ ₹${(parseFloat(balance || '0') * 373.44).toFixed(2)}` : '••••••'}
               </div>
             </div>
             

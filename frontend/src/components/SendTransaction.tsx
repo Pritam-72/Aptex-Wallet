@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Send, AlertTriangle, ArrowUpRight, X, IndianRupee, QrCode, Upload, Camera } from 'lucide-react';
 import { addTransactionToStorage } from '@/utils/transactionStorage';
 import { updateBalancesAfterTransaction, getBalanceForAddress } from '@/utils/balanceStorage';
+import { handleTransactionAndMintNFTs } from '@/utils/nftStorage';
 import QrScanner from 'qr-scanner';
 
 interface SendTransactionProps {
@@ -112,11 +113,24 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       // Store transaction in localStorage
       addTransactionToStorage(transaction);
 
-      // Show success toast
+      // Handle NFT minting after successful transaction
+      const nftResults = handleTransactionAndMintNFTs(currentAccount.address);
+      
+      // Show success toast with NFT minting results
+      let toastDescription = `Sent ${amount} APT to ${recipient.slice(0, 6)}...${recipient.slice(-4)}. New balance: ${balanceUpdates.senderBalance} APT`;
+      
+      if (nftResults.loyaltyNFT) {
+        toastDescription += ` 🏆 New ${nftResults.loyaltyNFT.tier} loyalty NFT earned!`;
+      }
+      
+      if (nftResults.offerNFT) {
+        toastDescription += ` 🎁 Bonus offer NFT received: ${nftResults.offerNFT.discountPercentage}% off at ${nftResults.offerNFT.companyName}!`;
+      }
+
       toast({
         title: "Transaction Sent Successfully",
-        description: `Sent ${amount} APT to ${recipient.slice(0, 6)}...${recipient.slice(-4)}. New balance: ${balanceUpdates.senderBalance} APT`,
-        duration: 5000,
+        description: toastDescription,
+        duration: 7000,
       });
       
       // Reset form

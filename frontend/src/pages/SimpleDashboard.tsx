@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
-import { 
+import {
   Wallet, 
   Send, 
   History, 
@@ -11,7 +11,9 @@ import {
   Copy,
   UserPlus,
   FileText,
-  Calendar
+  Calendar,
+  Zap,
+  Gem
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -33,6 +35,7 @@ import {
 } from '@/utils/walletUtils';
 import { getWalletBalance, testAptosConnection } from '@/utils/aptosWalletUtils';
 import { getBalanceForAddress, initializeAccountBalance } from '@/utils/balanceStorage';
+import { initializeUserStats } from '@/utils/nftStorage';
 
 // Import all the new components
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
@@ -49,6 +52,8 @@ import { ReceiveTransaction } from '@/components/ReceiveTransaction';
 import { SendPaymentRequest } from '@/components/SendPaymentRequest';
 import { PaymentRequestsSection } from '@/components/PaymentRequestsSection';
 import { RegisterWallet } from '@/components/RegisterWallet';
+import { AutoPayModal } from '@/components/AutoPayModal';
+import { CollectablesSection } from '@/components/CollectablesSection';
 import EventsPage from '@/pages/EventsPage';
 
 const SimpleDashboard = () => {
@@ -79,6 +84,7 @@ const SimpleDashboard = () => {
 const [showRequestMoney, setShowRequestMoney] = useState(false);
   const [showSendPaymentRequest, setShowSendPaymentRequest] = useState(false);
   const [showRegisterWallet, setShowRegisterWallet] = useState(false);
+  const [showAutoPay, setShowAutoPay] = useState(false);
   const [transactionRefreshFlag, setTransactionRefreshFlag] = useState(0);
 
   // Persist sidebar state
@@ -112,13 +118,17 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
             break;
           case '2':
             event.preventDefault();
-            setActiveSection('transactions');
+            setActiveSection('collectables');
             break;
           case '3':
             event.preventDefault();
-            setActiveSection('security');
+            setActiveSection('transactions');
             break;
           case '4':
+            event.preventDefault();
+            setActiveSection('security');
+            break;
+          case '5':
             event.preventDefault();
             setActiveSection('events');
             break;
@@ -136,6 +146,9 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       
       // Initialize account balance if it doesn't exist (for demo purposes)
       initializeAccountBalance(account.address, '100');
+      
+      // Initialize user stats for NFT system
+      initializeUserStats(account.address);
       
       // Get balance from localStorage
       const accountBalance = getBalanceForAddress(account.address);
@@ -248,6 +261,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       if (account) {
         // Initialize with demo balance for new wallet
         initializeAccountBalance(account.address, '100');
+        // Initialize user stats for NFT system
+        initializeUserStats(account.address);
         await loadWalletData(account);
       }
     } catch (error) {
@@ -267,6 +282,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
         setCurrentAccount(newAccount);
         // Initialize with demo balance for new account
         initializeAccountBalance(newAccount.address, '100');
+        // Initialize user stats for NFT system
+        initializeUserStats(newAccount.address);
         await loadWalletData(newAccount);
       }
     } catch (error) {
@@ -284,6 +301,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
         setCurrentAccount(newAccount);
         // Initialize balance if it doesn't exist for this account
         initializeAccountBalance(newAccount.address, '100');
+        // Initialize user stats for NFT system
+        initializeUserStats(newAccount.address);
         await loadWalletData(newAccount);
         setIsLoading(false);
       }
@@ -348,6 +367,10 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
     setShowRegisterWallet(true);
   };
 
+  const handleAutoPay = () => {
+    setShowAutoPay(true);
+  };
+
   const sidebarLinks: SidebarLinkProps[] = [
     {
       label: "Wallet",
@@ -374,12 +397,28 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       isAction: true
     },
     {
+      label: "AutoPay",
+      href: "#autopay",
+      icon: <Zap className="h-7 w-7 flex-shrink-0" />,
+      onClick: handleAutoPay,
+      isActive: false,
+      isAction: true
+    },
+    {
+      label: "Collectables",
+      href: "#collectables",
+      icon: <Gem className="h-7 w-7 flex-shrink-0" />,
+      onClick: () => handleSectionChange('collectables'),
+      isActive: activeSection === 'collectables',
+      shortcut: '⌘2'
+    },
+    {
       label: "Transactions",
       href: "#transactions",
       icon: <History className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('transactions'),
       isActive: activeSection === 'transactions',
-      shortcut: '⌘2'
+      shortcut: '⌘3'
     },
     {
       label: "Security",
@@ -387,7 +426,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       icon: <Shield className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('security'),
       isActive: activeSection === 'security',
-      shortcut: '⌘3'
+      shortcut: '⌘4'
     },
     {
       label: "Events",
@@ -395,7 +434,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       icon: <Calendar className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('events'),
       isActive: activeSection === 'events',
-      shortcut: '⌘4'
+      shortcut: '⌘5'
     }
   ];
 
@@ -554,6 +593,10 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
                 </div>
               )}
 
+              {activeSection === 'collectables' && (
+                <CollectablesSection userAddress={currentAccount?.address || ''} />
+              )}
+
               {activeSection === 'transactions' && (
                 <TransactionHistory refreshFlag={transactionRefreshFlag} />
               )}
@@ -634,6 +677,17 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
 
           }}
 
+        />
+
+        {/* AutoPay Modal */}
+        <AutoPayModal
+          isOpen={showAutoPay}
+          onClose={() => setShowAutoPay(false)}
+          userAddress={currentAccount?.address || ''}
+          onSuccess={() => {
+            // Optionally refresh balance or show success message
+            console.log('AutoPay setup completed successfully!');
+          }}
         />
 
         <ReceiveTransaction

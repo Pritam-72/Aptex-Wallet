@@ -86,7 +86,7 @@ const WalletInfo: React.FC<WalletInfoProps> = ({
   const formatFiatValue = (bal: string) => {
     const numBalance = parseFloat(bal);
     // Using approximate APT to INR rate
-    return `≈ ₹${(numBalance * 5019.44).toFixed(2)}`;
+    return `≈ ₹${(numBalance * 373.44).toFixed(2)}`;
   };
 
   return (
