@@ -6,25 +6,49 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Send, AlertTriangle, ArrowUpRight, X, IndianRupee, QrCode, Upload, Camera } from 'lucide-react';
+import { addTransactionToStorage } from '@/utils/transactionStorage';
+import { updateBalancesAfterTransaction, getBalanceForAddress } from '@/utils/balanceStorage';
 import QrScanner from 'qr-scanner';
 
 interface SendTransactionProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClose }) => {
+export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClose, onSuccess }) => {
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [currentBalance, setCurrentBalance] = useState('0');
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const qrScannerRef = useRef<QrScanner | null>(null);
   const { toast } = useToast();
+
+  // Load current balance when dialog opens
+  React.useEffect(() => {
+    if (isOpen) {
+      try {
+        const walletData = localStorage.getItem('cryptal_wallet');
+        if (walletData) {
+          const parsedWalletData = JSON.parse(walletData);
+          const currentIndex = parsedWalletData.currentAccountIndex || 0;
+          const currentAccount = parsedWalletData.accounts?.[currentIndex];
+          if (currentAccount) {
+            const balance = getBalanceForAddress(currentAccount.address);
+            setCurrentBalance(balance);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading balance:', error);
+      }
+    }
+  }, [isOpen]);
 
   const handleSend = async () => {
     if (!recipient || !amount) {
@@ -36,16 +60,83 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
     setError('');
 
     try {
+      // Get current wallet data
+      const walletData = localStorage.getItem('cryptal_wallet');
+      if (!walletData) {
+        throw new Error('Wallet not found');
+      }
+
+      const parsedWalletData = JSON.parse(walletData);
+      const currentIndex = parsedWalletData.currentAccountIndex || 0;
+      const currentAccount = parsedWalletData.accounts?.[currentIndex];
+      
+      if (!currentAccount) {
+        throw new Error('Current account not found');
+      }
+
+      // Check sender balance before proceeding
+      const senderBalance = parseFloat(getBalanceForAddress(currentAccount.address));
+      const transactionAmount = parseFloat(amount);
+      
+      if (senderBalance < transactionAmount) {
+        throw new Error(`Insufficient balance. Available: ${senderBalance} APT, Required: ${transactionAmount} APT`);
+      }
+
       // Mock transaction - replace with actual wallet send logic
       await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Update balances for both sender and receiver
+      const balanceUpdates = updateBalancesAfterTransaction(
+        currentAccount.address,
+        recipient,
+        amount
+      );
+      
+      // Generate a mock transaction hash
+      const txHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('');
+      
+      // Create transaction object
+      const transaction = {
+        from: currentAccount.address,
+        to: recipient,
+        ethAmount: amount,
+        aptosAmount: amount,
+        inrAmount: parseFloat(amount) * 373, // Mock conversion rate
+        timestamp: new Date(),
+        txHash: txHash,
+        type: 'sent' as const,
+        status: 'confirmed' as const,
+        note: note || undefined
+      };
+
+      // Store transaction in localStorage
+      addTransactionToStorage(transaction);
+
+      // Show success toast
+      toast({
+        title: "Transaction Sent Successfully",
+        description: `Sent ${amount} APT to ${recipient.slice(0, 6)}...${recipient.slice(-4)}. New balance: ${balanceUpdates.senderBalance} APT`,
+        duration: 5000,
+      });
       
       // Reset form
       setRecipient('');
       setAmount('');
       setNote('');
+      
+      // Call success callback to refresh transaction history
+      onSuccess?.();
+      
       onClose();
     } catch (err) {
-      setError('Transaction failed. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Transaction failed. Please try again.';
+      setError(errorMessage);
+      toast({
+        title: "Transaction Failed",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -405,6 +496,32 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
                 className="hidden"
                 title="Select an image containing a QR code"
               />
+            </div>
+
+            {/* Current Balance Display */}
+            <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 mb-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Available Balance</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-white">{currentBalance} APT</span>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      // Leave some for fees (0.001 APT)
+                      const maxAmount = Math.max(0, parseFloat(currentBalance) - 0.001);
+                      setAmount(maxAmount.toString());
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-xs bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white"
+                  >
+                    Max
+                  </Button>
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 text-right">
+                ≈ ₹{(parseFloat(currentBalance) * 373).toFixed(2)}
+              </div>
             </div>
 
             <div className="relative">

@@ -6,11 +6,12 @@ import {
   Wallet, 
   Send, 
   History, 
-  BarChart3, 
   Shield,
   Menu,
   Copy,
-  UserPlus
+  UserPlus,
+  FileText,
+  Calendar
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -27,24 +28,28 @@ import {
   addNewAccount,
   switchAccount,
   clearWalletData,
-  getAccountBalance,
   getAccountTransactions,
   fundAccount,
 } from '@/utils/walletUtils';
+import { getWalletBalance, testAptosConnection } from '@/utils/aptosWalletUtils';
+import { getBalanceForAddress, initializeAccountBalance } from '@/utils/balanceStorage';
 
 // Import all the new components
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { LoadingState } from '@/components/dashboard/LoadingState';
 import { CreateWalletSection } from '@/components/dashboard/CreateWalletSection';
 import { WalletSection } from '@/components/dashboard/WalletSection';
-import { PortfolioSection } from '@/components/dashboard/PortfolioSection';
 import { SecuritySection } from '@/components/dashboard/SecuritySection';
 import { EnhancedSidebarLink, type SidebarLinkProps } from '@/components/dashboard/EnhancedSidebarLink';
 import { AddressQRCode } from '@/components/dashboard/AddressQRCode';
 import { SidebarFooter } from '@/components/dashboard/SidebarFooter';
 import { SidebarHeader } from '@/components/dashboard/SidebarHeader';
 import { RequestMoney } from '@/components/RequestMoney';
+import { ReceiveTransaction } from '@/components/ReceiveTransaction';
+import { SendPaymentRequest } from '@/components/SendPaymentRequest';
+import { PaymentRequestsSection } from '@/components/PaymentRequestsSection';
 import { RegisterWallet } from '@/components/RegisterWallet';
+import EventsPage from '@/pages/EventsPage';
 
 const SimpleDashboard = () => {
   const navigate = useNavigate();
@@ -72,8 +77,9 @@ const SimpleDashboard = () => {
   const [accountList, setAccountList] = useState<WalletAccount[]>([]);
 
 const [showRequestMoney, setShowRequestMoney] = useState(false);
-
+  const [showSendPaymentRequest, setShowSendPaymentRequest] = useState(false);
   const [showRegisterWallet, setShowRegisterWallet] = useState(false);
+  const [transactionRefreshFlag, setTransactionRefreshFlag] = useState(0);
 
   // Persist sidebar state
   useEffect(() => {
@@ -110,15 +116,11 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
             break;
           case '3':
             event.preventDefault();
-            setActiveSection('portfolio');
+            setActiveSection('security');
             break;
           case '4':
             event.preventDefault();
-            setActiveSection('security');
-            break;
-          case '5':
-            event.preventDefault();
-            setActiveSection('settings');
+            setActiveSection('events');
             break;
         }
       }
@@ -130,41 +132,55 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
 
   const loadWalletData = async (account: WalletAccount) => {
     try {
-      const accountBalance = await getAccountBalance(account.address);
+      console.log('Loading wallet data for address:', account.address);
+      
+      // Initialize account balance if it doesn't exist (for demo purposes)
+      initializeAccountBalance(account.address, '100');
+      
+      // Get balance from localStorage
+      const accountBalance = getBalanceForAddress(account.address);
+      console.log('✓ Loaded balance from localStorage:', accountBalance, 'APT');
       setBalance(accountBalance);
 
-      const accountTransactions = await getAccountTransactions(account.address, 10);
-      // Map transactions to our Transaction type
-      const mappedTransactions: Transaction[] = accountTransactions.map((tx: any) => ({
-        version: tx.version || 'N/A',
-        timestamp: tx.timestamp || Date.now().toString(),
-        type: tx.type || 'transaction',
-        success: tx.success !== false,
-        hash: tx.hash
-      }));
-      setTransactions(mappedTransactions);
+      // Fetch transactions
+      try {
+        const accountTransactions = await getAccountTransactions(account.address, 10);
+        // Map transactions to our Transaction type
+        const mappedTransactions: Transaction[] = accountTransactions.map((tx: any) => ({
+          version: tx.version || 'N/A',
+          timestamp: tx.timestamp || Date.now().toString(),
+          type: tx.type || 'transaction',
+          success: tx.success !== false,
+          hash: tx.hash
+        }));
+        setTransactions(mappedTransactions);
+        console.log('✓ Loaded', mappedTransactions.length, 'transactions');
+      } catch (txError) {
+        console.error('Error loading transactions:', txError);
+        setTransactions([]);
+      }
     } catch (error) {
       console.error('Error loading wallet data:', error);
     }
   };
 
-  const initializeWallet = useCallback(async () => {
+    const initializeWallet = useCallback(async () => {
     setIsLoading(true);
     try {
+      // Test Aptos connection first
+      const connectionOk = await testAptosConnection();
+      if (!connectionOk) {
+        console.warn('⚠️ Aptos devnet connection failed, balance fetching may not work');
+      }
+      
       const storedWallet = getStoredWallet();
-      const accountCount = getAccountCount();
-
-      if (accountCount === 0 || !storedWallet) {
-        setWallet(null);
-        setCurrentAccount(null);
-        setShowCreateWallet(true);
-      } else {
-        setWallet(storedWallet);
-        const account = getCurrentAccount();
-        setCurrentAccount(account);
-        if (account) {
-          await loadWalletData(account);
-        }
+      const current = getCurrentAccount();
+      
+      setWallet(storedWallet);
+      setCurrentAccount(current);
+      
+      if (current) {
+        await loadWalletData(current);
       }
     } catch (error) {
       console.error('Error initializing wallet:', error);
@@ -180,6 +196,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
   }, [currentAccount]);
 
   useEffect(() => {
+    console.log('🚀 SimpleDashboard initializing...');
     initializeWallet();
   }, [initializeWallet]);
 
@@ -204,15 +221,18 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
     let attempts = 0;
     while (attempts < 15) {
       try {
-        const newBalance = await getAccountBalance(account.address);
+        console.log(`Checking balance for ${account.address} (attempt ${attempts + 1}/15)...`);
+        const newBalance = await getWalletBalance(account.address);
+        console.log(`Balance check result: ${newBalance} APT`);
         if (parseFloat(newBalance) > 0) {
+          console.log('✓ Balance confirmed, stopping polling');
           return;
         }
       } catch (error) {
         console.error("Error while polling for balance:", error);
       }
       attempts++;
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Increased to 2 seconds
     }
     console.warn("Timed out waiting for balance to update after funding.");
   };
@@ -226,8 +246,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       setCurrentAccount(account);
       setShowCreateWallet(false);
       if (account) {
-        await fundAccount(account.address);
-        await waitForBalance(account);
+        // Initialize with demo balance for new wallet
+        initializeAccountBalance(account.address, '100');
         await loadWalletData(account);
       }
     } catch (error) {
@@ -245,8 +265,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
         const updatedWallet = getStoredWallet();
         setWallet(updatedWallet);
         setCurrentAccount(newAccount);
-        await fundAccount(newAccount.address);
-        await waitForBalance(newAccount);
+        // Initialize with demo balance for new account
+        initializeAccountBalance(newAccount.address, '100');
         await loadWalletData(newAccount);
       }
     } catch (error) {
@@ -262,6 +282,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       if (newAccount) {
         setIsLoading(true);
         setCurrentAccount(newAccount);
+        // Initialize balance if it doesn't exist for this account
+        initializeAccountBalance(newAccount.address, '100');
         await loadWalletData(newAccount);
         setIsLoading(false);
       }
@@ -288,12 +310,31 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
 
   const refreshBalance = async () => {
     if (currentAccount) {
-      await refreshWalletData();
+      console.log('🔄 Manual balance refresh triggered');
+      setIsLoading(true);
+      try {
+        // Get fresh balance from localStorage
+        const freshBalance = getBalanceForAddress(currentAccount.address);
+        setBalance(freshBalance);
+        console.log('✅ Balance refresh completed successfully:', freshBalance, 'APT');
+      } catch (error) {
+        console.error('❌ Balance refresh failed:', error);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
   const generateAddressQR = () => {
     setShowReceiveQR(true);
+  };
+
+  const handleRequestMoney = () => {
+    setShowRequestMoney(true);
+  };
+
+  const handleSendPaymentRequest = () => {
+    setShowSendPaymentRequest(true);
   };
 
   const handleSectionChange = (section: string) => {
@@ -325,19 +366,12 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       isAction: true
     },
     {
-
       label: "Register ID",
-
       href: "#register",
-
       icon: <UserPlus className="h-7 w-7 flex-shrink-0" />,
-
       onClick: handleRegisterWallet,
-
       isActive: false,
-
       isAction: true
-
     },
     {
       label: "Transactions",
@@ -348,19 +382,19 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       shortcut: '⌘2'
     },
     {
-      label: "Portfolio",
-      href: "#portfolio",
-      icon: <BarChart3 className="h-7 w-7 flex-shrink-0" />,
-      onClick: () => handleSectionChange('portfolio'),
-      isActive: activeSection === 'portfolio',
-      shortcut: '⌘3'
-    },
-    {
       label: "Security",
       href: "#security",
       icon: <Shield className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('security'),
       isActive: activeSection === 'security',
+      shortcut: '⌘3'
+    },
+    {
+      label: "Events",
+      href: "#events",
+      icon: <Calendar className="h-7 w-7 flex-shrink-0" />,
+      onClick: () => handleSectionChange('events'),
+      isActive: activeSection === 'events',
       shortcut: '⌘4'
     }
   ];
@@ -398,7 +432,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
           minWidth: sidebarOpen ? "280px" : "0px"
         }}
       >
-        <div className="flex flex-col h-full p-3">
+        <div className="flex flex-col h-full p-3 overflow-hidden">
           <SidebarHeader
             sidebarOpen={sidebarOpen}
             currentAccount={currentAccount}
@@ -491,29 +525,45 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
               className="p-6"
             >
               {activeSection === 'wallet' && (
-                <WalletSection
-                  balance={balance}
-                  showBalance={showBalance}
-                  currentAccount={currentAccount}
-                  transactions={transactions}
-                  onToggleBalance={() => setShowBalance(!showBalance)}
-                  onSendTransaction={() => setShowSendTransaction(true)}
-                  onShowReceiveQR={generateAddressQR}
-                  onViewTransactions={() => handleSectionChange('transactions')}
-                  onCopyAddress={copyToClipboard}
-                />
+                <div className="space-y-6">
+                  <WalletSection
+                    balance={balance}
+                    showBalance={showBalance}
+                    currentAccount={currentAccount?.address || null}
+                    transactions={transactions}
+                    onToggleBalance={() => setShowBalance(!showBalance)}
+                    onSendTransaction={() => setShowSendTransaction(true)}
+                    onRequestMoney={handleRequestMoney}
+                    onSendPaymentRequest={handleSendPaymentRequest}
+                    onShowReceiveQR={generateAddressQR}
+                    onViewTransactions={() => handleSectionChange('transactions')}
+                    onCopyAddress={() => copyToClipboard(currentAccount?.address || '')}
+                  />
+                  
+                  <PaymentRequestsSection
+                    userAddress={currentAccount?.address || ''}
+                    onSendRequest={handleSendPaymentRequest}
+                    onBalanceUpdate={() => {
+                      // Refresh balance after payment request is accepted
+                      if (currentAccount) {
+                        const freshBalance = getBalanceForAddress(currentAccount.address);
+                        setBalance(freshBalance);
+                      }
+                    }}
+                  />
+                </div>
               )}
 
               {activeSection === 'transactions' && (
-                <TransactionHistory />
-              )}
-
-              {activeSection === 'portfolio' && (
-                <PortfolioSection />
+                <TransactionHistory refreshFlag={transactionRefreshFlag} />
               )}
 
               {activeSection === 'security' && (
                 <SecuritySection />
+              )}
+
+              {activeSection === 'events' && (
+                <EventsPage />
               )}
             </motion.div>
           </AnimatePresence>
@@ -540,6 +590,12 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
               <SendTransaction
                 isOpen={showSendTransaction}
                 onClose={() => setShowSendTransaction(false)}
+                onSuccess={() => {
+                  // Refresh transaction history when a transaction is sent
+                  setTransactionRefreshFlag(prev => prev + 1);
+                  // Refresh balance to show updated amount
+                  refreshBalance();
+                }}
               />
             </motion.div>
           </motion.div>
@@ -548,11 +604,16 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
          {/* Request Money Modal */}
 
         <RequestMoney
-
           isOpen={showRequestMoney}
-
           onClose={() => setShowRequestMoney(false)}
+          userAddress={currentAccount?.address || ''}
+        />
 
+        {/* Send Payment Request Modal */}
+        <SendPaymentRequest
+          isOpen={showSendPaymentRequest}
+          onClose={() => setShowSendPaymentRequest(false)}
+          userAddress={currentAccount?.address || ''}
         />
 
 
@@ -575,55 +636,11 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
 
         />
 
-        {showReceiveQR && currentAccount && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowReceiveQR(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-background rounded-lg shadow-xl max-w-sm w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6 text-center space-y-4">
-                <h3 className="text-lg font-semibold">Receive APT</h3>
-                <div className="bg-white p-4 rounded-lg">
-                  <QRCodeSVG
-                    value={currentAccount.address}
-                    size={200}
-                    className="mx-auto"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Your Address</p>
-                  <div className="flex items-center gap-2 p-2 bg-muted rounded text-sm font-mono">
-                    <span className="flex-1 truncate">{currentAccount.address}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyToClipboard(currentAccount.address)}
-                      className="h-6 w-6 p-0"
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowReceiveQR(false)}
-                  className="w-full"
-                >
-                  Close
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+        <ReceiveTransaction
+          isOpen={showReceiveQR}
+          onClose={() => setShowReceiveQR(false)}
+          address={currentAccount?.address || ''}
+        />
       </AnimatePresence>
     </div>
   );

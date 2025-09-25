@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Wallet, EyeOff, Eye, Copy, Send, QrCode, ArrowUpDown, History } from 'lucide-react';
+import { Wallet, EyeOff, Eye, Copy, Send, QrCode, ArrowUpDown, History, HandCoins } from 'lucide-react';
 
 interface Transaction {
   version: string;
@@ -13,13 +13,15 @@ interface Transaction {
 }
 
 interface WalletSectionProps {
-  currentAccount: any;
+  currentAccount: string | null;
   balance: string;
   showBalance: boolean;
   transactions: Transaction[];
   onToggleBalance: () => void;
-  onCopyAddress: (address: string) => void;
+  onCopyAddress: () => void;
   onSendTransaction: () => void;
+  onRequestMoney: () => void;
+  onSendPaymentRequest: () => void;
   onShowReceiveQR: () => void;
   onViewTransactions: () => void;
 }
@@ -32,8 +34,10 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
   onToggleBalance,
   onCopyAddress,
   onSendTransaction,
+  onRequestMoney,
+  onSendPaymentRequest,
   onShowReceiveQR,
-  onViewTransactions
+  onViewTransactions,
 }) => {
   return (
     <div className="space-y-6">
@@ -62,34 +66,42 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
                 {showBalance ? `${parseFloat(balance || '0').toFixed(8)} APT` : '••••••••'}
               </div>
               <div className="text-muted-foreground">
-                {showBalance ? `≈ ₹${(parseFloat(balance || '0') * 251100).toFixed(2)}` : '••••••'}
+                {showBalance ? `≈ ₹${(parseFloat(balance || '0') * 5019.44).toFixed(2)}` : '••••••'}
               </div>
             </div>
             
-            {currentAccount?.address && (
+            {currentAccount && (
               <div className="bg-muted/20 backdrop-blur-sm rounded-lg p-4 space-y-2 border border-border/30">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-foreground">Address</span>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onCopyAddress(currentAccount.address)}
+                    onClick={() => onCopyAddress()}
                     className="h-6 w-6 p-0 hover:bg-muted/50"
                   >
                     <Copy className="h-3 w-3" />
                   </Button>
                 </div>
-                <div className="font-mono text-sm text-muted-foreground break-all">{currentAccount.address}</div>
+                <div className="font-mono text-sm text-muted-foreground break-all">{currentAccount}</div>
               </div>
             )}
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <Button 
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground cosmic-glow" 
                 onClick={onSendTransaction}
               >
                 <Send className="h-4 w-4 mr-2" />
                 Send
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full border-border hover:bg-muted/50 cosmic-glow" 
+                onClick={onRequestMoney}
+              >
+                <HandCoins className="h-4 w-4 mr-2" />
+                Request
               </Button>
               <Button 
                 variant="outline" 
@@ -137,68 +149,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
         </Card>
       </div>
 
-      {/* Recent Transactions Preview */}
-      <Card className="cosmic-glow bg-card/50 backdrop-blur-sm border-border/50">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-foreground">Recent Transactions</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onViewTransactions}
-              className="border-border hover:bg-muted/50 cosmic-glow"
-            >
-              View All
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {transactions.length > 0 ? (
-            <div className="space-y-3">
-              {transactions.slice(0, 3).map((tx: Transaction, index: number) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-muted/10 rounded-lg border border-border/20">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 bg-primary/10 rounded-full flex items-center justify-center">
-                      <ArrowUpDown className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-foreground">
-                        {tx.type?.includes('transfer') ? 'Transfer' : 'Transaction'}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(parseInt(tx.timestamp) / 1000).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-foreground">
-                      {tx.version || 'N/A'}
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {tx.success ? 'Success' : 'Failed'}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <History className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">No Recent Transactions</h3>
-              <p className="text-muted-foreground mb-4">
-                Your transaction history will appear here
-              </p>
-              <Button
-                variant="outline"
-                onClick={onSendTransaction}
-                className="border-border hover:bg-muted/50"
-              >
-                Send Your First Transaction
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Payment Requests Section - This will be rendered separately */}
     </div>
   );
 };

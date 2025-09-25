@@ -5,24 +5,47 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Download, Search, Filter, ExternalLink, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { Download, Search, Filter, ExternalLink, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, RefreshCw, Users } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
+import { getAccountTransactions, ProcessedTransaction } from '@/utils/aptosWalletUtils';
+import { getCurrentPublicKey, getStoredTransactions, addTransactionToStorage } from '@/utils/transactionStorage';
+import { SplitBillModal } from './SplitBillModal';
 import * as XLSX from 'xlsx';
 
-// Transaction interface
+// Updated transaction interface to match real Aptos transactions
 interface PaymentTransaction {
   from: string;
   to: string;
+  ethAmount: string; // Keep same field names for compatibility
   aptosAmount: string;
   inrAmount: number;
   timestamp: Date;
   txHash?: string;
-  type: 'sent' | 'received';
-  status: 'confirmed' | 'pending' | 'failed';
+  type: 'sent' | 'received' | 'other';
+  status: 'confirmed' | 'failed';
+  gasUsed?: string;
+  function?: string;
 }
 
 export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refreshFlag }) => {
-  const { address, isConnected } = useWallet();
+  // Get current address from local storage
+  const getCurrentAddress = () => {
+    try {
+      const walletData = localStorage.getItem('cryptal_wallet');
+      if (walletData) {
+        const parsedData = JSON.parse(walletData);
+        const currentIndex = parsedData.currentAccountIndex || 0;
+        return parsedData.accounts?.[currentIndex]?.address || null;
+      }
+    } catch (error) {
+      console.error('Error reading wallet from localStorage:', error);
+    }
+    return null;
+  };
+
+  const address = getCurrentAddress();
+  const isConnected = !!address;
+  
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<PaymentTransaction[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,10 +55,21 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [refreshing, setRefreshing] = useState(false);
 
+  // Split Bill Modal state
+  const [splitBillModal, setSplitBillModal] = useState<{
+    isOpen: boolean;
+    transaction: PaymentTransaction | null;
+  }>({
+    isOpen: false,
+    transaction: null
+  });
+
   // Mock APT to INR conversion (1 APT = 1000 INR for demo)
   const convertAPTToINR = (aptAmount: string): number => {
     return parseFloat(aptAmount) * 373;
   };
+
+
 
   const loadTransactions = useCallback(async (refresh = false) => {
     if (!isConnected || !address) return;
@@ -48,121 +82,27 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
     setError(null);
 
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('🔍 Loading transaction history for:', address);
       
-      // Mock transaction data - expanded for UI testing
-      const mockTransactions: PaymentTransaction[] = [
-        {
-          from: address,
-          to: '0x123456789abcdef123456789abcdef1234567890',
-          aptosAmount: '2.5',
-          inrAmount: convertAPTToINR('2.5'),
-          timestamp: new Date(Date.now() - 3600000), // 1 hour ago
-          txHash: '0xa1b2c3d4e5f6789012345678901234567890123456789012345678901234567890',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: '0x987654321fedcba987654321fedcba9876543210',
-          to: address,
-          aptosAmount: '1.2',
-          inrAmount: convertAPTToINR('1.2'),
-          timestamp: new Date(Date.now() - 7200000), // 2 hours ago
-          txHash: '0xb2c3d4e5f6789012345678901234567890123456789012345678901234567890a1',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: address,
-          to: '0xfedcba0987654321fedcba0987654321fedcba09',
-          aptosAmount: '0.75',
-          inrAmount: convertAPTToINR('0.75'),
-          timestamp: new Date(Date.now() - 21600000), // 6 hours ago
-          txHash: '0xc3d4e5f6789012345678901234567890123456789012345678901234567890a1b2',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: '0x555666777888999000aaabbbcccdddeeef1234567',
-          to: address,
-          aptosAmount: '0.1',
-          inrAmount: convertAPTToINR('0.25'),
-          timestamp: new Date(Date.now() - 86400000), // 1 day ago
-          txHash: '0xd4e5f6789012345678901234567890123456789012345678901234567890a1b2c3',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: address,
-          to: '0x111222333444555666777888999000aaabbbcccd',
-          aptosAmount: '0.1',
-          inrAmount: convertAPTToINR('5.0'),
-          timestamp: new Date(Date.now() - 172800000), // 2 days ago
-          txHash: '0xe5f6789012345678901234567890123456789012345678901234567890a1b2c3d4',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: address,
-          to: '0xaabbccddeeff112233445566778899001122334455',
-          aptosAmount: '0.05',
-          inrAmount: convertAPTToINR('0.05'),
-          timestamp: new Date(Date.now() - 345600000), // 4 days ago
-          txHash: '0x6789012345678901234567890123456789012345678901234567890a1b2c3d4e5f',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: '0x1122334455667788990011223344556677889900ab',
-          to: address,
-          aptosAmount: '1.5',
-          inrAmount: convertAPTToINR('3.33'),
-          timestamp: new Date(Date.now() - 432000000), // 5 days ago
-          txHash: '0x789012345678901234567890123456789012345678901234567890a1b2c3d4e5f6',
-          type: 'received',
-          status: 'confirmed'
-        },
-        {
-          from: address,
-          to: '0xdeadbeefcafebabe1337h4x0r42069leet1234567890',
-          aptosAmount: '0.15',
-          inrAmount: convertAPTToINR('0.15'),
-          timestamp: new Date(Date.now() - 518400000), // 6 days ago
-          txHash: '0x89012345678901234567890123456789012345678901234567890a1b2c3d4e5f67',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: '0x42424242424242424242424242424242424242424242',
-          to: address,
-          aptosAmount: '1.0',
-          inrAmount: convertAPTToINR('10.0'),
-          timestamp: new Date(Date.now() - 604800000), // 1 week ago
-          txHash: '0x9012345678901234567890123456789012345678901234567890a1b2c3d4e5f678',
-          type: 'received',
-          status: 'confirmed'
-        },
-        {
-          from: address,
-          to: '0x1234567890abcdef1234567890abcdef12345678',
-          aptosAmount: '0.8',
-          inrAmount: convertAPTToINR('0.8'),
-          timestamp: new Date(Date.now() - 1209600000), // 2 weeks ago
-          txHash: '0x012345678901234567890123456789012345678901234567890a1b2c3d4e5f6789',
-          type: 'sent',
-          status: 'confirmed'
-        }
-      ];
-      
-      // Sort transactions by timestamp in ascending order
-      const sortedTransactions = mockTransactions.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      const publicKey = getCurrentPublicKey();
+      if (!publicKey) {
+        setError('Could not find public key');
+        return;
+      }
 
+      // Load transactions from localStorage using public key as key
+      const storedTransactions = getStoredTransactions(publicKey);
+      
+      // Sort transactions by timestamp in descending order (newest first)
+      const sortedTransactions = storedTransactions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+      console.log('✅ Loaded', sortedTransactions.length, 'transactions from localStorage');
       setTransactions(sortedTransactions);
-    } catch (error) {
-      const err = error as Error;
-      setError(err.message || 'Failed to load transactions');
-      console.error('Transaction fetch error:', err);
+    } catch (error: any) {
+      setError(error.message || 'Failed to load transactions');
+      console.error('Transaction fetch error:', error);
+      // If there's an error, just show empty transactions
+      setTransactions([]);
     } finally {
       if (refresh) {
         setRefreshing(false);
@@ -233,6 +173,27 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
       alert('Export failed. Please try again.');
     }
   };
+
+  // Handle split bill
+  const handleSplitBill = (transaction: PaymentTransaction) => {
+    if (!transaction.txHash) {
+      console.error('Cannot split bill: Transaction hash is missing');
+      return;
+    }
+
+    setSplitBillModal({
+      isOpen: true,
+      transaction
+    });
+  };
+
+  // Close split bill modal
+  const closeSplitBillModal = () => {
+    setSplitBillModal({
+      isOpen: false,
+      transaction: null
+    });
+  };
   const getStatusBadge = (status: 'confirmed' | 'pending' | 'failed') => {
     switch (status) {
       case 'confirmed':
@@ -265,12 +226,14 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
     }
   };
 
-  const getTypeIcon = (type: 'sent' | 'received') => {
+  const getTypeIcon = (type: 'sent' | 'received' | 'other') => {
     switch (type) {
       case 'sent':
         return <ArrowUpCircle className="h-5 w-5 text-red-500" />;
       case 'received':
         return <ArrowDownCircle className="h-5 w-5 text-green-500" />;
+      case 'other':
+        return <Clock className="h-5 w-5 text-blue-500" />; // Contract interaction icon
       default:
         return <div className="h-5 w-5" />; // Placeholder
     }
@@ -370,7 +333,8 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
             <div className="text-center p-8">
               <div className="flex flex-col items-center justify-center space-y-3">
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                <p className="text-muted-foreground">Loading on-chain data...</p>
+                <p className="text-muted-foreground">Loading transactions from Aptos devnet...</p>
+                <p className="text-xs text-muted-foreground">This may take a few seconds</p>
               </div>
             </div>
           ) : filteredTransactions.length > 0 ? (
@@ -395,7 +359,7 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                       <span className="text-sm text-muted-foreground">Amount:</span>
                       <div className="text-right">
                         <div className="font-medium text-foreground">{parseFloat(tx.aptosAmount).toFixed(6)} APT</div>
-                        <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.aptosAmount).toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">₹{tx.inrAmount.toLocaleString()}</div>
                       </div>
                     </div>
                     
@@ -411,7 +375,7 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Hash:</span>
                       <a 
-                        href={`https://sepolia.etherscan.io/tx/${tx.txHash}`} 
+                        href={`https://explorer.aptoslabs.com/txn/${tx.txHash}?network=devnet`} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="flex items-center text-primary hover:text-primary/80 transition-colors"
@@ -420,7 +384,29 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                         <ExternalLink className="h-3 w-3 ml-1" />
                       </a>
                     </div>
+                    
+                    {tx.function && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Function:</span>
+                        <span className="text-xs font-medium text-foreground">{tx.function}</span>
+                      </div>
+                    )}
                   </div>
+                  
+                  {/* Split Bill Button */}
+                  {tx.txHash && (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <Button
+                        onClick={() => handleSplitBill(tx)}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs hover:bg-purple-600/10 hover:border-purple-600/20 hover:text-purple-400"
+                      >
+                        <Users className="h-3 w-3 mr-2" />
+                        Split Bill
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))
@@ -448,15 +434,17 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                 <th className="p-4 text-left text-xs uppercase tracking-wider text-muted-foreground font-medium">Date</th>
                 <th className="p-4 text-left text-xs uppercase tracking-wider text-muted-foreground font-medium">Status</th>
                 <th className="p-4 text-left text-xs uppercase tracking-wider text-muted-foreground font-medium">Hash</th>
+                <th className="p-4 text-left text-xs uppercase tracking-wider text-muted-foreground font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="text-center p-12">
+                  <td colSpan={7} className="text-center p-12">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                      <p className="text-muted-foreground">Loading on-chain data...</p>
+                      <p className="text-muted-foreground">Loading transactions from Aptos devnet...</p>
+                      <p className="text-xs text-muted-foreground">This may take a few seconds</p>
                     </div>
                   </td>
                 </tr>
@@ -478,16 +466,24 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                       </div>
                     </td>
                     <td className="p-4">
-                      <div className="font-medium text-foreground">{parseFloat(tx.aptosAmount).toFixed(2)} APT</div>
-                      <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.aptosAmount).toLocaleString()}</div>
+                      <div className="font-medium text-foreground">{parseFloat(tx.aptosAmount).toFixed(6)} APT</div>
+                      <div className="text-xs text-muted-foreground">₹{tx.inrAmount.toLocaleString()}</div>
+                      {tx.function && (
+                        <div className="text-xs text-blue-400 mt-1">{tx.function}</div>
+                      )}
                     </td>
                     <td className="p-4">
-                      <div className="text-xs text-foreground">9/25/2025</div>
+                      <div className="text-xs text-foreground">
+                        {tx.timestamp.toLocaleDateString()}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {tx.timestamp.toLocaleTimeString()}
+                      </div>
                     </td>
                     <td className="p-4">{getStatusBadge(tx.status || 'confirmed')}</td>
                     <td className="p-4">
                       <a 
-                        href={`https://sepolia.etherscan.io/tx/${tx.txHash}`} 
+                        href={`https://explorer.aptoslabs.com/txn/${tx.txHash}?network=devnet`} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="flex items-center text-primary hover:text-primary/80 transition-colors"
@@ -496,11 +492,24 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                         <ExternalLink className="h-3 w-3 ml-1" />
                       </a>
                     </td>
+                    <td className="p-4">
+                      {tx.txHash && (
+                        <Button
+                          onClick={() => handleSplitBill(tx)}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs hover:bg-purple-600/10 hover:border-purple-600/20 hover:text-purple-400"
+                        >
+                          <Users className="h-3 w-3 mr-1" />
+                          Split
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="text-center p-12">
+                  <td colSpan={7} className="text-center p-12">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <div className="h-12 w-12 rounded-full bg-muted/20 flex items-center justify-center">
                         <Clock className="h-6 w-6 text-muted-foreground" />
@@ -515,6 +524,20 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
           </table>
         </div>
       </CardContent>
+
+      {/* Split Bill Modal */}
+      {splitBillModal.transaction && (
+        <SplitBillModal
+          isOpen={splitBillModal.isOpen}
+          onClose={closeSplitBillModal}
+          originalTransaction={{
+            txHash: splitBillModal.transaction.txHash || '',
+            amount: splitBillModal.transaction.aptosAmount,
+            description: `Transaction ${splitBillModal.transaction.txHash?.slice(0, 8)}...`
+          }}
+          userAddress={address || ''}
+        />
+      )}
     </Card>
   );
 };

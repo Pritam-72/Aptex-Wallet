@@ -1,272 +1,285 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { HandCoins, Loader2, User, DollarSign, MessageSquare, CheckCircle } from 'lucide-react';
+import { HandCoins, User, DollarSign, MessageSquare, QrCode, Copy, Share, X, Check } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useWallet } from '../contexts/WalletContext';
-// import { formatAptosAddress } from '../services/aptosService';
+import { useToast } from '@/hooks/use-toast';
+import { createPaymentRequest } from '@/utils/receiveTransactionUtils';
+import QRCodeLib from 'qrcode';
 
 interface RequestMoneyProps {
   isOpen: boolean;
   onClose: () => void;
+  userAddress: string;
 }
 
 export const RequestMoney: React.FC<RequestMoneyProps> = ({
   isOpen,
-  onClose
+  onClose,
+  userAddress
 }) => {
-  const { createPaymentRequest, isConnected } = useWallet();
-  const [recipientAddress, setRecipientAddress] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [txHash, setTxHash] = useState('');
+  const [paymentRequest, setPaymentRequest] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+  const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Generate QR code when payment request is created
+  useEffect(() => {
+    if (paymentRequest && qrCanvasRef.current) {
+      QRCodeLib.toCanvas(qrCanvasRef.current, paymentRequest.qrData, {
+        width: 160,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      }).catch(err => {
+        console.error('Error generating QR code:', err);
+      });
+    }
+  }, [paymentRequest]);
+
+  const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess(false);
-
-    // Check wallet connection
-    if (!isConnected) {
-      setError('Please connect your wallet first');
-      return;
-    }
 
     // Validation
-    if (!recipientAddress.trim()) {
-      setError('Please enter a recipient address');
-      return;
-    }
-
     if (!amount.trim() || parseFloat(amount) <= 0) {
       setError('Please enter a valid amount');
       return;
     }
 
-    if (!description.trim()) {
-      setError('Please enter a description for your request');
-      return;
-    }
-
-    // Validate wallet ID or Aptos address format
-    if (recipientAddress.startsWith('0x')) {
-      // It's an address - validate hex format
-      const addressWithoutPrefix = recipientAddress.slice(2);
-      if (!/^[0-9a-fA-F]+$/.test(addressWithoutPrefix)) {
-        setError('Please enter a valid Aptos address (only hexadecimal characters allowed)');
-        return;
-      }
-      if (addressWithoutPrefix.length === 0 || addressWithoutPrefix.length > 64) {
-        setError('Please enter a valid Aptos address');
-        return;
-      }
-    } else {
-      // It's a wallet ID - basic validation
-      if (recipientAddress.length < 3 || recipientAddress.length > 50) {
-        setError('Wallet ID must be between 3 and 50 characters');
-        return;
-      }
-      if (!/^[a-zA-Z0-9_@.-]+$/.test(recipientAddress)) {
-        setError('Wallet ID can only contain letters, numbers, @, ., -, and _');
-        return;
-      }
-    }
-
-    setIsLoading(true);
-
     try {
-      // Use the recipient identifier as-is (wallet ID or address)
-      const recipientId = recipientAddress.startsWith('0x') 
-        ? formatAptosAddress(recipientAddress) 
-        : recipientAddress;
-      const transactionHash = await createPaymentRequest(recipientId, amount, description);
-      setTxHash(transactionHash);
-      setSuccess(true);
+      const request = createPaymentRequest(userAddress, amount, description);
+      setPaymentRequest(request);
       
-      // Reset form after a delay
-      setTimeout(() => {
-        setRecipientAddress('');
-        setAmount('');
-        setDescription('');
-        setSuccess(false);
-        setTxHash('');
-        onClose();
-      }, 3000);
-    } catch (err: any) {
-      let errorMessage = err.message || 'Failed to send payment request';
+      toast({
+        title: "Payment Request Created!",
+        description: `Request for ${amount} APT has been generated`,
+        duration: 3000,
+      });
       
-      // Check if it's a wallet ID not found error
-      if (errorMessage.includes('E_WALLET_ID_NOT_FOUND') || errorMessage.includes('WALLET_ID_NOT_FOUND')) {
-        errorMessage = `Wallet ID "${recipientAddress}" not found. The recipient needs to register their wallet ID first, or try using their full Aptos address instead.`;
-      }
-      
-      setError(errorMessage);
-      setIsLoading(false);
+    } catch (error) {
+      console.error('Error creating payment request:', error);
+      setError('Failed to create payment request');
     }
   };
 
-  const handleClose = () => {
-    if (!isLoading) {
-      setRecipientAddress('');
-      setAmount('');
-      setDescription('');
-      setError('');
-      setSuccess(false);
-      setTxHash('');
-      onClose();
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: "Payment Request Copied!",
+        description: "Payment request link copied to clipboard",
+        duration: 2000,
+      });
+    } catch (err) {
+      console.error('Failed to copy:', err);
     }
+  };
+
+  const handleShare = async () => {
+    if (paymentRequest) {
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Payment Request',
+            text: `Payment request for ${amount} APT${description ? ` - ${description}` : ''}`,
+            url: paymentRequest.qrData
+          });
+        } catch (err) {
+          console.error('Error sharing:', err);
+          copyToClipboard(paymentRequest.qrData);
+        }
+      } else {
+        copyToClipboard(paymentRequest.qrData);
+      }
+    }
+  };
+
+  const handleReset = () => {
+    setAmount('');
+    setDescription('');
+    setError('');
+    setPaymentRequest(null);
+    setCopied(false);
+  };
+
+  const handleClose = () => {
+    handleReset();
+    onClose();
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px] bg-black/95 backdrop-blur-sm border-white/10">
-        <DialogHeader>
-          <DialogTitle className="text-white text-xl font-semibold flex items-center gap-2">
-            <div className="h-10 w-10 bg-white/10 rounded-full flex items-center justify-center">
-              <HandCoins className="h-5 w-5 text-white" />
+      <DialogContent className="max-w-md bg-black/95 backdrop-blur-md border border-gray-800 shadow-2xl">
+        <div className="absolute right-4 top-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClose}
+            className="h-8 w-8 p-0 hover:bg-gray-800/50 rounded-full text-gray-400 hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <DialogHeader className="pt-4">
+          <div className="flex items-center justify-center mb-4">
+            <div className="h-12 w-12 bg-blue-600 rounded-full flex items-center justify-center">
+              <HandCoins className="h-6 w-6 text-white" />
             </div>
-            Request Money
+          </div>
+          <DialogTitle className="text-xl font-semibold text-center text-white">
+            Request Payment
           </DialogTitle>
-          <DialogDescription className="text-gray-300">
-            Send a payment request to another wallet address
+          <DialogDescription className="text-center text-gray-400">
+            Create a payment request to share with others
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-          {error && (
-            <Alert className="bg-red-500/10 border-red-500/20 text-red-300">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {success && (
-            <Alert className="bg-green-500/10 border-green-500/20 text-green-300">
-              <div className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <div>
-                  <AlertDescription className="font-medium">
-                    Payment request sent successfully!
+        <div className="space-y-4 pb-4">
+          {!paymentRequest ? (
+            // Payment Request Form
+            <form onSubmit={handleCreateRequest} className="space-y-4">
+              {error && (
+                <Alert className="bg-red-900/50 border-red-700">
+                  <AlertDescription className="text-red-300">
+                    {error}
                   </AlertDescription>
-                  {txHash && (
-                    <p className="text-xs text-green-400 mt-1 break-all">
-                      Transaction: {txHash}
-                    </p>
+                </Alert>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="amount" className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Amount (APT)
+                </Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.000001"
+                  placeholder="Enter amount to request..."
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="bg-gray-900 border-gray-700 text-white placeholder-gray-500"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description" className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Description (Optional)
+                </Label>
+                <Textarea
+                  id="description"
+                  placeholder="What's this payment for?"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="bg-gray-900 border-gray-700 text-white placeholder-gray-500 min-h-[80px]"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all duration-200"
+              >
+                <HandCoins className="h-4 w-4 mr-2" />
+                Create Payment Request
+              </Button>
+            </form>
+          ) : (
+            // Payment Request Display
+            <div className="space-y-4">
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-white mb-3">Payment Request Created</h3>
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-400">Amount:</span>
+                    <span className="text-sm font-semibold text-white">{amount} APT</span>
+                  </div>
+                  
+                  {description && (
+                    <div className="flex justify-between items-start">
+                      <span className="text-xs text-gray-400">Note:</span>
+                      <span className="text-sm text-white text-right max-w-[200px]">{description}</span>
+                    </div>
                   )}
+                  
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs text-gray-400">To Address:</span>
+                    <span className="text-xs font-mono text-white text-right max-w-[200px] break-all">
+                      {userAddress.slice(0, 6)}...{userAddress.slice(-4)}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </Alert>
+
+              {/* QR Code */}
+              <div className="flex justify-center">
+                <div className="p-4 bg-white rounded-xl">
+                  <canvas ref={qrCanvasRef} className="max-w-full max-h-full" />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={() => copyToClipboard(paymentRequest.qrData)}
+                  className="h-10 bg-white hover:bg-gray-200 text-black font-medium rounded-lg transition-all duration-200 text-sm"
+                >
+                  {copied ? (
+                    <div className="flex items-center gap-1">
+                      <Check className="h-3 w-3" />
+                      Copied!
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <Copy className="h-3 w-3" />
+                      Copy Link
+                    </div>
+                  )}
+                </Button>
+
+                <Button
+                  onClick={handleShare}
+                  className="h-10 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all duration-200 text-sm"
+                >
+                  <div className="flex items-center gap-1">
+                    <Share className="h-3 w-3" />
+                    Share
+                  </div>
+                </Button>
+              </div>
+
+              {/* Create New Request */}
+              <Button
+                onClick={handleReset}
+                variant="outline"
+                className="w-full h-10 border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white rounded-lg transition-all duration-200"
+              >
+                Create New Request
+              </Button>
+
+              {/* Info */}
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+                <div className="text-xs text-gray-400">
+                  💡 Share this QR code or link with the person you want to request payment from. 
+                  They can scan it or click the link to send you the requested amount.
+                </div>
+              </div>
+            </div>
           )}
-
-          {/* Recipient Address Field */}
-          <div className="space-y-2">
-            <Label htmlFor="recipient" className="text-white flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Recipient Wallet ID
-            </Label>
-            <Input
-              id="recipient"
-              type="text"
-              placeholder="wallet123 or 0x9c2fe13427bfa2d51671cdc2c04b4915ed4ef81709ccd8cd31c1150769596d2c"
-              value={recipientAddress}
-              onChange={(e) => setRecipientAddress(e.target.value)}
-              className="bg-gray-800/50 border-gray-600 text-white placeholder-gray-400 focus:border-white/50"
-              disabled={isLoading}
-              autoComplete="off"
-            />
-            <p className="text-xs text-gray-400">
-              Enter the wallet ID or Aptos address of the recipient
-            </p>
-          </div>
-
-          {/* Amount Field */}
-          <div className="space-y-2">
-            <Label htmlFor="amount" className="text-white flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Amount (APT)
-            </Label>
-            <Input
-              id="amount"
-              type="number"
-              step="0.00000001"
-              min="0"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="bg-gray-800/50 border-gray-600 text-white placeholder-gray-400 focus:border-white/50"
-              disabled={isLoading}
-            />
-            <p className="text-xs text-gray-400">
-              {amount && !isNaN(parseFloat(amount)) && (
-                <>Approximately ₹{(parseFloat(amount) * 1000).toFixed(2)} INR</>
-              )}
-            </p>
-          </div>
-
-          {/* Description Field */}
-          <div className="space-y-2">
-            <Label htmlFor="description" className="text-white flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Description
-            </Label>
-            <Textarea
-              id="description"
-              placeholder="What is this payment request for? (e.g., Dinner split, Movie tickets, etc.)"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="bg-gray-800/50 border-gray-600 text-white placeholder-gray-400 focus:border-white/50 resize-none"
-              rows={3}
-              disabled={isLoading}
-              maxLength={200}
-            />
-            <p className="text-xs text-gray-400">
-              {description.length}/200 characters
-            </p>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={isLoading}
-              className="flex-1 bg-transparent border-gray-600 text-white hover:bg-gray-800/50"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="flex-1 bg-white hover:bg-gray-100 text-black font-medium"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Sending Request...
-                </>
-              ) : (
-                <>
-                  <HandCoins className="h-4 w-4 mr-2" />
-                  Send Request
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
-
-        {/* Additional Info */}
-        <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-          <p className="text-xs text-blue-300 leading-relaxed">
-            <strong>Note:</strong> This will create a payment request on the Aptos blockchain. 
-            The recipient will be notified and can choose to pay or reject your request.
-            No funds are transferred until they approve the payment.
-          </p>
         </div>
       </DialogContent>
     </Dialog>
