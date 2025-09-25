@@ -76,7 +76,7 @@ export const BalanceTester: React.FC = () => {
               Balance: {balance} APT
             </div>
             <div className="text-xs text-green-600 dark:text-green-400">
-              ≈ ₹{(parseFloat(balance) * 251100).toFixed(2)}
+              ≈ ₹{(parseFloat(balance) * 373).toFixed(2)}
             </div>
           </div>
         )}

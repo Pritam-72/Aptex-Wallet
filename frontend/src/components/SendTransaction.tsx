@@ -420,7 +420,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
   }, [isOpen]);
 
   const estimatedFee = '0.001 APT';
-  const estimatedFiat = amount ? `≈ ₹${(parseFloat(amount) * 251100).toFixed(2)}` : '₹0.00';
+  const estimatedFiat = amount ? `≈ ₹${(parseFloat(amount) * 373).toFixed(2)}` : '₹0.00';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

@@ -66,7 +66,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
                 {showBalance ? `${parseFloat(balance || '0').toFixed(8)} APT` : '••••••••'}
               </div>
               <div className="text-muted-foreground">
-                {showBalance ? `≈ ₹${(parseFloat(balance || '0') * 373.44).toFixed(2)}` : '••••••'}
+                {showBalance ? `≈ ₹${(parseFloat(balance || '0') * 373).toFixed(2)}` : '••••••'}
               </div>
             </div>
             
@@ -89,7 +89,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
             
             <div className="grid grid-cols-3 gap-4">
               <Button 
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground cosmic-glow" 
+                className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground cosmic-glow" 
                 onClick={onSendTransaction}
               >
                 <Send className="h-4 w-4 mr-2" />
@@ -97,7 +97,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
               </Button>
               <Button 
                 variant="outline" 
-                className="w-full border-border hover:bg-muted/50 cosmic-glow" 
+                className="w-full h-12 border-border hover:bg-muted/50 cosmic-glow" 
                 onClick={onRequestMoney}
               >
                 <HandCoins className="h-4 w-4 mr-2" />
@@ -105,7 +105,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
               </Button>
               <Button 
                 variant="outline" 
-                className="w-full border-border hover:bg-muted/50 cosmic-glow" 
+                className="w-full h-12 border-border hover:bg-muted/50 cosmic-glow" 
                 onClick={onShowReceiveQR}
               >
                 <QrCode className="h-4 w-4 mr-2" />
