@@ -11,10 +11,10 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
   currentAccount
 }) => {
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden ultra-minimal-scrollbar">
+    <div className="flex flex-col">
       {/* Logo and Brand */}
       <motion.div
-        className={`flex items-center mb-6 px-1 ${
+        className={`flex items-center mb-4 px-1 ${
           sidebarOpen ? 'gap-3' : 'justify-center gap-0'
         }`}
         transition={{ type: "spring", stiffness: 400, damping: 17 }}
@@ -29,7 +29,6 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
           </div>
         )}
       </motion.div>
-
     </div>
   );
 };

@@ -6,12 +6,12 @@ import {
   Wallet, 
   Send, 
   History, 
-  BarChart3, 
   Shield,
   Menu,
   Copy,
   UserPlus,
-  FileText
+  FileText,
+  Calendar
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -38,7 +38,6 @@ import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { LoadingState } from '@/components/dashboard/LoadingState';
 import { CreateWalletSection } from '@/components/dashboard/CreateWalletSection';
 import { WalletSection } from '@/components/dashboard/WalletSection';
-import { PortfolioSection } from '@/components/dashboard/PortfolioSection';
 import { SecuritySection } from '@/components/dashboard/SecuritySection';
 import { EnhancedSidebarLink, type SidebarLinkProps } from '@/components/dashboard/EnhancedSidebarLink';
 import { AddressQRCode } from '@/components/dashboard/AddressQRCode';
@@ -46,7 +45,7 @@ import { SidebarFooter } from '@/components/dashboard/SidebarFooter';
 import { SidebarHeader } from '@/components/dashboard/SidebarHeader';
 import { RequestMoney } from '@/components/RequestMoney';
 import { RegisterWallet } from '@/components/RegisterWallet';
-import { WalletDetails } from '@/components/WalletDetails';
+import EventsPage from '@/pages/EventsPage';
 
 const SimpleDashboard = () => {
   const navigate = useNavigate();
@@ -76,7 +75,6 @@ const SimpleDashboard = () => {
 const [showRequestMoney, setShowRequestMoney] = useState(false);
 
   const [showRegisterWallet, setShowRegisterWallet] = useState(false);
-  const [showWalletDetails, setShowWalletDetails] = useState(false);
 
   // Persist sidebar state
   useEffect(() => {
@@ -113,15 +111,11 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
             break;
           case '3':
             event.preventDefault();
-            setActiveSection('portfolio');
+            setActiveSection('security');
             break;
           case '4':
             event.preventDefault();
-            setActiveSection('security');
-            break;
-          case '5':
-            event.preventDefault();
-            setActiveSection('settings');
+            setActiveSection('events');
             break;
         }
       }
@@ -360,10 +354,6 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
     setShowRegisterWallet(true);
   };
 
-  const handleWalletDetails = () => {
-    setShowWalletDetails(true);
-  };
-
   const sidebarLinks: SidebarLinkProps[] = [
     {
       label: "Wallet",
@@ -390,14 +380,6 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       isAction: true
     },
     {
-      label: "Wallet Details",
-      href: "#details",
-      icon: <FileText className="h-7 w-7 flex-shrink-0" />,
-      onClick: handleWalletDetails,
-      isActive: false,
-      isAction: true
-    },
-    {
       label: "Transactions",
       href: "#transactions",
       icon: <History className="h-7 w-7 flex-shrink-0" />,
@@ -406,19 +388,19 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       shortcut: '⌘2'
     },
     {
-      label: "Portfolio",
-      href: "#portfolio",
-      icon: <BarChart3 className="h-7 w-7 flex-shrink-0" />,
-      onClick: () => handleSectionChange('portfolio'),
-      isActive: activeSection === 'portfolio',
-      shortcut: '⌘3'
-    },
-    {
       label: "Security",
       href: "#security",
       icon: <Shield className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('security'),
       isActive: activeSection === 'security',
+      shortcut: '⌘3'
+    },
+    {
+      label: "Events",
+      href: "#events",
+      icon: <Calendar className="h-7 w-7 flex-shrink-0" />,
+      onClick: () => handleSectionChange('events'),
+      isActive: activeSection === 'events',
       shortcut: '⌘4'
     }
   ];
@@ -456,7 +438,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
           minWidth: sidebarOpen ? "280px" : "0px"
         }}
       >
-        <div className="flex flex-col h-full p-3">
+        <div className="flex flex-col h-full p-3 overflow-hidden">
           <SidebarHeader
             sidebarOpen={sidebarOpen}
             currentAccount={currentAccount}
@@ -567,12 +549,12 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
                 <TransactionHistory />
               )}
 
-              {activeSection === 'portfolio' && (
-                <PortfolioSection />
-              )}
-
               {activeSection === 'security' && (
                 <SecuritySection />
+              )}
+
+              {activeSection === 'events' && (
+                <EventsPage />
               )}
             </motion.div>
           </AnimatePresence>
@@ -632,11 +614,6 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
 
           }}
 
-        />
-
-        <WalletDetails
-          isOpen={showWalletDetails}
-          onClose={() => setShowWalletDetails(false)}
         />
 
         {showReceiveQR && currentAccount && (
