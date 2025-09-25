@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Download, Search, Filter, ExternalLink, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { getAccountTransactions, ProcessedTransaction } from '@/utils/aptosWalletUtils';
+import { getCurrentPublicKey, getStoredTransactions, addTransactionToStorage } from '@/utils/transactionStorage';
 import * as XLSX from 'xlsx';
 
 // Updated transaction interface to match real Aptos transactions
@@ -26,7 +27,24 @@ interface PaymentTransaction {
 }
 
 export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refreshFlag }) => {
-  const { address, isConnected } = useWallet();
+  // Get current address from local storage
+  const getCurrentAddress = () => {
+    try {
+      const walletData = localStorage.getItem('cryptal_wallet');
+      if (walletData) {
+        const parsedData = JSON.parse(walletData);
+        const currentIndex = parsedData.currentAccountIndex || 0;
+        return parsedData.accounts?.[currentIndex]?.address || null;
+      }
+    } catch (error) {
+      console.error('Error reading wallet from localStorage:', error);
+    }
+    return null;
+  };
+
+  const address = getCurrentAddress();
+  const isConnected = !!address;
+  
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<PaymentTransaction[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,6 +59,8 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
     return parseFloat(aptAmount) * 373;
   };
 
+
+
   const loadTransactions = useCallback(async (refresh = false) => {
     if (!isConnected || !address) return;
 
@@ -52,155 +72,27 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
     setError(null);
 
     try {
-      console.log('🔍 Loading real transaction history for:', address);
+      console.log('🔍 Loading transaction history for:', address);
       
-      // Fetch real transactions from Aptos devnet
-      const aptosTransactions = await getAccountTransactions(address, 50);
+      const publicKey = getCurrentPublicKey();
+      if (!publicKey) {
+        setError('Could not find public key');
+        return;
+      }
+
+      // Load transactions from localStorage using public key as key
+      const storedTransactions = getStoredTransactions(publicKey);
       
-      // Convert to our PaymentTransaction format
-      const convertedTransactions: PaymentTransaction[] = aptosTransactions.map((tx): PaymentTransaction => {
-        // Determine the proper type for UI display
-        let displayType: 'sent' | 'received' | 'other' = tx.type;
-        
-        // For contract interactions or unknown types, keep as 'other'
-        if (tx.type === 'other' && tx.function && !tx.function.includes('Transfer')) {
-          displayType = 'other';
-        } else if (tx.type === 'other') {
-          // If it's 'other' but no specific function, treat as 'sent' (likely gas fee)
-          displayType = 'sent';
-        }
-        
-        return {
-          from: tx.from,
-          to: tx.to,
-          ethAmount: tx.amount, // Using same field name for compatibility
-          inrAmount: convertAPTToINR(tx.amount),
-          timestamp: tx.timestamp,
-          txHash: tx.hash,
-          type: displayType,
-          status: tx.status,
-          gasUsed: tx.gasUsed,
-          function: tx.function
-        };
-      });
-      
-      console.log('✅ Loaded', convertedTransactions.length, 'real transactions');
-      setTransactions(convertedTransactions);
+      // Sort transactions by timestamp in descending order (newest first)
+      const sortedTransactions = storedTransactions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+      console.log('✅ Loaded', sortedTransactions.length, 'transactions from localStorage');
+      setTransactions(sortedTransactions);
     } catch (error: any) {
       setError(error.message || 'Failed to load transactions');
       console.error('Transaction fetch error:', error);
-      // Mock transaction data - expanded for UI testing
-      const mockTransactions: PaymentTransaction[] = [
-        {
-          from: address,
-          to: '0x123456789abcdef123456789abcdef1234567890',
-          aptosAmount: '2.5',
-          inrAmount: convertAPTToINR('2.5'),
-          timestamp: new Date(Date.now() - 3600000), // 1 hour ago
-          txHash: '0xa1b2c3d4e5f6789012345678901234567890123456789012345678901234567890',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: '0x987654321fedcba987654321fedcba9876543210',
-          to: address,
-          aptosAmount: '1.2',
-          inrAmount: convertAPTToINR('1.2'),
-          timestamp: new Date(Date.now() - 7200000), // 2 hours ago
-          txHash: '0xb2c3d4e5f6789012345678901234567890123456789012345678901234567890a1',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: address,
-          to: '0xfedcba0987654321fedcba0987654321fedcba09',
-          aptosAmount: '0.75',
-          inrAmount: convertAPTToINR('0.75'),
-          timestamp: new Date(Date.now() - 21600000), // 6 hours ago
-          txHash: '0xc3d4e5f6789012345678901234567890123456789012345678901234567890a1b2',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: '0x555666777888999000aaabbbcccdddeeef1234567',
-          to: address,
-          aptosAmount: '0.1',
-          inrAmount: convertAPTToINR('0.25'),
-          timestamp: new Date(Date.now() - 86400000), // 1 day ago
-          txHash: '0xd4e5f6789012345678901234567890123456789012345678901234567890a1b2c3',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: address,
-          to: '0x111222333444555666777888999000aaabbbcccd',
-          aptosAmount: '0.1',
-          inrAmount: convertAPTToINR('5.0'),
-          timestamp: new Date(Date.now() - 172800000), // 2 days ago
-          txHash: '0xe5f6789012345678901234567890123456789012345678901234567890a1b2c3d4',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: address,
-          to: '0xaabbccddeeff112233445566778899001122334455',
-          aptosAmount: '0.05',
-          inrAmount: convertAPTToINR('0.05'),
-          timestamp: new Date(Date.now() - 345600000), // 4 days ago
-          txHash: '0x6789012345678901234567890123456789012345678901234567890a1b2c3d4e5f',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: '0x1122334455667788990011223344556677889900ab',
-          to: address,
-          aptosAmount: '1.5',
-          inrAmount: convertAPTToINR('3.33'),
-          timestamp: new Date(Date.now() - 432000000), // 5 days ago
-          txHash: '0x789012345678901234567890123456789012345678901234567890a1b2c3d4e5f6',
-          type: 'received',
-          status: 'confirmed'
-        },
-        {
-          from: address,
-          to: '0xdeadbeefcafebabe1337h4x0r42069leet1234567890',
-          aptosAmount: '0.15',
-          inrAmount: convertAPTToINR('0.15'),
-          timestamp: new Date(Date.now() - 518400000), // 6 days ago
-          txHash: '0x89012345678901234567890123456789012345678901234567890a1b2c3d4e5f67',
-          type: 'sent',
-          status: 'confirmed'
-        },
-        {
-          from: '0x42424242424242424242424242424242424242424242',
-          to: address,
-          aptosAmount: '1.0',
-          inrAmount: convertAPTToINR('10.0'),
-          timestamp: new Date(Date.now() - 604800000), // 1 week ago
-          txHash: '0x9012345678901234567890123456789012345678901234567890a1b2c3d4e5f678',
-          type: 'received',
-          status: 'confirmed'
-        },
-        {
-          from: address,
-          to: '0x1234567890abcdef1234567890abcdef12345678',
-          aptosAmount: '0.8',
-          inrAmount: convertAPTToINR('0.8'),
-          timestamp: new Date(Date.now() - 1209600000), // 2 weeks ago
-          txHash: '0x012345678901234567890123456789012345678901234567890a1b2c3d4e5f6789',
-          type: 'sent',
-          status: 'confirmed'
-        }
-      ];
-      
-      // Sort transactions by timestamp in ascending order
-      const sortedTransactions = mockTransactions.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-      setTransactions(sortedTransactions);
-    } catch (error) {
-      const err = error as Error;
-      setError(err.message || 'Failed to load transactions');
-      console.error('Transaction fetch error:', err);
+      // If there's an error, just show empty transactions
+      setTransactions([]);
     } finally {
       if (refresh) {
         setRefreshing(false);
@@ -435,10 +327,8 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Amount:</span>
                       <div className="text-right">
-                        <div className="font-medium text-foreground">{parseFloat(tx.ethAmount).toFixed(6)} APT</div>
-                        <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.ethAmount).toLocaleString()}</div>
                         <div className="font-medium text-foreground">{parseFloat(tx.aptosAmount).toFixed(6)} APT</div>
-                        <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.aptosAmount).toLocaleString()}</div>
+                        <div className="text-xs text-muted-foreground">₹{tx.inrAmount.toLocaleString()}</div>
                       </div>
                     </div>
                     
@@ -529,16 +419,19 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                       </div>
                     </td>
                     <td className="p-4">
-                      <div className="font-medium text-foreground">{parseFloat(tx.ethAmount).toFixed(6)} APT</div>
-                      <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.ethAmount).toLocaleString()}</div>
+                      <div className="font-medium text-foreground">{parseFloat(tx.aptosAmount).toFixed(6)} APT</div>
+                      <div className="text-xs text-muted-foreground">₹{tx.inrAmount.toLocaleString()}</div>
                       {tx.function && (
                         <div className="text-xs text-blue-400 mt-1">{tx.function}</div>
                       )}
-                      <div className="font-medium text-foreground">{parseFloat(tx.aptosAmount).toFixed(2)} APT</div>
-                      <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.aptosAmount).toLocaleString()}</div>
                     </td>
                     <td className="p-4">
-                      <div className="text-xs text-foreground">9/25/2025</div>
+                      <div className="text-xs text-foreground">
+                        {tx.timestamp.toLocaleDateString()}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {tx.timestamp.toLocaleTimeString()}
+                      </div>
                     </td>
                     <td className="p-4">{getStatusBadge(tx.status || 'confirmed')}</td>
                     <td className="p-4">

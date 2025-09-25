@@ -32,6 +32,7 @@ import {
   fundAccount,
 } from '@/utils/walletUtils';
 import { getWalletBalance, testAptosConnection } from '@/utils/aptosWalletUtils';
+import { getBalanceForAddress, initializeAccountBalance } from '@/utils/balanceStorage';
 
 // Import all the new components
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
@@ -73,8 +74,8 @@ const SimpleDashboard = () => {
   const [accountList, setAccountList] = useState<WalletAccount[]>([]);
 
 const [showRequestMoney, setShowRequestMoney] = useState(false);
-
   const [showRegisterWallet, setShowRegisterWallet] = useState(false);
+  const [transactionRefreshFlag, setTransactionRefreshFlag] = useState(0);
 
   // Persist sidebar state
   useEffect(() => {
@@ -129,29 +130,12 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
     try {
       console.log('Loading wallet data for address:', account.address);
       
-      // Fetch balance with retry logic
-      let accountBalance = '0';
-      let balanceRetries = 3;
+      // Initialize account balance if it doesn't exist (for demo purposes)
+      initializeAccountBalance(account.address, '100');
       
-      while (balanceRetries > 0) {
-        try {
-          accountBalance = await getWalletBalance(account.address);
-          console.log('✓ Fetched balance:', accountBalance, 'APT');
-          break;
-        } catch (balanceError) {
-          balanceRetries--;
-          console.error(`Balance fetch attempt failed (${3 - balanceRetries}/3):`, balanceError);
-          
-          if (balanceRetries > 0) {
-            console.log('Retrying balance fetch in 1 second...');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } else {
-            console.error('All balance fetch attempts failed, using 0');
-            accountBalance = '0';
-          }
-        }
-      }
-      
+      // Get balance from localStorage
+      const accountBalance = getBalanceForAddress(account.address);
+      console.log('✓ Loaded balance from localStorage:', accountBalance, 'APT');
       setBalance(accountBalance);
 
       // Fetch transactions
@@ -258,8 +242,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       setCurrentAccount(account);
       setShowCreateWallet(false);
       if (account) {
-        await fundAccount(account.address);
-        await waitForBalance(account);
+        // Initialize with demo balance for new wallet
+        initializeAccountBalance(account.address, '100');
         await loadWalletData(account);
       }
     } catch (error) {
@@ -277,8 +261,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
         const updatedWallet = getStoredWallet();
         setWallet(updatedWallet);
         setCurrentAccount(newAccount);
-        await fundAccount(newAccount.address);
-        await waitForBalance(newAccount);
+        // Initialize with demo balance for new account
+        initializeAccountBalance(newAccount.address, '100');
         await loadWalletData(newAccount);
       }
     } catch (error) {
@@ -294,6 +278,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       if (newAccount) {
         setIsLoading(true);
         setCurrentAccount(newAccount);
+        // Initialize balance if it doesn't exist for this account
+        initializeAccountBalance(newAccount.address, '100');
         await loadWalletData(newAccount);
         setIsLoading(false);
       }
@@ -323,8 +309,10 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       console.log('🔄 Manual balance refresh triggered');
       setIsLoading(true);
       try {
-        await refreshWalletData();
-        console.log('✅ Balance refresh completed successfully');
+        // Get fresh balance from localStorage
+        const freshBalance = getBalanceForAddress(currentAccount.address);
+        setBalance(freshBalance);
+        console.log('✅ Balance refresh completed successfully:', freshBalance, 'APT');
       } catch (error) {
         console.error('❌ Balance refresh failed:', error);
       } finally {
@@ -546,7 +534,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
               )}
 
               {activeSection === 'transactions' && (
-                <TransactionHistory />
+                <TransactionHistory refreshFlag={transactionRefreshFlag} />
               )}
 
               {activeSection === 'security' && (
@@ -581,6 +569,12 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
               <SendTransaction
                 isOpen={showSendTransaction}
                 onClose={() => setShowSendTransaction(false)}
+                onSuccess={() => {
+                  // Refresh transaction history when a transaction is sent
+                  setTransactionRefreshFlag(prev => prev + 1);
+                  // Refresh balance to show updated amount
+                  refreshBalance();
+                }}
               />
             </motion.div>
           </motion.div>

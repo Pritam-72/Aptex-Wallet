@@ -18,7 +18,24 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
   onClose,
   onSuccess
 }) => {
-  const { registerWalletId, isConnected, address, setIdentityVerified } = useWallet();
+  const { registerWalletId, isConnected, setIdentityVerified } = useWallet();
+  
+  // Get current address from local storage
+  const getCurrentAddress = () => {
+    try {
+      const walletData = localStorage.getItem('cryptal_wallet');
+      if (walletData) {
+        const parsedData = JSON.parse(walletData);
+        const currentIndex = parsedData.currentAccountIndex || 0;
+        return parsedData.accounts?.[currentIndex]?.address || null;
+      }
+    } catch (error) {
+      console.error('Error reading wallet from localStorage:', error);
+    }
+    return null;
+  };
+
+  const address = getCurrentAddress();
   const [walletId, setWalletId] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +55,8 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
     setSuccess(false);
 
     // Check wallet connection
-    if (!isConnected) {
+    const currentAddress = getCurrentAddress();
+    if (!currentAddress) {
       setError('Please connect your wallet first');
       return;
     }
@@ -99,9 +117,10 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
   };
 
   const generateSuggestion = () => {
-    if (address) {
+    const currentAddress = getCurrentAddress();
+    if (currentAddress) {
       // Generate a suggestion based on address
-      const shortAddress = address.slice(-8);
+      const shortAddress = currentAddress.slice(-8);
       setWalletId(`wallet_${shortAddress}`);
     }
   };
@@ -278,12 +297,12 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
                 {isVerificationLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Verifying...
+                    Uploading...
                   </>
                 ) : verificationSuccess ? (
                   <>
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    Verified
+                    Uploaded
                   </>
                 ) : (
                   <>
