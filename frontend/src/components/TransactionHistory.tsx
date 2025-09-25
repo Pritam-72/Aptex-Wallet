@@ -13,7 +13,7 @@ import * as XLSX from 'xlsx';
 interface PaymentTransaction {
   from: string;
   to: string;
-  ethAmount: string;
+  aptosAmount: string;
   inrAmount: number;
   timestamp: Date;
   txHash?: string;
@@ -34,7 +34,7 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
 
   // Mock APT to INR conversion (1 APT = 1000 INR for demo)
   const convertAPTToINR = (aptAmount: string): number => {
-    return parseFloat(aptAmount) * 1000;
+    return parseFloat(aptAmount) * 373;
   };
 
   const loadTransactions = useCallback(async (refresh = false) => {
@@ -56,7 +56,7 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
         {
           from: address,
           to: '0x123456789abcdef123456789abcdef1234567890',
-          ethAmount: '2.5',
+          aptosAmount: '2.5',
           inrAmount: convertAPTToINR('2.5'),
           timestamp: new Date(Date.now() - 3600000), // 1 hour ago
           txHash: '0xa1b2c3d4e5f6789012345678901234567890123456789012345678901234567890',
@@ -66,37 +66,37 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
         {
           from: '0x987654321fedcba987654321fedcba9876543210',
           to: address,
-          ethAmount: '1.2',
+          aptosAmount: '1.2',
           inrAmount: convertAPTToINR('1.2'),
           timestamp: new Date(Date.now() - 7200000), // 2 hours ago
           txHash: '0xb2c3d4e5f6789012345678901234567890123456789012345678901234567890a1',
-          type: 'received',
+          type: 'sent',
           status: 'confirmed'
         },
         {
           from: address,
           to: '0xfedcba0987654321fedcba0987654321fedcba09',
-          ethAmount: '0.75',
+          aptosAmount: '0.75',
           inrAmount: convertAPTToINR('0.75'),
           timestamp: new Date(Date.now() - 21600000), // 6 hours ago
           txHash: '0xc3d4e5f6789012345678901234567890123456789012345678901234567890a1b2',
           type: 'sent',
-          status: 'pending'
+          status: 'confirmed'
         },
         {
           from: '0x555666777888999000aaabbbcccdddeeef1234567',
           to: address,
-          ethAmount: '0.25',
+          aptosAmount: '0.1',
           inrAmount: convertAPTToINR('0.25'),
           timestamp: new Date(Date.now() - 86400000), // 1 day ago
           txHash: '0xd4e5f6789012345678901234567890123456789012345678901234567890a1b2c3',
-          type: 'received',
+          type: 'sent',
           status: 'confirmed'
         },
         {
           from: address,
           to: '0x111222333444555666777888999000aaabbbcccd',
-          ethAmount: '5.0',
+          aptosAmount: '0.1',
           inrAmount: convertAPTToINR('5.0'),
           timestamp: new Date(Date.now() - 172800000), // 2 days ago
           txHash: '0xe5f6789012345678901234567890123456789012345678901234567890a1b2c3d4',
@@ -104,19 +104,9 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
           status: 'confirmed'
         },
         {
-          from: '0x999888777666555444333222111000fffeeedddc',
-          to: address,
-          ethAmount: '0.1',
-          inrAmount: convertAPTToINR('0.1'),
-          timestamp: new Date(Date.now() - 259200000), // 3 days ago
-          txHash: '0xf6789012345678901234567890123456789012345678901234567890a1b2c3d4e5',
-          type: 'received',
-          status: 'failed'
-        },
-        {
           from: address,
           to: '0xaabbccddeeff112233445566778899001122334455',
-          ethAmount: '0.05',
+          aptosAmount: '0.05',
           inrAmount: convertAPTToINR('0.05'),
           timestamp: new Date(Date.now() - 345600000), // 4 days ago
           txHash: '0x6789012345678901234567890123456789012345678901234567890a1b2c3d4e5f',
@@ -126,7 +116,7 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
         {
           from: '0x1122334455667788990011223344556677889900ab',
           to: address,
-          ethAmount: '3.33',
+          aptosAmount: '1.5',
           inrAmount: convertAPTToINR('3.33'),
           timestamp: new Date(Date.now() - 432000000), // 5 days ago
           txHash: '0x789012345678901234567890123456789012345678901234567890a1b2c3d4e5f6',
@@ -136,17 +126,17 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
         {
           from: address,
           to: '0xdeadbeefcafebabe1337h4x0r42069leet1234567890',
-          ethAmount: '0.15',
+          aptosAmount: '0.15',
           inrAmount: convertAPTToINR('0.15'),
           timestamp: new Date(Date.now() - 518400000), // 6 days ago
           txHash: '0x89012345678901234567890123456789012345678901234567890a1b2c3d4e5f67',
           type: 'sent',
-          status: 'pending'
+          status: 'confirmed'
         },
         {
           from: '0x42424242424242424242424242424242424242424242',
           to: address,
-          ethAmount: '10.0',
+          aptosAmount: '1.0',
           inrAmount: convertAPTToINR('10.0'),
           timestamp: new Date(Date.now() - 604800000), // 1 week ago
           txHash: '0x9012345678901234567890123456789012345678901234567890a1b2c3d4e5f678',
@@ -156,29 +146,23 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
         {
           from: address,
           to: '0x1234567890abcdef1234567890abcdef12345678',
-          ethAmount: '0.8',
+          aptosAmount: '0.8',
           inrAmount: convertAPTToINR('0.8'),
           timestamp: new Date(Date.now() - 1209600000), // 2 weeks ago
           txHash: '0x012345678901234567890123456789012345678901234567890a1b2c3d4e5f6789',
           type: 'sent',
           status: 'confirmed'
-        },
-        {
-          from: '0xabcdef1234567890abcdef1234567890abcdef12',
-          to: address,
-          ethAmount: '0.33',
-          inrAmount: convertAPTToINR('0.33'),
-          timestamp: new Date(Date.now() - 1814400000), // 3 weeks ago
-          txHash: '0x12345678901234567890123456789012345678901234567890a1b2c3d4e5f6789a',
-          type: 'received',
-          status: 'confirmed'
         }
       ];
       
-      setTransactions(mockTransactions);
-    } catch (error: any) {
-      setError(error.message || 'Failed to load transactions');
-      console.error('Transaction fetch error:', error);
+      // Sort transactions by timestamp in ascending order
+      const sortedTransactions = mockTransactions.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      setTransactions(sortedTransactions);
+    } catch (error) {
+      const err = error as Error;
+      setError(err.message || 'Failed to load transactions');
+      console.error('Transaction fetch error:', err);
     } finally {
       if (refresh) {
         setRefreshing(false);
@@ -232,11 +216,10 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
         'Hash': tx.txHash,
         'From': tx.from,
         'To': tx.to,
-        'Amount (ETH)': tx.ethAmount,
+        'Amount (APT)': tx.aptosAmount,
         'Amount (INR)': tx.inrAmount.toFixed(2),
         'Type': tx.type,
         'Date': tx.timestamp.toLocaleDateString(),
-        'Time': tx.timestamp.toLocaleTimeString(),
       }));
 
       const workbook = XLSX.utils.book_new();
@@ -411,8 +394,8 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Amount:</span>
                       <div className="text-right">
-                        <div className="font-medium text-foreground">{parseFloat(tx.ethAmount).toFixed(6)} ETH</div>
-                        <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.ethAmount).toLocaleString()}</div>
+                        <div className="font-medium text-foreground">{parseFloat(tx.aptosAmount).toFixed(6)} APT</div>
+                        <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.aptosAmount).toLocaleString()}</div>
                       </div>
                     </div>
                     
@@ -495,12 +478,11 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                       </div>
                     </td>
                     <td className="p-4">
-                      <div className="font-medium text-foreground">{parseFloat(tx.ethAmount).toFixed(6)} ETH</div>
-                      <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.ethAmount).toLocaleString()}</div>
+                      <div className="font-medium text-foreground">{parseFloat(tx.aptosAmount).toFixed(2)} APT</div>
+                      <div className="text-xs text-muted-foreground">₹{convertAPTToINR(tx.aptosAmount).toLocaleString()}</div>
                     </td>
                     <td className="p-4">
-                      <div className="text-xs text-foreground">{tx.timestamp.toLocaleDateString()}</div>
-                      <div className="text-xs text-muted-foreground">{tx.timestamp.toLocaleTimeString()}</div>
+                      <div className="text-xs text-foreground">9/25/2025</div>
                     </td>
                     <td className="p-4">{getStatusBadge(tx.status || 'confirmed')}</td>
                     <td className="p-4">
