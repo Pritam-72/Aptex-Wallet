@@ -19,7 +19,7 @@ interface SendTransactionProps {
 
 export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClose, onSuccess }) => {
   const [recipient, setRecipient] = useState('');
-  const [amount, setAmount] = useState('');
+  const [inrAmount, setInrAmount] = useState('');
   const [note, setNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -29,7 +29,19 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const qrScannerRef = useRef<QrScanner | null>(null);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
   const { toast } = useToast();
+
+  // Update timestamp every 30 seconds to simulate live rate
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setLastUpdated(new Date());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const currentRate = 373; // INR to APT rate
+  const aptAmount = inrAmount && !isNaN(parseFloat(inrAmount)) ? (parseFloat(inrAmount) / currentRate).toFixed(8) : '0';
 
   // Load current balance when dialog opens
   React.useEffect(() => {
@@ -52,8 +64,14 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
   }, [isOpen]);
 
   const handleSend = async () => {
-    if (!recipient || !amount) {
+    if (!recipient || !inrAmount) {
       setError('Please fill in all required fields');
+      return;
+    }
+
+    const transactionAptAmount = parseFloat(aptAmount);
+    if (transactionAptAmount <= 0 || isNaN(transactionAptAmount)) {
+      setError('Invalid amount. Please enter a valid INR amount.');
       return;
     }
 
@@ -77,7 +95,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
 
       // Check sender balance before proceeding
       const senderBalance = parseFloat(getBalanceForAddress(currentAccount.address));
-      const transactionAmount = parseFloat(amount);
+      const transactionAmount = transactionAptAmount;
       
       if (senderBalance < transactionAmount) {
         throw new Error(`Insufficient balance. Available: ${senderBalance} APT, Required: ${transactionAmount} APT`);
@@ -90,7 +108,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       const balanceUpdates = updateBalancesAfterTransaction(
         currentAccount.address,
         recipient,
-        amount
+        aptAmount
       );
       
       // Generate a mock transaction hash
@@ -100,9 +118,9 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       const transaction = {
         from: currentAccount.address,
         to: recipient,
-        ethAmount: amount,
-        aptosAmount: amount,
-        inrAmount: parseFloat(amount) * 373, // Mock conversion rate
+        ethAmount: aptAmount,
+        aptosAmount: aptAmount,
+        inrAmount: parseFloat(inrAmount),
         timestamp: new Date(),
         txHash: txHash,
         type: 'sent' as const,
@@ -117,7 +135,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       const nftResults = handleTransactionAndMintNFTs(currentAccount.address);
       
       // Show success toast with NFT minting results
-      let toastDescription = `Sent ${amount} APT to ${recipient.slice(0, 6)}...${recipient.slice(-4)}. New balance: ${balanceUpdates.senderBalance} APT`;
+      let toastDescription = `Sent ₹${parseFloat(inrAmount).toFixed(2)} (${aptAmount} APT) to ${recipient.slice(0, 6)}...${recipient.slice(-4)}. New balance: ${balanceUpdates.senderBalance} APT`;
       
       if (nftResults.loyaltyNFT) {
         toastDescription += ` 🏆 New ${nftResults.loyaltyNFT.tier} loyalty NFT earned!`;
@@ -135,7 +153,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       
       // Reset form
       setRecipient('');
-      setAmount('');
+      setInrAmount('');
       setNote('');
       
       // Call success callback to refresh transaction history
@@ -420,7 +438,8 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
   }, [isOpen]);
 
   const estimatedFee = '0.001 APT';
-  const estimatedFiat = amount ? `≈ ₹${(parseFloat(amount) * 373).toFixed(2)}` : '₹0.00';
+  const estimatedFeeInr = (0.001 * currentRate).toFixed(2);
+  const estimatedApt = inrAmount ? `≈ ${(parseFloat(inrAmount) / currentRate).toFixed(8)} APT` : '0.00000000 APT';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -511,42 +530,58 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
                     type="button"
                     onClick={() => {
                       // Leave some for fees (0.001 APT)
-                      const maxAmount = Math.max(0, parseFloat(currentBalance) - 0.001);
-                      setAmount(maxAmount.toString());
+                      const maxInr = Math.max(0, (parseFloat(currentBalance) - 0.001) * currentRate);
+                      setInrAmount(maxInr.toString());
                     }}
                     variant="outline"
                     size="sm"
                     className="h-6 px-2 text-xs bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white"
                   >
-                    Max
+                    Max INR
                   </Button>
                 </div>
               </div>
               <div className="text-xs text-gray-500 text-right">
-                ≈ ₹{(parseFloat(currentBalance) * 373).toFixed(2)}
+                ≈ ₹{(parseFloat(currentBalance) * currentRate).toFixed(2)}
               </div>
             </div>
 
-            <div className="relative">
-              <Input
-                type="number"
-                step="0.000001"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="h-14 text-lg pl-4 pr-16 bg-gray-900 border-gray-700 rounded-lg text-center text-white placeholder:text-gray-500 focus:border-gray-600"
-              />
-              <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                <span className="text-sm font-medium text-black bg-white px-2 py-1 rounded">
-                  APT
-                </span>
+            {/* Live Conversion Rate Display */}
+            <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-gray-400">Live Rate</span>
+                </div>
+                <div className="text-sm font-medium text-white">
+                  1 APT = ₹{currentRate.toLocaleString()}
+                </div>
               </div>
-              {amount && (
-                <div className="absolute -bottom-6 left-1/2 -translate-x-1/2">
-                  <div className="text-xs text-gray-400 flex items-center gap-1">
-                    <IndianRupee className="h-3 w-3" />
-                    {estimatedFiat}
-                  </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Last updated: {lastUpdated.toLocaleTimeString()}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-gray-300 text-sm">Amount (INR)</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="Enter amount in INR"
+                  value={inrAmount}
+                  onChange={(e) => setInrAmount(e.target.value)}
+                  className="h-14 text-lg pl-4 pr-16 bg-gray-900 border-gray-700 rounded-lg text-center text-white placeholder:text-gray-500 focus:border-gray-600"
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                  <span className="text-sm font-medium text-black bg-white px-2 py-1 rounded">
+                    INR
+                  </span>
+                </div>
+              </div>
+              {inrAmount && (
+                <div className="text-xs text-gray-400 text-center">
+                  ≈ {aptAmount} APT (at current rate)
                 </div>
               )}
             </div>
@@ -561,20 +596,24 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
               />
             </div>
 
-            {amount && (
+            {inrAmount && (
               <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 space-y-2 mt-4">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Amount</span>
-                  <span className="font-medium text-white">{amount} APT</span>
+                  <span className="text-gray-400">Amount (INR)</span>
+                  <span className="font-medium text-white">₹{parseFloat(inrAmount).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Network fee</span>
-                  <span className="font-medium text-white">{estimatedFee}</span>
+                  <span className="text-gray-400">Equivalent APT</span>
+                  <span className="font-medium text-white">{aptAmount} APT</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Network Fee</span>
+                  <span className="font-medium text-white">{estimatedFee} APT (≈ ₹{estimatedFeeInr})</span>
                 </div>
                 <div className="border-t border-gray-800 pt-2">
                   <div className="flex justify-between text-sm font-semibold">
                     <span className="text-gray-300">Total</span>
-                    <span className="text-white">{amount ? (parseFloat(amount) + 0.001).toFixed(6) : '0.001'} APT</span>
+                    <span className="text-white">{aptAmount ? (parseFloat(aptAmount) + 0.001).toFixed(8) : '0.00100000'} APT</span>
                   </div>
                 </div>
               </div>
@@ -628,7 +667,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
             <Button
               onClick={handleSend}
               className="w-full h-12 bg-white hover:bg-gray-200 text-black font-medium rounded-lg transition-all duration-200 mt-6"
-              disabled={isLoading || !recipient || !amount}
+              disabled={isLoading || !recipient || !inrAmount}
             >
               {isLoading ? (
                 <div className="flex items-center gap-2">
