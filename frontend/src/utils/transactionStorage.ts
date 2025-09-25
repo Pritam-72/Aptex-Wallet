@@ -13,6 +13,7 @@ interface PaymentTransaction {
   gasUsed?: string;
   function?: string;
   note?: string;
+  upiId?: string; // UPI ID if transaction was sent via UPI
 }
 
 // Helper function to get current public key for localStorage key

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UPI Integration Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .demo-section {
+            margin-bottom: 30px;
+        }
+        .demo-qr {
+            display: inline-block;
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        .step {
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #e8f4f8;
+            border-left: 4px solid #2196F3;
+            border-radius: 4px;
+        }
+        .code-block {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .warning {
+            color: #FF9800;
+            font-weight: bold;
+        }
+        .error {
+            color: #F44336;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 UPI Integration Feature Demo</h1>
+        <p>This demo shows how the new UPI integration feature works in your Aptos wallet application.</p>
+    </div>
+
+    <div class="container">
+        <h2>✨ New Features Added</h2>
+        <ul>
+            <li><strong>UPI ID Mapping:</strong> Users can link their UPI IDs to their wallet addresses</li>
+            <li><strong>UPI QR Code Support:</strong> Scan UPI QR codes to auto-fill recipient information</li>
+            <li><strong>Easy Transfers:</strong> Send crypto using familiar UPI IDs instead of complex wallet addresses</li>
+            <li><strong>Transaction History:</strong> Track transactions made via UPI IDs</li>
+        </ul>
+    </div>
+
+    <div class="container demo-section">
+        <h2>📱 How It Works</h2>
+        
+        <div class="step">
+            <h3>Step 1: User Sets Up UPI Mapping</h3>
+            <p>In the User Settings, users can add their UPI IDs and map them to their current wallet address:</p>
+            <div class="code-block">
+// Example mapping
+UPI ID: jayesh152005-1@okicici → Wallet: 0xabc123...def456
+UPI ID: 9236882056@axl → Wallet: 0xabc123...def456
+            </div>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Send Money Using UPI ID</h3>
+            <p>Instead of entering a complex wallet address, users can now:</p>
+            <ul>
+                <li>Type a UPI ID directly in the "Or send using UPI ID" field</li>
+                <li>Scan a UPI QR code that automatically extracts the UPI ID</li>
+                <li>System resolves UPI ID to the mapped wallet address</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <h3>Step 3: UPI QR Code Scanning</h3>
+            <p>The app now supports standard UPI QR codes like:</p>
+            <div class="demo-qr">upi://pay?pa=9236882056@axl&pn=User%20Name&mc=0000&mode=02&purpose=00</div>
+            <div class="demo-qr">upi://pay?pa=jayesh152005-1@okicici&pn=jayesh%20krishna&aid=uGICAgMDhiOHRbw</div>
+            <p>When scanned, the system extracts the UPI ID and pre-fills the form.</p>
+        </div>
+    </div>
+
+    <div class="container demo-section">
+        <h2>🔧 Technical Implementation</h2>
+        
+        <h3>New Files Created:</h3>
+        <ul>
+            <li><code>src/utils/upiStorage.ts</code> - UPI mapping storage and utilities</li>
+            <li><code>src/components/UpiMappingSection.tsx</code> - UPI management UI component</li>
+        </ul>
+
+        <h3>Modified Files:</h3>
+        <ul>
+            <li><code>src/components/SendTransaction.tsx</code> - Added UPI ID field and QR parsing</li>
+            <li><code>src/components/UserSettings.tsx</code> - Added UPI mapping section</li>
+            <li><code>src/utils/transactionStorage.ts</code> - Added UPI ID to transaction records</li>
+        </ul>
+
+        <h3>Key Functions:</h3>
+        <div class="code-block">
+// Parse UPI QR codes
+parseUpiQr(qrData: string): { upiId: string; name?: string; amount?: string } | null
+
+// Resolve UPI ID to wallet address
+getPublicKeyByUpiId(upiId: string): string | null
+
+// Add new UPI mapping
+addUpiMapping(upiId: string, publicKey: string, name?: string): boolean
+
+// Validate UPI ID format
+isValidUpiId(upiId: string): boolean
+        </div>
+    </div>
+
+    <div class="container demo-section">
+        <h2>🧪 Testing the Feature</h2>
+        
+        <div class="step">
+            <h3>1. Set Up UPI Mapping</h3>
+            <ol>
+                <li>Open the app and go to User Settings</li>
+                <li>Find the "UPI Integration" section</li>
+                <li>Add a UPI ID (e.g., <code>test@paytm</code>)</li>
+                <li>Save the mapping</li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>2. Test UPI Transfer</h3>
+            <ol>
+                <li>Go to Send Transaction</li>
+                <li>Leave the wallet address field empty</li>
+                <li>Enter the UPI ID in the "Or send using UPI ID" field</li>
+                <li>System should show if UPI ID is found or not</li>
+                <li>Complete the transaction</li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>3. Test UPI QR Scanning</h3>
+            <ol>
+                <li>Create a test UPI QR code with the format: <br>
+                    <code>upi://pay?pa=test@paytm&pn=Test%20User</code>
+                </li>
+                <li>Use the QR scanner in Send Transaction</li>
+                <li>System should auto-fill the UPI ID field</li>
+                <li>If the UPI ID is mapped, it should resolve to the wallet address</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🎯 User Benefits</h2>
+        <ul>
+            <li><strong>Familiar Interface:</strong> Users can use UPI IDs they already know</li>
+            <li><strong>Reduced Errors:</strong> No need to copy/paste complex wallet addresses</li>
+            <li><strong>QR Code Support:</strong> Works with existing UPI QR codes</li>
+            <li><strong>Seamless Integration:</strong> Bridges traditional payments with crypto</li>
+            <li><strong>User Adoption:</strong> Easier onboarding for users familiar with UPI</li>
+        </ul>
+    </div>
+
+    <div class="container">
+        <h2>⚠️ Important Notes</h2>
+        <div class="warning">
+            <p><strong>Privacy:</strong> UPI mappings are stored locally on the user's device.</p>
+            <p><strong>Security:</strong> Users must trust the person they're mapping UPI IDs for.</p>
+            <p><strong>Validation:</strong> The system validates UPI ID format but not existence with banks.</p>
+            <p><strong>Network:</strong> This is a local mapping system - it doesn't connect to actual UPI networks.</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🚀 Next Steps</h2>
+        <p>To further enhance this feature, consider:</p>
+        <ul>
+            <li>Adding a shared UPI directory service</li>
+            <li>QR code generation for users to share their wallet as UPI</li>
+            <li>Integration with actual UPI payment gateways</li>
+            <li>Social features to find friends by UPI ID</li>
+            <li>Bulk import/export of UPI mappings</li>
+        </ul>
+    </div>
+
+    <div class="container">
+        <p class="success">✅ The UPI integration feature has been successfully implemented and is ready for testing!</p>
+    </div>
+</body>
+</html>

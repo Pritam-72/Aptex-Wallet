@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Settings, User, Bell, Palette, Globe, Download, Trash2, RefreshCw } from 'lucide-react';
+import { Settings, User, Bell, Palette, Globe, Download, Trash2, RefreshCw, CreditCard, ArrowUpRight } from 'lucide-react';
 import { ProfileService } from '@/services/ProfileService';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase';
@@ -192,6 +192,31 @@ export const UserSettings: React.FC = () => {
           </div>
           <Button onClick={handleProfileUpdate}>
             Update Profile
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* UPI Integration Link */}
+      <Card className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 border-blue-800/50">
+        <CardHeader>
+          <CardTitle className="text-blue-300 flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            UPI Integration
+          </CardTitle>
+          <CardDescription className="text-blue-200">
+            Manage your UPI payment handles and mappings in the dedicated UPI dashboard
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-blue-200 mb-4">
+            Link your UPI IDs to your wallet for easy transactions. Create mappings, scan QR codes, and manage payment handles.
+          </p>
+          <Button 
+            onClick={() => window.location.hash = '#upi'}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Open UPI Manager
+            <ArrowUpRight className="h-4 w-4 ml-2" />
           </Button>
         </CardContent>
       </Card>

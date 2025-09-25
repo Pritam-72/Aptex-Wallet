@@ -13,7 +13,8 @@ import {
   FileText,
   Calendar,
   Zap,
-  Gem
+  Gem,
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -56,6 +57,8 @@ import { RegisterWallet } from '@/components/RegisterWallet';
 import { CollectablesSection } from '@/components/CollectablesSection';
 import { AutoPaySection } from '@/components/AutoPaySection';
 import EventsPage from '@/pages/EventsPage';
+import { UpiDashboard } from '@/pages/UpiDashboard';
+import { UpiQuickAccess } from '@/components/UpiQuickAccess';
 
 const SimpleDashboard = () => {
   const navigate = useNavigate();
@@ -390,6 +393,14 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       isAction: true
     },
     {
+      label: "UPI Manager",
+      href: "#upi",
+      icon: <CreditCard className="h-7 w-7 flex-shrink-0" />,
+      onClick: () => handleSectionChange('upi'),
+      isActive: activeSection === 'upi',
+      shortcut: '⌘U'
+    },
+    {
       label: "Register ID",
       href: "#register",
       icon: <UserPlus className="h-7 w-7 flex-shrink-0" />,
@@ -578,6 +589,11 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
                     onCopyAddress={() => copyToClipboard(currentAccount?.address || '')}
                   />
                   
+                  <UpiQuickAccess 
+                    onNavigateToUpi={() => handleSectionChange('upi')}
+                    className="mb-6"
+                  />
+                  
                   <PaymentRequestsSection
                     userAddress={currentAccount?.address || ''}
                     onSendRequest={handleSendPaymentRequest}
@@ -610,6 +626,10 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
 
               {activeSection === 'autopay' && (
                 <AutoPaySection userAddress={currentAccount?.address || ''} />
+              )}
+
+              {activeSection === 'upi' && (
+                <UpiDashboard />
               )}
             </motion.div>
           </AnimatePresence>

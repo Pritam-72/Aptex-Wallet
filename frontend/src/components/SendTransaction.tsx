@@ -5,10 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Send, AlertTriangle, ArrowUpRight, X, IndianRupee, QrCode, Upload, Camera } from 'lucide-react';
+import { Send, AlertTriangle, ArrowUpRight, X, IndianRupee, QrCode, Upload, Camera, CheckCircle } from 'lucide-react';
 import { addTransactionToStorage } from '@/utils/transactionStorage';
 import { updateBalancesAfterTransaction, getBalanceForAddress } from '@/utils/balanceStorage';
 import { handleTransactionAndMintNFTs } from '@/utils/nftStorage';
+import { getPublicKeyByUpiId, parseUpiQr, isValidUpiId } from '@/utils/upiStorage';
 import QrScanner from 'qr-scanner';
 
 interface SendTransactionProps {
@@ -19,6 +20,7 @@ interface SendTransactionProps {
 
 export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClose, onSuccess }) => {
   const [recipient, setRecipient] = useState('');
+  const [upiId, setUpiId] = useState('');
   const [inrAmount, setInrAmount] = useState('');
   const [note, setNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -64,8 +66,20 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
   }, [isOpen]);
 
   const handleSend = async () => {
-    if (!recipient || !inrAmount) {
-      setError('Please fill in all required fields');
+    let finalRecipient = recipient;
+    
+    // If UPI ID is provided, resolve it to public key
+    if (upiId && !recipient) {
+      const resolvedAddress = getPublicKeyByUpiId(upiId);
+      if (!resolvedAddress) {
+        setError('UPI ID not found. Please ask the recipient to link their UPI ID first.');
+        return;
+      }
+      finalRecipient = resolvedAddress;
+    }
+    
+    if (!finalRecipient || !inrAmount) {
+      setError('Please fill in recipient (address or UPI ID) and amount');
       return;
     }
 
@@ -107,7 +121,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       // Update balances for both sender and receiver
       const balanceUpdates = updateBalancesAfterTransaction(
         currentAccount.address,
-        recipient,
+        finalRecipient,
         aptAmount
       );
       
@@ -117,7 +131,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       // Create transaction object
       const transaction = {
         from: currentAccount.address,
-        to: recipient,
+        to: finalRecipient,
         ethAmount: aptAmount,
         aptosAmount: aptAmount,
         inrAmount: parseFloat(inrAmount),
@@ -125,7 +139,8 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
         txHash: txHash,
         type: 'sent' as const,
         status: 'confirmed' as const,
-        note: note || undefined
+        note: note || undefined,
+        upiId: upiId || undefined
       };
 
       // Store transaction in localStorage
@@ -135,7 +150,8 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       const nftResults = handleTransactionAndMintNFTs(currentAccount.address);
       
       // Show success toast with NFT minting results
-      let toastDescription = `Sent ₹${parseFloat(inrAmount).toFixed(2)} (${aptAmount} APT) to ${recipient.slice(0, 6)}...${recipient.slice(-4)}. New balance: ${balanceUpdates.senderBalance} APT`;
+      const displayRecipient = upiId ? upiId : `${finalRecipient.slice(0, 6)}...${finalRecipient.slice(-4)}`;
+      let toastDescription = `Sent ₹${parseFloat(inrAmount).toFixed(2)} (${aptAmount} APT) to ${displayRecipient}. New balance: ${balanceUpdates.senderBalance} APT`;
       
       if (nftResults.loyaltyNFT) {
         toastDescription += ` 🏆 New ${nftResults.loyaltyNFT.tier} loyalty NFT earned!`;
@@ -153,6 +169,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       
       // Reset form
       setRecipient('');
+      setUpiId('');
       setInrAmount('');
       setNote('');
       
@@ -247,14 +264,43 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       
       if (result && typeof result === 'string' && result.trim()) {
         const trimmedResult = result.trim();
-        console.log('Setting recipient to:', trimmedResult);
-        setRecipient(trimmedResult);
+        console.log('Processing QR result:', trimmedResult);
         
-        toast({
-          title: "QR Code Scanned Successfully",
-          description: `Address loaded: ${trimmedResult.length > 30 ? trimmedResult.slice(0, 30) + '...' : trimmedResult}`,
-          duration: 3000,
-        });
+        // Try to parse as UPI QR first
+        const upiData = parseUpiQr(trimmedResult);
+        if (upiData) {
+          console.log('UPI QR detected:', upiData);
+          setUpiId(upiData.upiId);
+          if (upiData.amount) {
+            setInrAmount(upiData.amount);
+          }
+          
+          // Try to resolve UPI ID to address
+          const resolvedAddress = getPublicKeyByUpiId(upiData.upiId);
+          if (resolvedAddress) {
+            console.log('UPI ID resolved to address:', resolvedAddress);
+            setRecipient(resolvedAddress);
+          }
+          
+          toast({
+            title: "UPI QR Code Scanned",
+            description: `UPI ID loaded: ${upiData.upiId}${upiData.amount ? ` (₹${upiData.amount})` : ''}`,
+            duration: 3000,
+          });
+        } else if (trimmedResult.startsWith('0x') || trimmedResult.length >= 40) {
+          // Treat as wallet address
+          console.log('Setting recipient address to:', trimmedResult);
+          setRecipient(trimmedResult);
+          
+          toast({
+            title: "Wallet QR Code Scanned",
+            description: `Address loaded: ${trimmedResult.length > 30 ? trimmedResult.slice(0, 30) + '...' : trimmedResult}`,
+            duration: 3000,
+          });
+        } else {
+          console.log('Unknown QR format:', trimmedResult);
+          throw new Error('QR code format not recognized. Please use a wallet address or UPI QR code.');
+        }
       } else {
         console.log('No valid result from QR scan, result was:', result);
         throw new Error('No valid QR code data found in image');
@@ -361,13 +407,47 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
         videoRef.current,
         (result) => {
           console.log('QR Code detected:', result.data);
-          setRecipient(result.data);
-          stopCameraScanning();
-          toast({
-            title: "QR Code Scanned",
-            description: "Address has been filled automatically",
-            duration: 3000,
-          });
+          
+          // Try to parse as UPI QR first
+          const upiData = parseUpiQr(result.data);
+          if (upiData) {
+            console.log('UPI QR detected from camera:', upiData);
+            setUpiId(upiData.upiId);
+            if (upiData.amount) {
+              setInrAmount(upiData.amount);
+            }
+            
+            // Try to resolve UPI ID to address
+            const resolvedAddress = getPublicKeyByUpiId(upiData.upiId);
+            if (resolvedAddress) {
+              console.log('UPI ID resolved to address:', resolvedAddress);
+              setRecipient(resolvedAddress);
+            }
+            
+            stopCameraScanning();
+            toast({
+              title: "UPI QR Code Scanned",
+              description: `UPI ID loaded: ${upiData.upiId}${upiData.amount ? ` (₹${upiData.amount})` : ''}`,
+              duration: 3000,
+            });
+          } else if (result.data.startsWith('0x') || result.data.length >= 40) {
+            // Treat as wallet address
+            setRecipient(result.data);
+            stopCameraScanning();
+            toast({
+              title: "Wallet QR Code Scanned",
+              description: "Address has been filled automatically",
+              duration: 3000,
+            });
+          } else {
+            stopCameraScanning();
+            toast({
+              title: "QR Code Error",
+              description: "QR code format not recognized. Please use a wallet address or UPI QR code.",
+              variant: "destructive",
+              duration: 3000,
+            });
+          }
         },
         {
           highlightScanRegion: true,
@@ -520,6 +600,53 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
               />
             </div>
 
+            {/* UPI ID Field */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-300 text-sm">Or send using UPI ID</Label>
+                <span className="text-xs text-gray-500">Alternative to wallet address</span>
+              </div>
+              <Input
+                type="text"
+                placeholder="user@paytm, user@gpay, etc."
+                value={upiId}
+                onChange={(e) => {
+                  setUpiId(e.target.value);
+                  // Clear recipient when UPI ID is entered
+                  if (e.target.value.trim()) {
+                    setRecipient('');
+                  }
+                }}
+                className="font-mono text-sm h-12 bg-gray-900 border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:border-gray-600"
+              />
+              {upiId && isValidUpiId(upiId) && (
+                <div className="flex items-center justify-between text-xs">
+                  {getPublicKeyByUpiId(upiId) ? (
+                    <span className="text-green-400 flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      UPI ID found in directory
+                    </span>
+                  ) : (
+                    <span className="text-yellow-400 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      UPI ID not registered yet
+                    </span>
+                  )}
+                  {getPublicKeyByUpiId(upiId) && (
+                    <span className="text-xs text-gray-500 font-mono">
+                      → {getPublicKeyByUpiId(upiId)?.slice(0, 6)}...{getPublicKeyByUpiId(upiId)?.slice(-4)}
+                    </span>
+                  )}
+                </div>
+              )}
+              {upiId && !isValidUpiId(upiId) && (
+                <div className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Invalid UPI ID format (e.g., user@paytm)
+                </div>
+              )}
+            </div>
+
             {/* Current Balance Display */}
             <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 mb-2">
               <div className="flex justify-between items-center">
@@ -667,7 +794,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
             <Button
               onClick={handleSend}
               className="w-full h-12 bg-white hover:bg-gray-200 text-black font-medium rounded-lg transition-all duration-200 mt-6"
-              disabled={isLoading || !recipient || !inrAmount}
+              disabled={isLoading || (!recipient && !upiId) || !inrAmount}
             >
               {isLoading ? (
                 <div className="flex items-center gap-2">
