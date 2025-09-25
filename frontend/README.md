@@ -63,5 +63,5 @@
 
 > *"We're building a smart wallet on Aptos that makes money move like
 > messages. With UPI--crypto bridging, EMI options, and NFT-backed
-> loyalty, it's the first wallet to blend DeFi + RWA + Indian payments
+> loyalty, it's the first wallet to blend Payments + RWA + global transactions
 > in one place."*

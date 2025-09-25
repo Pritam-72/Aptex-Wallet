@@ -174,7 +174,7 @@ const HeroSection = () => {
         {/* Subheading */}
         <p className="text-base xs:text-lg sm:text-lg md:text-xl text-white/90 max-w-sm sm:max-w-2xl md:max-w-3xl mx-auto text-balance leading-relaxed px-2 sm:px-2 md:px-0">
           <span className="sm:hidden block">Crypto-UPI bridge with EMI & NFT rewards.</span>
-          <span className="hidden sm:inline">We're building a smart wallet on Aptos that makes money move like messages. With UPI-crypto bridging, EMI options, and NFT-backed loyalty, it's the first wallet to blend <span className="text-cyan-200">DeFi + RWA + Global payments</span> in one place.</span>
+          <span className="hidden sm:inline">We're building a smart wallet on Aptos that makes money move like messages. With UPI-crypto bridging, EMI options, and NFT-backed loyalty, it's the first wallet to blend <span className="text-cyan-200">Payments + RWA + Global transactions</span> in one place.</span>
         </p>
 
         {/* CTA Buttons */}
