@@ -1,2 +1,150 @@
-.aptos/
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build outputs
+dist/
 build/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output/
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+
+# Aptos specific
+# Aptos CLI generated files
+.aptos/
+
+# Move build artifacts
+**/build/
+**/.aptos/
+
+# Move package lock files
+**/Move.lock
+
+# Aptos keystore files
+*.key
+*.yaml
+**/BuildInfo.yaml
+
+# Compiled Move modules
+**/*.mv
+**/*.mvsm
+
+# Local blockchain data
+.movement/
+
+# Contract artifacts and generated files
+**/sources/dependencies/
+**/bytecode_modules/
+**/source_maps/
+
+# Test outputs
+**/test_results/
+
+# Wallet and key files (IMPORTANT: Never commit these)
+wallet.yaml
+private_key
+*.pem
+keystore.json
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+
+# Local development
+.local/
+.cache/
+
+# ESLint and Prettier
+.eslintrc.local.js
+.prettierrc.local.js
+
+# TypeScript
+*.tsbuildinfo
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*

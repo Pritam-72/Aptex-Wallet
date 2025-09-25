@@ -9,7 +9,8 @@ import {
   BarChart3, 
   Shield,
   Menu,
-  Copy
+  Copy,
+  UserPlus
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -42,6 +43,8 @@ import { EnhancedSidebarLink, type SidebarLinkProps } from '@/components/dashboa
 import { AddressQRCode } from '@/components/dashboard/AddressQRCode';
 import { SidebarFooter } from '@/components/dashboard/SidebarFooter';
 import { SidebarHeader } from '@/components/dashboard/SidebarHeader';
+import { RequestMoney } from '@/components/RequestMoney';
+import { RegisterWallet } from '@/components/RegisterWallet';
 
 const SimpleDashboard = () => {
   const navigate = useNavigate();
@@ -67,6 +70,10 @@ const SimpleDashboard = () => {
   const [showAddWallet, setShowAddWallet] = useState(false);
   const [addWalletLoading, setAddWalletLoading] = useState(false);
   const [accountList, setAccountList] = useState<WalletAccount[]>([]);
+
+const [showRequestMoney, setShowRequestMoney] = useState(false);
+
+  const [showRegisterWallet, setShowRegisterWallet] = useState(false);
 
   // Persist sidebar state
   useEffect(() => {
@@ -296,6 +303,10 @@ const SimpleDashboard = () => {
     }
   };
 
+  const handleRegisterWallet = () => {
+    setShowRegisterWallet(true);
+  };
+
   const sidebarLinks: SidebarLinkProps[] = [
     {
       label: "Wallet",
@@ -312,6 +323,21 @@ const SimpleDashboard = () => {
       onClick: () => setShowSendTransaction(true),
       isActive: false,
       isAction: true
+    },
+    {
+
+      label: "Register ID",
+
+      href: "#register",
+
+      icon: <UserPlus className="h-7 w-7 flex-shrink-0" />,
+
+      onClick: handleRegisterWallet,
+
+      isActive: false,
+
+      isAction: true
+
     },
     {
       label: "Transactions",
@@ -518,6 +544,36 @@ const SimpleDashboard = () => {
             </motion.div>
           </motion.div>
         )}
+
+         {/* Request Money Modal */}
+
+        <RequestMoney
+
+          isOpen={showRequestMoney}
+
+          onClose={() => setShowRequestMoney(false)}
+
+        />
+
+
+
+        {/* Register Wallet Modal */}
+
+        <RegisterWallet
+
+          isOpen={showRegisterWallet}
+
+          onClose={() => setShowRegisterWallet(false)}
+
+          onSuccess={() => {
+
+            // Optionally refresh balance or show success message
+
+            console.log('Wallet ID registered successfully!');
+
+          }}
+
+        />
 
         {showReceiveQR && currentAccount && (
           <motion.div
