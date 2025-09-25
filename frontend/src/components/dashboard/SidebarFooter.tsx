@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { motion } from 'framer-motion';
-import { Wallet, ChevronDown, QrCode, Copy, Shield, LogOut } from 'lucide-react';
+import { Wallet, ChevronDown, QrCode, Copy, LogOut } from 'lucide-react';
 import { type WalletAccount } from '@/utils/walletUtils';
 
 interface SidebarFooterProps {
@@ -13,7 +13,6 @@ interface SidebarFooterProps {
   onSwitchAccount: (index: number) => void;
   onShowReceiveQR: () => void;
   onCopyAddress: (address: string) => void;
-  onSetActiveSection: (section: string) => void;
   onLogout: () => void;
 }
 
@@ -29,7 +28,6 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
   onSwitchAccount,
   onShowReceiveQR,
   onCopyAddress,
-  onSetActiveSection,
   onLogout
 }) => {
   return (
@@ -104,19 +102,6 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
                 </Button>
               </div>
             </div>
-          </div>
-          
-          {/* Account Actions */}
-          <div className="space-y-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onSetActiveSection('security')}
-              className="w-full border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-            >
-              <Shield className="h-4 w-4 mr-2" />
-              Security
-            </Button>
           </div>
         </motion.div>
       ) : (

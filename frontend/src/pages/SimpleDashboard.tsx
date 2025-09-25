@@ -510,7 +510,6 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
             onSwitchAccount={handleSwitchAccount}
             onShowReceiveQR={generateAddressQR}
             onCopyAddress={copyToClipboard}
-            onSetActiveSection={handleSectionChange}
             onLogout={handleLogout}
           />
         </div>
