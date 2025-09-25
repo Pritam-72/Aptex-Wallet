@@ -133,17 +133,6 @@ export const ReceiveTransaction: React.FC<ReceiveTransactionProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto bg-black/95 backdrop-blur-md border border-gray-800 shadow-2xl">
-        <div className="absolute right-4 top-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="h-8 w-8 p-0 hover:bg-gray-800/50 rounded-full text-gray-400 hover:text-white"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
         <div className="pt-4 pb-4">
           <div className="flex items-center justify-center mb-4">
             <div className="h-10 w-10 bg-green-500 rounded-full flex items-center justify-center">
