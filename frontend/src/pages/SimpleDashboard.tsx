@@ -45,6 +45,9 @@ import { AddressQRCode } from '@/components/dashboard/AddressQRCode';
 import { SidebarFooter } from '@/components/dashboard/SidebarFooter';
 import { SidebarHeader } from '@/components/dashboard/SidebarHeader';
 import { RequestMoney } from '@/components/RequestMoney';
+import { ReceiveTransaction } from '@/components/ReceiveTransaction';
+import { SendPaymentRequest } from '@/components/SendPaymentRequest';
+import { PaymentRequestsSection } from '@/components/PaymentRequestsSection';
 import { RegisterWallet } from '@/components/RegisterWallet';
 import EventsPage from '@/pages/EventsPage';
 
@@ -74,6 +77,7 @@ const SimpleDashboard = () => {
   const [accountList, setAccountList] = useState<WalletAccount[]>([]);
 
 const [showRequestMoney, setShowRequestMoney] = useState(false);
+  const [showSendPaymentRequest, setShowSendPaymentRequest] = useState(false);
   const [showRegisterWallet, setShowRegisterWallet] = useState(false);
   const [transactionRefreshFlag, setTransactionRefreshFlag] = useState(0);
 
@@ -326,9 +330,11 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
   };
 
   const handleRequestMoney = () => {
-    // For now, we'll just show the receive QR (same as receive)
-    // In the future, this could open a request money modal or form
-    setShowReceiveQR(true);
+    setShowRequestMoney(true);
+  };
+
+  const handleSendPaymentRequest = () => {
+    setShowSendPaymentRequest(true);
   };
 
   const handleSectionChange = (section: string) => {
@@ -519,18 +525,33 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
               className="p-6"
             >
               {activeSection === 'wallet' && (
-                <WalletSection
-                  balance={balance}
-                  showBalance={showBalance}
-                  currentAccount={currentAccount?.address || null}
-                  transactions={transactions}
-                  onToggleBalance={() => setShowBalance(!showBalance)}
-                  onSendTransaction={() => setShowSendTransaction(true)}
-                  onRequestMoney={handleRequestMoney}
-                  onShowReceiveQR={generateAddressQR}
-                  onViewTransactions={() => handleSectionChange('transactions')}
-                  onCopyAddress={() => copyToClipboard(currentAccount?.address || '')}
-                />
+                <div className="space-y-6">
+                  <WalletSection
+                    balance={balance}
+                    showBalance={showBalance}
+                    currentAccount={currentAccount?.address || null}
+                    transactions={transactions}
+                    onToggleBalance={() => setShowBalance(!showBalance)}
+                    onSendTransaction={() => setShowSendTransaction(true)}
+                    onRequestMoney={handleRequestMoney}
+                    onSendPaymentRequest={handleSendPaymentRequest}
+                    onShowReceiveQR={generateAddressQR}
+                    onViewTransactions={() => handleSectionChange('transactions')}
+                    onCopyAddress={() => copyToClipboard(currentAccount?.address || '')}
+                  />
+                  
+                  <PaymentRequestsSection
+                    userAddress={currentAccount?.address || ''}
+                    onSendRequest={handleSendPaymentRequest}
+                    onBalanceUpdate={() => {
+                      // Refresh balance after payment request is accepted
+                      if (currentAccount) {
+                        const freshBalance = getBalanceForAddress(currentAccount.address);
+                        setBalance(freshBalance);
+                      }
+                    }}
+                  />
+                </div>
               )}
 
               {activeSection === 'transactions' && (
@@ -583,11 +604,16 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
          {/* Request Money Modal */}
 
         <RequestMoney
-
           isOpen={showRequestMoney}
-
           onClose={() => setShowRequestMoney(false)}
+          userAddress={currentAccount?.address || ''}
+        />
 
+        {/* Send Payment Request Modal */}
+        <SendPaymentRequest
+          isOpen={showSendPaymentRequest}
+          onClose={() => setShowSendPaymentRequest(false)}
+          userAddress={currentAccount?.address || ''}
         />
 
 
@@ -610,55 +636,11 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
 
         />
 
-        {showReceiveQR && currentAccount && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowReceiveQR(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-background rounded-lg shadow-xl max-w-sm w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6 text-center space-y-4">
-                <h3 className="text-lg font-semibold">Receive APT</h3>
-                <div className="bg-white p-4 rounded-lg">
-                  <QRCodeSVG
-                    value={currentAccount.address}
-                    size={200}
-                    className="mx-auto"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Your Address</p>
-                  <div className="flex items-center gap-2 p-2 bg-muted rounded text-sm font-mono">
-                    <span className="flex-1 truncate">{currentAccount.address}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyToClipboard(currentAccount.address)}
-                      className="h-6 w-6 p-0"
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowReceiveQR(false)}
-                  className="w-full"
-                >
-                  Close
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+        <ReceiveTransaction
+          isOpen={showReceiveQR}
+          onClose={() => setShowReceiveQR(false)}
+          address={currentAccount?.address || ''}
+        />
       </AnimatePresence>
     </div>
   );

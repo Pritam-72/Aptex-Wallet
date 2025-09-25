@@ -21,6 +21,7 @@ interface WalletSectionProps {
   onCopyAddress: () => void;
   onSendTransaction: () => void;
   onRequestMoney: () => void;
+  onSendPaymentRequest: () => void;
   onShowReceiveQR: () => void;
   onViewTransactions: () => void;
 }
@@ -34,6 +35,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
   onCopyAddress,
   onSendTransaction,
   onRequestMoney,
+  onSendPaymentRequest,
   onShowReceiveQR,
   onViewTransactions,
 }) => {
@@ -147,68 +149,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
         </Card>
       </div>
 
-      {/* Recent Transactions Preview */}
-      <Card className="cosmic-glow bg-card/50 backdrop-blur-sm border-border/50">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-foreground">Recent Transactions</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onViewTransactions}
-              className="border-border hover:bg-muted/50 cosmic-glow"
-            >
-              View All
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {transactions.length > 0 ? (
-            <div className="space-y-3">
-              {transactions.slice(0, 3).map((tx: Transaction, index: number) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-muted/10 rounded-lg border border-border/20">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 bg-primary/10 rounded-full flex items-center justify-center">
-                      <ArrowUpDown className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-foreground">
-                        {tx.type?.includes('transfer') ? 'Transfer' : 'Transaction'}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(parseInt(tx.timestamp) / 1000).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-foreground">
-                      {tx.version || 'N/A'}
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {tx.success ? 'Success' : 'Failed'}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <History className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">No Recent Transactions</h3>
-              <p className="text-muted-foreground mb-4">
-                Your transaction history will appear here
-              </p>
-              <Button
-                variant="outline"
-                onClick={onSendTransaction}
-                className="border-border hover:bg-muted/50"
-              >
-                Send Your First Transaction
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Payment Requests Section - This will be rendered separately */}
     </div>
   );
 };

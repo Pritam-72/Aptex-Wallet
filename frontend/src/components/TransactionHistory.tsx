@@ -5,10 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Download, Search, Filter, ExternalLink, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { Download, Search, Filter, ExternalLink, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, RefreshCw, Users } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { getAccountTransactions, ProcessedTransaction } from '@/utils/aptosWalletUtils';
 import { getCurrentPublicKey, getStoredTransactions, addTransactionToStorage } from '@/utils/transactionStorage';
+import { SplitBillModal } from './SplitBillModal';
 import * as XLSX from 'xlsx';
 
 // Updated transaction interface to match real Aptos transactions
@@ -53,6 +54,15 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [refreshing, setRefreshing] = useState(false);
+
+  // Split Bill Modal state
+  const [splitBillModal, setSplitBillModal] = useState<{
+    isOpen: boolean;
+    transaction: PaymentTransaction | null;
+  }>({
+    isOpen: false,
+    transaction: null
+  });
 
   // Mock APT to INR conversion (1 APT = 1000 INR for demo)
   const convertAPTToINR = (aptAmount: string): number => {
@@ -162,6 +172,27 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
       console.error('Export failed:', error);
       alert('Export failed. Please try again.');
     }
+  };
+
+  // Handle split bill
+  const handleSplitBill = (transaction: PaymentTransaction) => {
+    if (!transaction.txHash) {
+      console.error('Cannot split bill: Transaction hash is missing');
+      return;
+    }
+
+    setSplitBillModal({
+      isOpen: true,
+      transaction
+    });
+  };
+
+  // Close split bill modal
+  const closeSplitBillModal = () => {
+    setSplitBillModal({
+      isOpen: false,
+      transaction: null
+    });
   };
   const getStatusBadge = (status: 'confirmed' | 'pending' | 'failed') => {
     switch (status) {
@@ -361,6 +392,21 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                       </div>
                     )}
                   </div>
+                  
+                  {/* Split Bill Button */}
+                  {tx.txHash && (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <Button
+                        onClick={() => handleSplitBill(tx)}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs hover:bg-purple-600/10 hover:border-purple-600/20 hover:text-purple-400"
+                      >
+                        <Users className="h-3 w-3 mr-2" />
+                        Split Bill
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))
@@ -388,12 +434,13 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                 <th className="p-4 text-left text-xs uppercase tracking-wider text-muted-foreground font-medium">Date</th>
                 <th className="p-4 text-left text-xs uppercase tracking-wider text-muted-foreground font-medium">Status</th>
                 <th className="p-4 text-left text-xs uppercase tracking-wider text-muted-foreground font-medium">Hash</th>
+                <th className="p-4 text-left text-xs uppercase tracking-wider text-muted-foreground font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="text-center p-12">
+                  <td colSpan={7} className="text-center p-12">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
                       <p className="text-muted-foreground">Loading transactions from Aptos devnet...</p>
@@ -445,11 +492,24 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                         <ExternalLink className="h-3 w-3 ml-1" />
                       </a>
                     </td>
+                    <td className="p-4">
+                      {tx.txHash && (
+                        <Button
+                          onClick={() => handleSplitBill(tx)}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs hover:bg-purple-600/10 hover:border-purple-600/20 hover:text-purple-400"
+                        >
+                          <Users className="h-3 w-3 mr-1" />
+                          Split
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="text-center p-12">
+                  <td colSpan={7} className="text-center p-12">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <div className="h-12 w-12 rounded-full bg-muted/20 flex items-center justify-center">
                         <Clock className="h-6 w-6 text-muted-foreground" />
@@ -464,6 +524,20 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
           </table>
         </div>
       </CardContent>
+
+      {/* Split Bill Modal */}
+      {splitBillModal.transaction && (
+        <SplitBillModal
+          isOpen={splitBillModal.isOpen}
+          onClose={closeSplitBillModal}
+          originalTransaction={{
+            txHash: splitBillModal.transaction.txHash || '',
+            amount: splitBillModal.transaction.aptosAmount,
+            description: `Transaction ${splitBillModal.transaction.txHash?.slice(0, 8)}...`
+          }}
+          userAddress={address || ''}
+        />
+      )}
     </Card>
   );
 };
