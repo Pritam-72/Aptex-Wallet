@@ -5,11 +5,14 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Download, Search, Filter, ExternalLink, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, RefreshCw, Users } from 'lucide-react';
+import { Download, Search, Filter, ExternalLink, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, RefreshCw, Users, FileImage } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { getAccountTransactions, ProcessedTransaction } from '@/utils/aptosWalletUtils';
 import { getCurrentPublicKey, getStoredTransactions, addTransactionToStorage } from '@/utils/transactionStorage';
 import { SplitBillModal } from './SplitBillModal';
+import { InvoicePreviewModal } from './InvoicePreviewModal';
+import { InvoiceData, downloadInvoice } from '@/utils/invoiceGenerator';
+import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 
 // Updated transaction interface to match real Aptos transactions
@@ -64,9 +67,70 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
     transaction: null
   });
 
+  // Invoice Modal state
+  const [invoiceModal, setInvoiceModal] = useState<{
+    isOpen: boolean;
+    transaction: PaymentTransaction | null;
+  }>({
+    isOpen: false,
+    transaction: null
+  });
+
+  const { toast } = useToast();
+
   // Mock APT to INR conversion (1 APT = 1000 INR for demo)
   const convertAPTToINR = (aptAmount: string): number => {
     return parseFloat(aptAmount) * 373;
+  };
+
+  // Invoice generation functions
+  const handleGenerateInvoice = (transaction: PaymentTransaction) => {
+    setInvoiceModal({
+      isOpen: true,
+      transaction: transaction
+    });
+  };
+
+  const closeInvoiceModal = () => {
+    setInvoiceModal({
+      isOpen: false,
+      transaction: null
+    });
+  };
+
+  const convertToInvoiceData = (transaction: PaymentTransaction): InvoiceData => {
+    return {
+      transactionHash: transaction.txHash || `mock-${Date.now()}`,
+      from: transaction.from,
+      to: transaction.to,
+      amount: transaction.aptosAmount,
+      type: transaction.type === 'other' ? 'sent' : transaction.type,
+      timestamp: transaction.timestamp,
+      status: transaction.status || 'confirmed'
+    };
+  };
+
+  const handleQuickDownload = async (transaction: PaymentTransaction) => {
+    try {
+      const invoiceData = convertToInvoiceData(transaction);
+      const success = await downloadInvoice(invoiceData);
+      
+      if (success) {
+        toast({
+          title: "Invoice Downloaded! 📄",
+          description: "Your transaction invoice NFT has been saved to your device.",
+          duration: 4000,
+        });
+      }
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      toast({
+        title: "Download Error",
+        description: "Failed to download invoice. Please try again.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
   };
 
 
@@ -393,17 +457,37 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                     )}
                   </div>
                   
-                  {/* Split Bill Button */}
+                  {/* Action Buttons */}
                   {tx.txHash && (
-                    <div className="mt-3 pt-3 border-t border-border">
+                    <div className="mt-3 pt-3 border-t border-border space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          onClick={() => handleSplitBill(tx)}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs hover:bg-purple-600/10 hover:border-purple-600/20 hover:text-purple-400"
+                        >
+                          <Users className="h-3 w-3 mr-2" />
+                          Split Bill
+                        </Button>
+                        <Button
+                          onClick={() => handleGenerateInvoice(tx)}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs hover:bg-blue-600/10 hover:border-blue-600/20 hover:text-blue-400"
+                        >
+                          <FileImage className="h-3 w-3 mr-2" />
+                          Invoice NFT
+                        </Button>
+                      </div>
                       <Button
-                        onClick={() => handleSplitBill(tx)}
+                        onClick={() => handleQuickDownload(tx)}
                         variant="outline"
                         size="sm"
-                        className="w-full text-xs hover:bg-purple-600/10 hover:border-purple-600/20 hover:text-purple-400"
+                        className="w-full text-xs hover:bg-green-600/10 hover:border-green-600/20 hover:text-green-400"
                       >
-                        <Users className="h-3 w-3 mr-2" />
-                        Split Bill
+                        <Download className="h-3 w-3 mr-2" />
+                        Quick Download Invoice
                       </Button>
                     </div>
                   )}
@@ -494,15 +578,34 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                     </td>
                     <td className="p-4">
                       {tx.txHash && (
-                        <Button
-                          onClick={() => handleSplitBill(tx)}
-                          variant="outline"
-                          size="sm"
-                          className="text-xs hover:bg-purple-600/10 hover:border-purple-600/20 hover:text-purple-400"
-                        >
-                          <Users className="h-3 w-3 mr-1" />
-                          Split
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => handleSplitBill(tx)}
+                            variant="outline"
+                            size="sm"
+                            className="text-xs hover:bg-purple-600/10 hover:border-purple-600/20 hover:text-purple-400"
+                          >
+                            <Users className="h-3 w-3 mr-1" />
+                            Split
+                          </Button>
+                          <Button
+                            onClick={() => handleGenerateInvoice(tx)}
+                            variant="outline"
+                            size="sm"
+                            className="text-xs hover:bg-blue-600/10 hover:border-blue-600/20 hover:text-blue-400"
+                          >
+                            <FileImage className="h-3 w-3 mr-1" />
+                            Invoice
+                          </Button>
+                          <Button
+                            onClick={() => handleQuickDownload(tx)}
+                            variant="outline"
+                            size="sm"
+                            className="text-xs hover:bg-green-600/10 hover:border-green-600/20 hover:text-green-400"
+                          >
+                            <Download className="h-3 w-3" />
+                          </Button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -536,6 +639,15 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
             description: `Transaction ${splitBillModal.transaction.txHash?.slice(0, 8)}...`
           }}
           userAddress={address || ''}
+        />
+      )}
+
+      {/* Invoice Preview Modal */}
+      {invoiceModal.transaction && (
+        <InvoicePreviewModal
+          isOpen={invoiceModal.isOpen}
+          onClose={closeInvoiceModal}
+          transaction={convertToInvoiceData(invoiceModal.transaction)}
         />
       )}
     </Card>

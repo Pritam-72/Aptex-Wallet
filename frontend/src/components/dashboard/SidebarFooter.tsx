@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { motion } from 'framer-motion';
-import { Wallet, ChevronDown, QrCode, Copy, Shield, Settings, LogOut } from 'lucide-react';
+import { Wallet, ChevronDown, QrCode, Copy, LogOut } from 'lucide-react';
 import { type WalletAccount } from '@/utils/walletUtils';
 
 interface SidebarFooterProps {
@@ -13,7 +13,6 @@ interface SidebarFooterProps {
   onSwitchAccount: (index: number) => void;
   onShowReceiveQR: () => void;
   onCopyAddress: (address: string) => void;
-  onSetActiveSection: (section: string) => void;
   onLogout: () => void;
 }
 
@@ -29,7 +28,6 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
   onSwitchAccount,
   onShowReceiveQR,
   onCopyAddress,
-  onSetActiveSection,
   onLogout
 }) => {
   return (
@@ -105,28 +103,6 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
               </div>
             </div>
           </div>
-          
-          {/* Account Actions */}
-          <div className="space-y-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onSetActiveSection('security')}
-              className="w-full border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-            >
-              <Shield className="h-4 w-4 mr-2" />
-              Security
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onSetActiveSection('settings')}
-              className="w-full border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </Button>
-          </div>
         </motion.div>
       ) : (
         <div className={`space-y-4 ${!sidebarOpen ? 'hidden' : ''}`}>
@@ -170,15 +146,6 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
                 >
                   <QrCode className="h-3 w-3" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onSetActiveSection('settings')}
-                  className="h-7 w-7 p-1 hover:bg-muted/50 rounded-lg"
-                  title="Settings"
-                >
-                  <Settings className="h-3 w-3" />
-                </Button>
               </div>
             </div>
           ) : (
@@ -187,15 +154,6 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
               <div className="h-8 w-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center" title="Main Wallet - Not connected">
                 <Wallet className="h-4 w-4 text-white" />
               </div>
-              <Button
-                variant="ghost" 
-                size="sm"
-                onClick={() => onSetActiveSection('settings')}
-                className="h-8 w-8 p-1 hover:bg-muted/50 rounded-lg"
-                title="Settings"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
             </div>
           )}
         </div>

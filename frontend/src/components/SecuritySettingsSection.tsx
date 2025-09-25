@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ChangePasswordModal } from './ChangePasswordModal';
 
 const SecuritySettingsSection = () => {
   const [notifications, setNotifications] = useState({
@@ -22,6 +23,12 @@ const SecuritySettingsSection = () => {
   });
 
   const [showSeedPhrase, setShowSeedPhrase] = useState(false);
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+
+  const handlePasswordChanged = () => {
+    // Password was successfully changed
+    console.log('Password changed successfully');
+  };
 
   const seedPhrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
@@ -264,9 +271,13 @@ const SecuritySettingsSection = () => {
               <h3 className="text-xl font-semibold mb-6">Account Actions</h3>
               
               <div className="space-y-3">
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => setIsChangePasswordModalOpen(true)}
+                >
                   <Lock className="h-4 w-4 mr-2" />
-                  Change Passcode
+                  Change Password
                 </Button>
                 <Button variant="outline" className="w-full justify-start">
                   <Smartphone className="h-4 w-4 mr-2" />
@@ -281,6 +292,13 @@ const SecuritySettingsSection = () => {
           </div>
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordModalOpen}
+        onClose={() => setIsChangePasswordModalOpen(false)}
+        onPasswordChanged={handlePasswordChanged}
+      />
     </section>
   );
 };

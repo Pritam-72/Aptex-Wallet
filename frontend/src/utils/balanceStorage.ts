@@ -80,8 +80,7 @@ export const updateBalancesAfterTransaction = (fromAddress: string, toAddress: s
   }
 };
 
-// Function to initialize balance for new accounts
-export const initializeAccountBalance = (address: string, initialBalance: string = '100') => {
+export const initializeAccountBalance = (address: string, initialBalance: string = '1') => {
   const existingBalance = getBalanceForAddress(address);
   if (existingBalance === '0') {
     setBalanceForAddress(address, initialBalance);
@@ -89,7 +88,7 @@ export const initializeAccountBalance = (address: string, initialBalance: string
   }
 };
 
-// Function to get current account balance
+
 export const getCurrentAccountBalance = (): string => {
   try {
     const walletData = getCurrentWalletData();

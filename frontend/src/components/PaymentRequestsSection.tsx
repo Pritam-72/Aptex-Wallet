@@ -22,6 +22,7 @@ import {
   rejectPaymentRequest,
   PaymentRequest 
 } from '@/utils/paymentRequestStorage';
+import { handleTransactionAndMintNFTs } from '@/utils/nftStorage';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface PaymentRequestsSectionProps {
@@ -61,10 +62,24 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
     try {
       await acceptPaymentRequest(requestId, userAddress);
       
+      // Handle NFT minting after successful payment
+      const nftResults = handleTransactionAndMintNFTs(userAddress);
+      
+      // Show success toast with NFT minting results
+      let toastDescription = "Payment has been sent successfully";
+      
+      if (nftResults.loyaltyNFT) {
+        toastDescription += ` 🏆 New ${nftResults.loyaltyNFT.tier} loyalty NFT earned!`;
+      }
+      
+      if (nftResults.offerNFT) {
+        toastDescription += ` 🎁 Bonus offer NFT received: ${nftResults.offerNFT.discountPercentage}% off at ${nftResults.offerNFT.companyName}!`;
+      }
+      
       toast({
         title: "Request Accepted! ✅",
-        description: "Payment has been sent successfully",
-        duration: 4000,
+        description: toastDescription,
+        duration: 6000,
       });
       
       loadRequests();

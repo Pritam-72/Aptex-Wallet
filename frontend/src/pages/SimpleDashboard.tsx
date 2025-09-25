@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
-import { 
+import {
   Wallet, 
   Send, 
   History, 
@@ -11,7 +11,10 @@ import {
   Copy,
   UserPlus,
   FileText,
-  Calendar
+  Calendar,
+  Zap,
+  Gem,
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -33,6 +36,7 @@ import {
 } from '@/utils/walletUtils';
 import { getWalletBalance, testAptosConnection } from '@/utils/aptosWalletUtils';
 import { getBalanceForAddress, initializeAccountBalance } from '@/utils/balanceStorage';
+import { initializeUserStats } from '@/utils/nftStorage';
 
 // Import all the new components
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
@@ -49,7 +53,12 @@ import { ReceiveTransaction } from '@/components/ReceiveTransaction';
 import { SendPaymentRequest } from '@/components/SendPaymentRequest';
 import { PaymentRequestsSection } from '@/components/PaymentRequestsSection';
 import { RegisterWallet } from '@/components/RegisterWallet';
+
+import { CollectablesSection } from '@/components/CollectablesSection';
+import { AutoPaySection } from '@/components/AutoPaySection';
 import EventsPage from '@/pages/EventsPage';
+import { UpiDashboard } from '@/pages/UpiDashboard';
+import { UpiQuickAccess } from '@/components/UpiQuickAccess';
 
 const SimpleDashboard = () => {
   const navigate = useNavigate();
@@ -79,6 +88,7 @@ const SimpleDashboard = () => {
 const [showRequestMoney, setShowRequestMoney] = useState(false);
   const [showSendPaymentRequest, setShowSendPaymentRequest] = useState(false);
   const [showRegisterWallet, setShowRegisterWallet] = useState(false);
+
   const [transactionRefreshFlag, setTransactionRefreshFlag] = useState(0);
 
   // Persist sidebar state
@@ -112,13 +122,17 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
             break;
           case '2':
             event.preventDefault();
-            setActiveSection('transactions');
+            setActiveSection('collectables');
             break;
           case '3':
             event.preventDefault();
-            setActiveSection('security');
+            setActiveSection('transactions');
             break;
           case '4':
+            event.preventDefault();
+            setActiveSection('security');
+            break;
+          case '5':
             event.preventDefault();
             setActiveSection('events');
             break;
@@ -136,6 +150,9 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       
       // Initialize account balance if it doesn't exist (for demo purposes)
       initializeAccountBalance(account.address, '100');
+      
+      // Initialize user stats for NFT system
+      initializeUserStats(account.address);
       
       // Get balance from localStorage
       const accountBalance = getBalanceForAddress(account.address);
@@ -248,6 +265,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       if (account) {
         // Initialize with demo balance for new wallet
         initializeAccountBalance(account.address, '100');
+        // Initialize user stats for NFT system
+        initializeUserStats(account.address);
         await loadWalletData(account);
       }
     } catch (error) {
@@ -267,6 +286,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
         setCurrentAccount(newAccount);
         // Initialize with demo balance for new account
         initializeAccountBalance(newAccount.address, '100');
+        // Initialize user stats for NFT system
+        initializeUserStats(newAccount.address);
         await loadWalletData(newAccount);
       }
     } catch (error) {
@@ -284,6 +305,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
         setCurrentAccount(newAccount);
         // Initialize balance if it doesn't exist for this account
         initializeAccountBalance(newAccount.address, '100');
+        // Initialize user stats for NFT system
+        initializeUserStats(newAccount.address);
         await loadWalletData(newAccount);
         setIsLoading(false);
       }
@@ -348,6 +371,10 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
     setShowRegisterWallet(true);
   };
 
+  const handleAutoPay = () => {
+    handleSectionChange('autopay');
+  };
+
   const sidebarLinks: SidebarLinkProps[] = [
     {
       label: "Wallet",
@@ -366,6 +393,14 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       isAction: true
     },
     {
+      label: "UPI Manager",
+      href: "#upi",
+      icon: <CreditCard className="h-7 w-7 flex-shrink-0" />,
+      onClick: () => handleSectionChange('upi'),
+      isActive: activeSection === 'upi',
+      shortcut: '⌘U'
+    },
+    {
       label: "Register ID",
       href: "#register",
       icon: <UserPlus className="h-7 w-7 flex-shrink-0" />,
@@ -374,12 +409,28 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       isAction: true
     },
     {
+      label: "AutoPay",
+      href: "#autopay",
+      icon: <Zap className="h-7 w-7 flex-shrink-0" />,
+      onClick: handleAutoPay,
+      isActive: activeSection === 'autopay',
+      shortcut: '⌘2'
+    },
+    {
+      label: "Collectables",
+      href: "#collectables",
+      icon: <Gem className="h-7 w-7 flex-shrink-0" />,
+      onClick: () => handleSectionChange('collectables'),
+      isActive: activeSection === 'collectables',
+      shortcut: '⌘3'
+    },
+    {
       label: "Transactions",
       href: "#transactions",
       icon: <History className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('transactions'),
       isActive: activeSection === 'transactions',
-      shortcut: '⌘2'
+      shortcut: '⌘4'
     },
     {
       label: "Security",
@@ -387,7 +438,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       icon: <Shield className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('security'),
       isActive: activeSection === 'security',
-      shortcut: '⌘3'
+      shortcut: '⌘5'
     },
     {
       label: "Events",
@@ -395,7 +446,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       icon: <Calendar className="h-7 w-7 flex-shrink-0" />,
       onClick: () => handleSectionChange('events'),
       isActive: activeSection === 'events',
-      shortcut: '⌘4'
+      shortcut: '⌘6'
     }
   ];
 
@@ -470,7 +521,6 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
             onSwitchAccount={handleSwitchAccount}
             onShowReceiveQR={generateAddressQR}
             onCopyAddress={copyToClipboard}
-            onSetActiveSection={handleSectionChange}
             onLogout={handleLogout}
           />
         </div>
@@ -506,7 +556,6 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
           setSidebarOpen={setSidebarOpen}
           currentAccount={currentAccount}
           user={user}
-          onRefreshBalance={refreshBalance}
           onShowReceiveQR={generateAddressQR}
           onAddWallet={handleAddWallet}
           onLogout={handleLogout}
@@ -540,6 +589,11 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
                     onCopyAddress={() => copyToClipboard(currentAccount?.address || '')}
                   />
                   
+                  <UpiQuickAccess 
+                    onNavigateToUpi={() => handleSectionChange('upi')}
+                    className="mb-6"
+                  />
+                  
                   <PaymentRequestsSection
                     userAddress={currentAccount?.address || ''}
                     onSendRequest={handleSendPaymentRequest}
@@ -554,6 +608,10 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
                 </div>
               )}
 
+              {activeSection === 'collectables' && (
+                <CollectablesSection userAddress={currentAccount?.address || ''} />
+              )}
+
               {activeSection === 'transactions' && (
                 <TransactionHistory refreshFlag={transactionRefreshFlag} />
               )}
@@ -564,6 +622,14 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
 
               {activeSection === 'events' && (
                 <EventsPage />
+              )}
+
+              {activeSection === 'autopay' && (
+                <AutoPaySection userAddress={currentAccount?.address || ''} />
+              )}
+
+              {activeSection === 'upi' && (
+                <UpiDashboard />
               )}
             </motion.div>
           </AnimatePresence>
@@ -635,6 +701,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
           }}
 
         />
+
+
 
         <ReceiveTransaction
           isOpen={showReceiveQR}

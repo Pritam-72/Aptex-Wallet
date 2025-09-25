@@ -5,9 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Send, AlertTriangle, ArrowUpRight, X, IndianRupee, QrCode, Upload, Camera } from 'lucide-react';
+import { Send, AlertTriangle, ArrowUpRight, X, IndianRupee, QrCode, Upload, Camera, CheckCircle } from 'lucide-react';
 import { addTransactionToStorage } from '@/utils/transactionStorage';
 import { updateBalancesAfterTransaction, getBalanceForAddress } from '@/utils/balanceStorage';
+import { handleTransactionAndMintNFTs } from '@/utils/nftStorage';
+import { getPublicKeyByUpiId, parseUpiQr, isValidUpiId } from '@/utils/upiStorage';
 import QrScanner from 'qr-scanner';
 
 interface SendTransactionProps {
@@ -18,7 +20,8 @@ interface SendTransactionProps {
 
 export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClose, onSuccess }) => {
   const [recipient, setRecipient] = useState('');
-  const [amount, setAmount] = useState('');
+  const [upiId, setUpiId] = useState('');
+  const [inrAmount, setInrAmount] = useState('');
   const [note, setNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -28,7 +31,19 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const qrScannerRef = useRef<QrScanner | null>(null);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
   const { toast } = useToast();
+
+  // Update timestamp every 30 seconds to simulate live rate
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setLastUpdated(new Date());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const currentRate = 373; // INR to APT rate
+  const aptAmount = inrAmount && !isNaN(parseFloat(inrAmount)) ? (parseFloat(inrAmount) / currentRate).toFixed(8) : '0';
 
   // Load current balance when dialog opens
   React.useEffect(() => {
@@ -51,8 +66,26 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
   }, [isOpen]);
 
   const handleSend = async () => {
-    if (!recipient || !amount) {
-      setError('Please fill in all required fields');
+    let finalRecipient = recipient;
+    
+    // If UPI ID is provided, resolve it to public key
+    if (upiId && !recipient) {
+      const resolvedAddress = getPublicKeyByUpiId(upiId);
+      if (!resolvedAddress) {
+        setError('UPI ID not found. Please ask the recipient to link their UPI ID first.');
+        return;
+      }
+      finalRecipient = resolvedAddress;
+    }
+    
+    if (!finalRecipient || !inrAmount) {
+      setError('Please fill in recipient (address or UPI ID) and amount');
+      return;
+    }
+
+    const transactionAptAmount = parseFloat(aptAmount);
+    if (transactionAptAmount <= 0 || isNaN(transactionAptAmount)) {
+      setError('Invalid amount. Please enter a valid INR amount.');
       return;
     }
 
@@ -76,7 +109,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
 
       // Check sender balance before proceeding
       const senderBalance = parseFloat(getBalanceForAddress(currentAccount.address));
-      const transactionAmount = parseFloat(amount);
+      const transactionAmount = transactionAptAmount;
       
       if (senderBalance < transactionAmount) {
         throw new Error(`Insufficient balance. Available: ${senderBalance} APT, Required: ${transactionAmount} APT`);
@@ -88,8 +121,8 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       // Update balances for both sender and receiver
       const balanceUpdates = updateBalancesAfterTransaction(
         currentAccount.address,
-        recipient,
-        amount
+        finalRecipient,
+        aptAmount
       );
       
       // Generate a mock transaction hash
@@ -98,30 +131,46 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       // Create transaction object
       const transaction = {
         from: currentAccount.address,
-        to: recipient,
-        ethAmount: amount,
-        aptosAmount: amount,
-        inrAmount: parseFloat(amount) * 373, // Mock conversion rate
+        to: finalRecipient,
+        ethAmount: aptAmount,
+        aptosAmount: aptAmount,
+        inrAmount: parseFloat(inrAmount),
         timestamp: new Date(),
         txHash: txHash,
         type: 'sent' as const,
         status: 'confirmed' as const,
-        note: note || undefined
+        note: note || undefined,
+        upiId: upiId || undefined
       };
 
       // Store transaction in localStorage
       addTransactionToStorage(transaction);
 
-      // Show success toast
+      // Handle NFT minting after successful transaction
+      const nftResults = handleTransactionAndMintNFTs(currentAccount.address);
+      
+      // Show success toast with NFT minting results
+      const displayRecipient = upiId ? upiId : `${finalRecipient.slice(0, 6)}...${finalRecipient.slice(-4)}`;
+      let toastDescription = `Sent ₹${parseFloat(inrAmount).toFixed(2)} (${aptAmount} APT) to ${displayRecipient}. New balance: ${balanceUpdates.senderBalance} APT`;
+      
+      if (nftResults.loyaltyNFT) {
+        toastDescription += ` 🏆 New ${nftResults.loyaltyNFT.tier} loyalty NFT earned!`;
+      }
+      
+      if (nftResults.offerNFT) {
+        toastDescription += ` 🎁 Bonus offer NFT received: ${nftResults.offerNFT.discountPercentage}% off at ${nftResults.offerNFT.companyName}!`;
+      }
+
       toast({
         title: "Transaction Sent Successfully",
-        description: `Sent ${amount} APT to ${recipient.slice(0, 6)}...${recipient.slice(-4)}. New balance: ${balanceUpdates.senderBalance} APT`,
-        duration: 5000,
+        description: toastDescription,
+        duration: 7000,
       });
       
       // Reset form
       setRecipient('');
-      setAmount('');
+      setUpiId('');
+      setInrAmount('');
       setNote('');
       
       // Call success callback to refresh transaction history
@@ -215,14 +264,43 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       
       if (result && typeof result === 'string' && result.trim()) {
         const trimmedResult = result.trim();
-        console.log('Setting recipient to:', trimmedResult);
-        setRecipient(trimmedResult);
+        console.log('Processing QR result:', trimmedResult);
         
-        toast({
-          title: "QR Code Scanned Successfully",
-          description: `Address loaded: ${trimmedResult.length > 30 ? trimmedResult.slice(0, 30) + '...' : trimmedResult}`,
-          duration: 3000,
-        });
+        // Try to parse as UPI QR first
+        const upiData = parseUpiQr(trimmedResult);
+        if (upiData) {
+          console.log('UPI QR detected:', upiData);
+          setUpiId(upiData.upiId);
+          if (upiData.amount) {
+            setInrAmount(upiData.amount);
+          }
+          
+          // Try to resolve UPI ID to address
+          const resolvedAddress = getPublicKeyByUpiId(upiData.upiId);
+          if (resolvedAddress) {
+            console.log('UPI ID resolved to address:', resolvedAddress);
+            setRecipient(resolvedAddress);
+          }
+          
+          toast({
+            title: "UPI QR Code Scanned",
+            description: `UPI ID loaded: ${upiData.upiId}${upiData.amount ? ` (₹${upiData.amount})` : ''}`,
+            duration: 3000,
+          });
+        } else if (trimmedResult.startsWith('0x') || trimmedResult.length >= 40) {
+          // Treat as wallet address
+          console.log('Setting recipient address to:', trimmedResult);
+          setRecipient(trimmedResult);
+          
+          toast({
+            title: "Wallet QR Code Scanned",
+            description: `Address loaded: ${trimmedResult.length > 30 ? trimmedResult.slice(0, 30) + '...' : trimmedResult}`,
+            duration: 3000,
+          });
+        } else {
+          console.log('Unknown QR format:', trimmedResult);
+          throw new Error('QR code format not recognized. Please use a wallet address or UPI QR code.');
+        }
       } else {
         console.log('No valid result from QR scan, result was:', result);
         throw new Error('No valid QR code data found in image');
@@ -329,13 +407,47 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
         videoRef.current,
         (result) => {
           console.log('QR Code detected:', result.data);
-          setRecipient(result.data);
-          stopCameraScanning();
-          toast({
-            title: "QR Code Scanned",
-            description: "Address has been filled automatically",
-            duration: 3000,
-          });
+          
+          // Try to parse as UPI QR first
+          const upiData = parseUpiQr(result.data);
+          if (upiData) {
+            console.log('UPI QR detected from camera:', upiData);
+            setUpiId(upiData.upiId);
+            if (upiData.amount) {
+              setInrAmount(upiData.amount);
+            }
+            
+            // Try to resolve UPI ID to address
+            const resolvedAddress = getPublicKeyByUpiId(upiData.upiId);
+            if (resolvedAddress) {
+              console.log('UPI ID resolved to address:', resolvedAddress);
+              setRecipient(resolvedAddress);
+            }
+            
+            stopCameraScanning();
+            toast({
+              title: "UPI QR Code Scanned",
+              description: `UPI ID loaded: ${upiData.upiId}${upiData.amount ? ` (₹${upiData.amount})` : ''}`,
+              duration: 3000,
+            });
+          } else if (result.data.startsWith('0x') || result.data.length >= 40) {
+            // Treat as wallet address
+            setRecipient(result.data);
+            stopCameraScanning();
+            toast({
+              title: "Wallet QR Code Scanned",
+              description: "Address has been filled automatically",
+              duration: 3000,
+            });
+          } else {
+            stopCameraScanning();
+            toast({
+              title: "QR Code Error",
+              description: "QR code format not recognized. Please use a wallet address or UPI QR code.",
+              variant: "destructive",
+              duration: 3000,
+            });
+          }
         },
         {
           highlightScanRegion: true,
@@ -406,22 +518,12 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
   }, [isOpen]);
 
   const estimatedFee = '0.001 APT';
-  const estimatedFiat = amount ? `≈ ₹${(parseFloat(amount) * 251100).toFixed(2)}` : '₹0.00';
+  const estimatedFeeInr = (0.001 * currentRate).toFixed(2);
+  const estimatedApt = inrAmount ? `≈ ${(parseFloat(inrAmount) / currentRate).toFixed(8)} APT` : '0.00000000 APT';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-sm bg-black/95 backdrop-blur-md border border-gray-800 shadow-2xl">
-        <div className="absolute right-4 top-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="h-8 w-8 p-0 hover:bg-gray-800/50 rounded-full text-gray-400 hover:text-white"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
         <div className="pt-6 pb-2">
           <div className="flex items-center justify-center mb-6">
             <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center">
@@ -498,6 +600,53 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
               />
             </div>
 
+            {/* UPI ID Field */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-300 text-sm">Or send using UPI ID</Label>
+                <span className="text-xs text-gray-500">Alternative to wallet address</span>
+              </div>
+              <Input
+                type="text"
+                placeholder="user@paytm, user@gpay, etc."
+                value={upiId}
+                onChange={(e) => {
+                  setUpiId(e.target.value);
+                  // Clear recipient when UPI ID is entered
+                  if (e.target.value.trim()) {
+                    setRecipient('');
+                  }
+                }}
+                className="font-mono text-sm h-12 bg-gray-900 border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:border-gray-600"
+              />
+              {upiId && isValidUpiId(upiId) && (
+                <div className="flex items-center justify-between text-xs">
+                  {getPublicKeyByUpiId(upiId) ? (
+                    <span className="text-green-400 flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      UPI ID found in directory
+                    </span>
+                  ) : (
+                    <span className="text-yellow-400 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      UPI ID not registered yet
+                    </span>
+                  )}
+                  {getPublicKeyByUpiId(upiId) && (
+                    <span className="text-xs text-gray-500 font-mono">
+                      → {getPublicKeyByUpiId(upiId)?.slice(0, 6)}...{getPublicKeyByUpiId(upiId)?.slice(-4)}
+                    </span>
+                  )}
+                </div>
+              )}
+              {upiId && !isValidUpiId(upiId) && (
+                <div className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Invalid UPI ID format (e.g., user@paytm)
+                </div>
+              )}
+            </div>
+
             {/* Current Balance Display */}
             <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 mb-2">
               <div className="flex justify-between items-center">
@@ -508,42 +657,58 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
                     type="button"
                     onClick={() => {
                       // Leave some for fees (0.001 APT)
-                      const maxAmount = Math.max(0, parseFloat(currentBalance) - 0.001);
-                      setAmount(maxAmount.toString());
+                      const maxInr = Math.max(0, (parseFloat(currentBalance) - 0.001) * currentRate);
+                      setInrAmount(maxInr.toString());
                     }}
                     variant="outline"
                     size="sm"
                     className="h-6 px-2 text-xs bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white"
                   >
-                    Max
+                    Max INR
                   </Button>
                 </div>
               </div>
               <div className="text-xs text-gray-500 text-right">
-                ≈ ₹{(parseFloat(currentBalance) * 373).toFixed(2)}
+                ≈ ₹{(parseFloat(currentBalance) * currentRate).toFixed(2)}
               </div>
             </div>
 
-            <div className="relative">
-              <Input
-                type="number"
-                step="0.000001"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="h-14 text-lg pl-4 pr-16 bg-gray-900 border-gray-700 rounded-lg text-center text-white placeholder:text-gray-500 focus:border-gray-600"
-              />
-              <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                <span className="text-sm font-medium text-black bg-white px-2 py-1 rounded">
-                  APT
-                </span>
+            {/* Live Conversion Rate Display */}
+            <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-gray-400">Live Rate</span>
+                </div>
+                <div className="text-sm font-medium text-white">
+                  1 APT = ₹{currentRate.toLocaleString()}
+                </div>
               </div>
-              {amount && (
-                <div className="absolute -bottom-6 left-1/2 -translate-x-1/2">
-                  <div className="text-xs text-gray-400 flex items-center gap-1">
-                    <IndianRupee className="h-3 w-3" />
-                    {estimatedFiat}
-                  </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Last updated: {lastUpdated.toLocaleTimeString()}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-gray-300 text-sm">Amount (INR)</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="Enter amount in INR"
+                  value={inrAmount}
+                  onChange={(e) => setInrAmount(e.target.value)}
+                  className="h-14 text-lg pl-4 pr-16 bg-gray-900 border-gray-700 rounded-lg text-center text-white placeholder:text-gray-500 focus:border-gray-600"
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                  <span className="text-sm font-medium text-black bg-white px-2 py-1 rounded">
+                    INR
+                  </span>
+                </div>
+              </div>
+              {inrAmount && (
+                <div className="text-xs text-gray-400 text-center">
+                  ≈ {aptAmount} APT (at current rate)
                 </div>
               )}
             </div>
@@ -558,20 +723,24 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
               />
             </div>
 
-            {amount && (
+            {inrAmount && (
               <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 space-y-2 mt-4">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Amount</span>
-                  <span className="font-medium text-white">{amount} APT</span>
+                  <span className="text-gray-400">Amount (INR)</span>
+                  <span className="font-medium text-white">₹{parseFloat(inrAmount).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Network fee</span>
-                  <span className="font-medium text-white">{estimatedFee}</span>
+                  <span className="text-gray-400">Equivalent APT</span>
+                  <span className="font-medium text-white">{aptAmount} APT</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Network Fee</span>
+                  <span className="font-medium text-white">{estimatedFee} APT (≈ ₹{estimatedFeeInr})</span>
                 </div>
                 <div className="border-t border-gray-800 pt-2">
                   <div className="flex justify-between text-sm font-semibold">
                     <span className="text-gray-300">Total</span>
-                    <span className="text-white">{amount ? (parseFloat(amount) + 0.001).toFixed(6) : '0.001'} APT</span>
+                    <span className="text-white">{aptAmount ? (parseFloat(aptAmount) + 0.001).toFixed(8) : '0.00100000'} APT</span>
                   </div>
                 </div>
               </div>
@@ -625,7 +794,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
             <Button
               onClick={handleSend}
               className="w-full h-12 bg-white hover:bg-gray-200 text-black font-medium rounded-lg transition-all duration-200 mt-6"
-              disabled={isLoading || !recipient || !amount}
+              disabled={isLoading || (!recipient && !upiId) || !inrAmount}
             >
               {isLoading ? (
                 <div className="flex items-center gap-2">
