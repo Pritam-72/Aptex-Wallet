@@ -52,8 +52,9 @@ import { ReceiveTransaction } from '@/components/ReceiveTransaction';
 import { SendPaymentRequest } from '@/components/SendPaymentRequest';
 import { PaymentRequestsSection } from '@/components/PaymentRequestsSection';
 import { RegisterWallet } from '@/components/RegisterWallet';
-import { AutoPayModal } from '@/components/AutoPayModal';
+
 import { CollectablesSection } from '@/components/CollectablesSection';
+import { AutoPaySection } from '@/components/AutoPaySection';
 import EventsPage from '@/pages/EventsPage';
 
 const SimpleDashboard = () => {
@@ -84,7 +85,7 @@ const SimpleDashboard = () => {
 const [showRequestMoney, setShowRequestMoney] = useState(false);
   const [showSendPaymentRequest, setShowSendPaymentRequest] = useState(false);
   const [showRegisterWallet, setShowRegisterWallet] = useState(false);
-  const [showAutoPay, setShowAutoPay] = useState(false);
+
   const [transactionRefreshFlag, setTransactionRefreshFlag] = useState(0);
 
   // Persist sidebar state
@@ -368,7 +369,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
   };
 
   const handleAutoPay = () => {
-    setShowAutoPay(true);
+    handleSectionChange('autopay');
   };
 
   const sidebarLinks: SidebarLinkProps[] = [
@@ -401,8 +402,8 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       href: "#autopay",
       icon: <Zap className="h-7 w-7 flex-shrink-0" />,
       onClick: handleAutoPay,
-      isActive: false,
-      isAction: true
+      isActive: activeSection === 'autopay',
+      shortcut: '⌘6'
     },
     {
       label: "Collectables",
@@ -608,6 +609,10 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
               {activeSection === 'events' && (
                 <EventsPage />
               )}
+
+              {activeSection === 'autopay' && (
+                <AutoPaySection userAddress={currentAccount?.address || ''} />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -679,16 +684,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
 
         />
 
-        {/* AutoPay Modal */}
-        <AutoPayModal
-          isOpen={showAutoPay}
-          onClose={() => setShowAutoPay(false)}
-          userAddress={currentAccount?.address || ''}
-          onSuccess={() => {
-            // Optionally refresh balance or show success message
-            console.log('AutoPay setup completed successfully!');
-          }}
-        />
+
 
         <ReceiveTransaction
           isOpen={showReceiveQR}
