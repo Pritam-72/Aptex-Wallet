@@ -284,13 +284,13 @@ const EventsPage: React.FC = () => {
     const eventDate = new Date(startTime);
     const eventEndDate = new Date(eventDate.getTime() + duration);
     
-    if (now >= eventDate && now < eventEndDate) return { status: 'live', color: 'bg-green-500', text: 'Live' };
+    if (now >= eventDate && now < eventEndDate) return { status: 'live', color: 'bg-foreground', text: 'Live' };
     if (eventDate > now) {
       const timeDiff = eventDate.getTime() - now.getTime();
-      if (timeDiff < 24 * 60 * 60 * 1000) return { status: 'soon', color: 'bg-orange-500', text: 'Soon' };
-      return { status: 'upcoming', color: 'bg-blue-500', text: 'Upcoming' };
+      if (timeDiff < 24 * 60 * 60 * 1000) return { status: 'soon', color: 'bg-muted-foreground', text: 'Soon' };
+      return { status: 'upcoming', color: 'bg-muted', text: 'Upcoming' };
     }
-    return { status: 'past', color: 'bg-gray-500', text: 'Ended' };
+    return { status: 'past', color: 'bg-muted/50', text: 'Ended' };
   };
 
   const handleEventClick = (event: EventData) => {
@@ -302,7 +302,7 @@ const EventsPage: React.FC = () => {
     
     return (
       <Card 
-        className={`bg-gray-900/50 border-gray-700 hover:bg-gray-800/70 transition-all duration-300 cursor-pointer hover:border-gray-600 group ${
+        className={`bg-card/50 border-border/50 hover:bg-card/70 transition-all duration-300 cursor-pointer hover:border-border/80 group cosmic-glow ${
           isListView ? 'flex-row' : ''
         }`}
         onClick={() => handleEventClick(event)}
@@ -326,10 +326,10 @@ const EventsPage: React.FC = () => {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
-                <h3 className="text-white font-semibold text-lg mb-1 group-hover:text-blue-400 transition-colors">
+                <h3 className="text-foreground font-semibold text-lg mb-1 group-hover:text-foreground/80 transition-colors">
                   {event.presentation.cardTitle}
                 </h3>
-                <p className="text-gray-400 text-sm mb-2">
+                <p className="text-muted-foreground text-sm mb-2">
                   {event.presentation.cardSubTitle}
                 </p>
               </div>
@@ -339,23 +339,23 @@ const EventsPage: React.FC = () => {
                   variant="outline" 
                   className={`text-xs px-2 py-1 ${
                     eventStatus.status === 'live' 
-                      ? 'border-green-500 text-green-400' 
+                      ? 'border-foreground text-foreground' 
                       : eventStatus.status === 'soon'
-                      ? 'border-orange-500 text-orange-400'
+                      ? 'border-muted-foreground text-muted-foreground'
                       : eventStatus.status === 'upcoming'
-                      ? 'border-blue-500 text-blue-400'
-                      : 'border-gray-500 text-gray-400'
+                      ? 'border-muted text-foreground'
+                      : 'border-muted/50 text-muted-foreground'
                   }`}
                 >
                   {eventStatus.text}
                 </Badge>
-                <ExternalLink className="h-4 w-4 text-gray-500 group-hover:text-blue-400 transition-colors" />
+                <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
               </div>
             </div>
 
             {/* Event Description */}
             {event.presentation.description && (
-              <p className="text-gray-300 text-sm mb-4" style={{
+              <p className="text-foreground text-sm mb-4" style={{
                 display: '-webkit-box',
                 WebkitLineClamp: isListView ? 2 : 3,
                 WebkitBoxOrient: 'vertical' as any,
@@ -366,7 +366,7 @@ const EventsPage: React.FC = () => {
             )}
 
             {/* Event Details */}
-            <div className="flex items-center gap-6 text-sm text-gray-400">
+            <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
                 <span>{formatDate(event.metaData.startTime)}</span>
@@ -387,7 +387,7 @@ const EventsPage: React.FC = () => {
           </div>
 
           {/* Hover Effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+          <div className="absolute inset-0 bg-muted/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
         </div>
       </Card>
     );
@@ -398,8 +398,8 @@ const EventsPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Aptos Events</h1>
-          <p className="text-gray-400">Discover upcoming events, spaces, and community gatherings in the Aptos ecosystem</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Aptos Events</h1>
+          <p className="text-muted-foreground">Discover upcoming events, spaces, and community gatherings in the Aptos ecosystem</p>
         </div>
         
         <div className="flex items-center gap-2">
@@ -425,12 +425,12 @@ const EventsPage: React.FC = () => {
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search events..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-gray-900/50 border-gray-700 text-white placeholder-gray-400"
+            className="pl-10 bg-card/50 border-border/50 text-foreground placeholder-muted-foreground"
           />
         </div>
         
@@ -451,11 +451,11 @@ const EventsPage: React.FC = () => {
 
       {/* Events Grid/List */}
       {filteredEvents.length === 0 ? (
-        <Card className="bg-gray-900/50 border-gray-700">
+        <Card className="bg-card/50 border-border/50 cosmic-glow">
           <CardContent className="text-center py-12">
-            <Calendar className="h-16 w-16 mx-auto mb-4 text-gray-500" />
-            <h3 className="text-lg font-semibold text-white mb-2">No events found</h3>
-            <p className="text-gray-400">
+            <Calendar className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">No events found</h3>
+            <p className="text-muted-foreground">
               {searchTerm || selectedFilter !== 'all' 
                 ? 'Try adjusting your search or filters' 
                 : 'Check back later for new events!'}
@@ -478,23 +478,23 @@ const EventsPage: React.FC = () => {
       )}
 
       {/* Stats */}
-      <Card className="bg-gray-900/50 border-gray-700">
+      <Card className="bg-card/50 border-border/50 cosmic-glow">
         <CardContent className="p-4">
-          <div className="flex items-center justify-center gap-8 text-sm text-gray-400">
+          <div className="flex items-center justify-center gap-8 text-sm text-muted-foreground">
             <div className="text-center">
-              <div className="text-2xl font-bold text-white">
+              <div className="text-2xl font-bold text-foreground">
                 {events.filter(e => getEventStatus(e.metaData.startTime, e.metaData.duration).status === 'upcoming').length}
               </div>
               <div>Upcoming</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-400">
+              <div className="text-2xl font-bold text-foreground">
                 {events.filter(e => getEventStatus(e.metaData.startTime, e.metaData.duration).status === 'live').length}
               </div>
               <div>Live</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-400">
+              <div className="text-2xl font-bold text-foreground">
                 {events.length}
               </div>
               <div>Total Events</div>
