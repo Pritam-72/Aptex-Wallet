@@ -12,20 +12,32 @@ import {
   X, 
   Send,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  getPaymentRequest,
+  payRequest,
+  rejectRequest,
+  getAccountFromPrivateKey,
+  octasToApt,
+  aptToOctas,
+  checkSufficientBalance,
+  aptos,
+  PaymentRequest as ContractPaymentRequest
+} from '@/utils/contractUtils';
 
-// Payment Request interface for type safety
-interface PaymentRequest {
+// Payment Request interface for display
+interface DisplayPaymentRequest {
   id: string;
   fromAddress: string;
   toAddress: string;
-  amount: string;
-  description?: string;
+  amount: string; // in APT
+  description: string;
   timestamp: Date;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: 'Pending' | 'Paid' | 'Rejected';
   txHash?: string;
 }
 
@@ -40,31 +52,131 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
   onSendRequest,
   onBalanceUpdate
 }) => {
-  const [incomingRequests, setIncomingRequests] = useState<PaymentRequest[]>([]);
-  const [outgoingRequests, setOutgoingRequests] = useState<PaymentRequest[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<DisplayPaymentRequest[]>([]);
+  const [outgoingRequests, setOutgoingRequests] = useState<DisplayPaymentRequest[]>([]);
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'incoming' | 'outgoing'>('incoming');
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Load requests - Feature disabled
-  const loadRequests = () => {
-    // Payment requests feature requires backend/smart contract
-    setIncomingRequests([]);
-    setOutgoingRequests([]);
+  // Load payment requests from blockchain
+  const loadRequests = async () => {
+    if (!userAddress) return;
+    
+    setIsLoading(true);
+    try {
+      const incoming: DisplayPaymentRequest[] = [];
+      const outgoing: DisplayPaymentRequest[] = [];
+
+      // Try to fetch requests (counter starts from 0)
+      // We'll try fetching up to 50 requests as a reasonable limit
+      for (let i = 0; i < 50; i++) {
+        try {
+          const requestData = await getPaymentRequest(i);
+          
+          if (!requestData) break; // No more requests
+          
+          // Convert status number to string
+          let status: 'Pending' | 'Paid' | 'Rejected' = 'Pending';
+          if (requestData.status === 1) status = 'Paid';
+          else if (requestData.status === 2) status = 'Rejected';
+
+          const request: DisplayPaymentRequest = {
+            id: requestData.id,
+            fromAddress: requestData.from_address,
+            toAddress: requestData.to_address,
+            amount: octasToApt(requestData.amount).toFixed(8),
+            description: requestData.description,
+            timestamp: new Date(parseInt(requestData.created_at) / 1000), // Convert microseconds to milliseconds
+            status,
+            txHash: status === 'Paid' ? 'Transaction completed' : undefined
+          };
+
+          // Categorize: incoming if user is to_address, outgoing if user is from_address
+          if (requestData.to_address.toLowerCase() === userAddress.toLowerCase()) {
+            incoming.push(request);
+          } else if (requestData.from_address.toLowerCase() === userAddress.toLowerCase()) {
+            outgoing.push(request);
+          }
+        } catch (err) {
+          // Stop when we hit an error (likely means no more requests)
+          break;
+        }
+      }
+
+      setIncomingRequests(incoming.reverse()); // Most recent first
+      setOutgoingRequests(outgoing.reverse());
+      
+    } catch (error) {
+      console.error('Error loading payment requests:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    loadRequests();
+    void loadRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userAddress]);
 
   const handleAcceptRequest = async (requestId: string) => {
     setProcessingRequest(requestId);
     try {
+      // Get wallet data
+      const storedWallet = localStorage.getItem('aptosWallet');
+      if (!storedWallet) {
+        toast({
+          title: "Wallet Not Found",
+          description: "Please create or import a wallet first.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const walletData = JSON.parse(storedWallet);
+      const account = getAccountFromPrivateKey(walletData.privateKey);
+
+      // Get request data to check amount
+      const request = incomingRequests.find(r => r.id === requestId);
+      if (!request) return;
+
+      const amountAPT = parseFloat(request.amount);
+      const amountInOctas = aptToOctas(amountAPT);
+
+      // Check balance (including 0.0002 APT for gas)
+      const gasEstimateAPT = 0.0002;
+      const balanceCheck = await checkSufficientBalance(userAddress, amountAPT, gasEstimateAPT);
+      if (!balanceCheck.sufficient) {
+        toast({
+          title: "Insufficient Balance",
+          description: `You need at least ${request.amount} APT plus gas fees (~0.0002 APT).`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Pay the request on-chain
+      const result = await payRequest(account, parseInt(requestId));
+
       toast({
-        title: "Feature Coming Soon",
-        description: "Payment requests require backend/smart contract implementation",
+        title: "Payment Sent!",
+        description: `Successfully paid ${request.amount} APT.`,
+      });
+
+      // Reload requests
+      await loadRequests();
+      
+      // Notify parent to update balance
+      if (onBalanceUpdate) {
+        onBalanceUpdate();
+      }
+    } catch (error) {
+      console.error('Error accepting payment request:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to pay request';
+      toast({
+        title: "Payment Failed",
+        description: errorMessage,
         variant: "destructive",
-        duration: 4000,
       });
     } finally {
       setProcessingRequest(null);
@@ -74,11 +186,37 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
   const handleRejectRequest = async (requestId: string) => {
     setProcessingRequest(requestId);
     try {
+      // Get wallet data
+      const storedWallet = localStorage.getItem('aptosWallet');
+      if (!storedWallet) {
+        toast({
+          title: "Wallet Not Found",
+          description: "Please create or import a wallet first.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const walletData = JSON.parse(storedWallet);
+      const account = getAccountFromPrivateKey(walletData.privateKey);
+
+      // Reject the request on-chain
+      await rejectRequest(account, parseInt(requestId));
+
       toast({
-        title: "Feature Coming Soon",
-        description: "Payment requests require backend/smart contract implementation",
+        title: "Request Rejected",
+        description: "You have rejected the payment request.",
+      });
+
+      // Reload requests
+      await loadRequests();
+    } catch (error) {
+      console.error('Error rejecting payment request:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reject request';
+      toast({
+        title: "Rejection Failed",
+        description: errorMessage,
         variant: "destructive",
-        duration: 3000,
       });
     } finally {
       setProcessingRequest(null);
@@ -100,9 +238,9 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'accepted': return 'bg-green-500/20 text-green-300 border-green-500/30';
-      case 'rejected': return 'bg-red-500/20 text-red-300 border-red-500/30';
+      case 'Pending': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
+      case 'Paid': return 'bg-green-500/20 text-green-300 border-green-500/30';
+      case 'Rejected': return 'bg-red-500/20 text-red-300 border-red-500/30';
       default: return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
     }
   };
@@ -158,7 +296,7 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
             }`}
           >
             <Send className="h-4 w-4" />
-            Outgoing ({outgoingRequests.filter(req => req.status === 'pending').length})
+            Outgoing ({outgoingRequests.filter(req => req.status === 'Pending').length})
           </button>
         </div>
 
@@ -211,7 +349,7 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
                     </div>
                   </div>
 
-                  {request.status === 'pending' && (
+                  {request.status === 'Pending' && (
                     <div className="flex gap-2">
                       <Button
                         onClick={() => handleAcceptRequest(request.id)}
@@ -221,7 +359,7 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
                       >
                         {processingRequest === request.id ? (
                           <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <Loader2 className="h-4 w-4 animate-spin" />
                             Processing...
                           </div>
                         ) : (
@@ -244,7 +382,7 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
                     </div>
                   )}
 
-                  {request.status === 'accepted' && request.txHash && (
+                  {request.status === 'Paid' && request.txHash && (
                     <div className="bg-green-900/20 border border-green-700/30 rounded-lg p-3">
                       <div className="text-sm text-green-300">
                         ✅ Payment sent successfully
@@ -255,7 +393,7 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
                     </div>
                   )}
 
-                  {request.status === 'rejected' && (
+                  {request.status === 'Rejected' && (
                     <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-3">
                       <div className="text-sm text-red-300">
                         ❌ Request rejected
@@ -325,7 +463,7 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
                     </div>
                   </div>
 
-                  {request.status === 'accepted' && request.txHash && (
+                  {request.status === 'Paid' && request.txHash && (
                     <div className="bg-green-900/20 border border-green-700/30 rounded-lg p-3 mt-3">
                       <div className="text-sm text-green-300">
                         ✅ Request accepted and payment received
@@ -336,7 +474,7 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
                     </div>
                   )}
 
-                  {request.status === 'rejected' && (
+                  {request.status === 'Rejected' && (
                     <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-3 mt-3">
                       <div className="text-sm text-red-300">
                         ❌ Request was rejected
