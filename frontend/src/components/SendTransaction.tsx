@@ -17,6 +17,8 @@ import {
   estimateGas,
   aptos
 } from '@/utils/contractUtils';
+import { getToastErrorMessage } from '@/utils/errorHandler';
+import { ContractErrorDisplay } from './ContractErrorDisplay';
 
 interface SendTransactionProps {
   isOpen: boolean;
@@ -254,9 +256,11 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       const errorMessage = err instanceof Error ? err.message : 'Transaction failed';
       setError(errorMessage);
       
+      // Use enhanced error handling for toast
+      const { title, description } = getToastErrorMessage(err);
       toast({
-        title: "Transaction Failed",
-        description: errorMessage,
+        title,
+        description,
         variant: "destructive",
         duration: 5000,
       });
@@ -318,10 +322,11 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
           )}
 
           {error && (
-            <Alert className="bg-red-900/50 border-red-700">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="text-red-300">{error}</AlertDescription>
-            </Alert>
+            <ContractErrorDisplay
+              error={error}
+              onDismiss={() => setError('')}
+              className="mb-2"
+            />
           )}
 
           {warning && !error && (

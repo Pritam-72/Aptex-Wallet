@@ -13,6 +13,7 @@ import {
   InputViewFunctionData,
   InputEntryFunctionData,
 } from "@aptos-labs/ts-sdk";
+import { parseContractError, formatErrorForLog } from "./errorHandler";
 
 // Initialize Aptos client for devnet
 const config = new AptosConfig({ network: Network.DEVNET });
@@ -296,16 +297,28 @@ export const createPaymentRequest = async (
       transactionHash: pendingTxn.hash,
     });
 
+    if (!response.success) {
+      const errorDetails = parseContractError(response.vm_status);
+      console.error(formatErrorForLog(response.vm_status, "createPaymentRequest"));
+      return {
+        success: false,
+        hash: pendingTxn.hash,
+        vm_status: response.vm_status,
+        error: errorDetails?.message || "Transaction failed on blockchain",
+      };
+    }
+
     return {
-      success: response.success,
+      success: true,
       hash: pendingTxn.hash,
       vm_status: response.vm_status,
     };
   } catch (error) {
-    console.error("Error creating payment request:", error);
+    console.error(formatErrorForLog(error, "createPaymentRequest"));
+    const errorDetails = parseContractError(error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to create payment request",
+      error: errorDetails?.message || (error instanceof Error ? error.message : "Failed to create payment request"),
     };
   }
 };
@@ -1147,9 +1160,10 @@ export const octasToApt = (octas: string): number => {
 };
 
 /**
- * Parse contract error message
+ * Legacy parseContractError - kept for backward compatibility
+ * @deprecated Use parseContractError from errorHandler.ts instead
  */
-export const parseContractError = (error: string): string => {
+export const parseContractErrorLegacy = (error: string): string => {
   const errorMap: { [key: string]: string } = {
     "E_WALLET_ID_ALREADY_EXISTS": "This wallet ID is already registered",
     "E_UPI_ID_ALREADY_EXISTS": "This UPI ID is already registered",
