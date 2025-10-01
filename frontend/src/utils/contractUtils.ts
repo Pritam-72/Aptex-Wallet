@@ -1205,3 +1205,243 @@ export const resolveRecipient = async (identifier: string): Promise<{
   const address = await getAddressByWalletId(identifier);
   return { address, type: 'walletId' };
 };
+
+// ============================================================================
+// Transaction History Functions
+// ============================================================================
+
+interface TransactionEvent {
+  type: string;
+  data?: Record<string, unknown>;
+}
+
+export interface EnhancedTransaction {
+  hash: string;
+  version: string;
+  sender: string;
+  sequence_number: string;
+  max_gas_amount: string;
+  gas_unit_price: string;
+  gas_used: string;
+  timestamp: string;
+  success: boolean;
+  vm_status: string;
+  payload: {
+    function: string;
+    type_arguments: string[];
+    arguments: unknown[];
+    type: string;
+  } | null;
+  events: TransactionEvent[];
+  // Enhanced fields
+  type: 'coin_transfer' | 'payment_request' | 'split_bill' | 'emi_payment' | 'nft_mint' | 'other';
+  amount?: string;
+  amount_apt?: number;
+  recipient?: string;
+  description?: string;
+  direction: 'sent' | 'received' | 'self';
+  module_name?: string;
+  function_name?: string;
+}
+
+/**
+ * Fetch and enhance account transactions with parsed details
+ */
+export const getEnhancedAccountTransactions = async (
+  address: string,
+  limit: number = 50
+): Promise<EnhancedTransaction[]> => {
+  try {
+    console.log('🔍 Fetching enhanced transactions for:', address);
+    
+    const transactions = await aptos.getAccountTransactions({
+      accountAddress: address,
+      options: { limit }
+    });
+
+    const enhanced: EnhancedTransaction[] = transactions.map((tx: Record<string, unknown>) => {
+      // Base transaction data with type assertions
+      const enhancedTx: EnhancedTransaction = {
+        hash: tx.hash as string,
+        version: tx.version as string,
+        sender: tx.sender as string,
+        sequence_number: tx.sequence_number as string,
+        max_gas_amount: tx.max_gas_amount as string,
+        gas_unit_price: tx.gas_unit_price as string,
+        gas_used: tx.gas_used as string,
+        timestamp: tx.timestamp as string,
+        success: tx.success as boolean,
+        vm_status: tx.vm_status as string,
+        payload: (tx.payload || null) as EnhancedTransaction['payload'],
+        events: (tx.events || []) as TransactionEvent[],
+        type: 'other',
+        direction: 'sent'
+      };
+
+      // Parse payload if it exists
+      if (tx.payload) {
+        const payload = tx.payload as Record<string, unknown>;
+        
+        // Extract module and function name
+        const funcName = payload.function as string | undefined;
+        const args = payload.arguments as unknown[] | undefined;
+        
+        if (funcName) {
+          const parts = funcName.split('::');
+          if (parts.length >= 3) {
+            enhancedTx.module_name = parts[1];
+            enhancedTx.function_name = parts[2];
+          }
+        }
+
+        // Determine transaction type and extract details
+        if (funcName?.includes('aptos_account::transfer')) {
+          enhancedTx.type = 'coin_transfer';
+          if (args && args.length >= 2) {
+            enhancedTx.recipient = args[0] as string;
+            enhancedTx.amount = args[1] as string;
+            enhancedTx.amount_apt = parseFloat(args[1] as string) / 100000000;
+          }
+        } else if (funcName?.includes('coin::transfer')) {
+          enhancedTx.type = 'coin_transfer';
+          if (args && args.length >= 2) {
+            enhancedTx.recipient = args[0] as string;
+            enhancedTx.amount = args[1] as string;
+            enhancedTx.amount_apt = parseFloat(args[1] as string) / 100000000;
+          }
+        } else if (funcName?.includes('wallet_system::send_money')) {
+          enhancedTx.type = 'coin_transfer';
+          if (args && args.length >= 2) {
+            enhancedTx.recipient = args[0] as string;
+            enhancedTx.amount = args[1] as string;
+            enhancedTx.amount_apt = parseFloat(args[1] as string) / 100000000;
+          }
+        } else if (funcName?.includes('wallet_system::create_payment_request')) {
+          enhancedTx.type = 'payment_request';
+          if (args && args.length >= 3) {
+            enhancedTx.recipient = args[0] as string;
+            enhancedTx.amount = args[1] as string;
+            enhancedTx.amount_apt = parseFloat(args[1] as string) / 100000000;
+            enhancedTx.description = args[2] as string;
+          }
+        } else if (funcName?.includes('wallet_system::pay_request')) {
+          enhancedTx.type = 'payment_request';
+          // Get payment request details from events
+          const txEvents = tx.events as unknown[] | undefined;
+          const payEvent = txEvents?.find((e: unknown) => {
+            const event = e as TransactionEvent;
+            return event.type?.includes('PaymentRequestPaidEvent');
+          }) as TransactionEvent | undefined;
+          
+          if (payEvent && payEvent.data) {
+            enhancedTx.amount = payEvent.data.amount as string;
+            enhancedTx.amount_apt = parseFloat((payEvent.data.amount as string) || '0') / 100000000;
+            enhancedTx.recipient = payEvent.data.to as string;
+          }
+        } else if (funcName?.includes('wallet_system::create_split_bill')) {
+          enhancedTx.type = 'split_bill';
+          if (args && args.length >= 1) {
+            enhancedTx.amount = args[0] as string;
+            enhancedTx.amount_apt = parseFloat(args[0] as string) / 100000000;
+          }
+        } else if (funcName?.includes('wallet_system::pay_emi')) {
+          enhancedTx.type = 'emi_payment';
+          const txEvents = tx.events as unknown[] | undefined;
+          const emiEvent = txEvents?.find((e: unknown) => {
+            const event = e as TransactionEvent;
+            return event.type?.includes('EmiPaymentEvent');
+          }) as TransactionEvent | undefined;
+          
+          if (emiEvent && emiEvent.data) {
+            enhancedTx.amount = emiEvent.data.installment_amount as string;
+            enhancedTx.amount_apt = parseFloat((emiEvent.data.installment_amount as string) || '0') / 100000000;
+            enhancedTx.recipient = emiEvent.data.company as string;
+          }
+        } else if (funcName?.includes('wallet_system::mint_loyalty_nft')) {
+          enhancedTx.type = 'nft_mint';
+          enhancedTx.description = 'Loyalty NFT Minted';
+        }
+
+        // Determine direction (sent/received/self)
+        if (tx.sender === address) {
+          if (enhancedTx.recipient === address) {
+            enhancedTx.direction = 'self';
+          } else {
+            enhancedTx.direction = 'sent';
+          }
+        } else {
+          enhancedTx.direction = 'received';
+        }
+      }
+
+      // Check events for received transfers
+      const txEvents = tx.events as unknown[] | undefined;
+      if (txEvents && txEvents.length > 0) {
+        const receiveEvent = txEvents.find((e: unknown) => {
+          const event = e as TransactionEvent;
+          return event.type?.includes('CoinDeposit') || event.type?.includes('DepositEvent');
+        }) as TransactionEvent | undefined;
+        
+        if (receiveEvent && receiveEvent.data && tx.sender !== address) {
+          enhancedTx.direction = 'received';
+          if (receiveEvent.data.amount) {
+            enhancedTx.amount = receiveEvent.data.amount as string;
+            enhancedTx.amount_apt = parseFloat(receiveEvent.data.amount as string) / 100000000;
+          }
+        }
+      }
+
+      return enhancedTx;
+    });
+
+    console.log('✅ Enhanced', enhanced.length, 'transactions');
+    return enhanced;
+  } catch (error) {
+    console.error('Error fetching enhanced transactions:', error);
+    return [];
+  }
+};
+
+/**
+ * Get transaction statistics for a given address
+ */
+export const getTransactionStatistics = async (address: string) => {
+  try {
+    const transactions = await getEnhancedAccountTransactions(address, 100);
+    
+    const stats = {
+      total: transactions.length,
+      successful: transactions.filter(tx => tx.success).length,
+      failed: transactions.filter(tx => !tx.success).length,
+      sent: transactions.filter(tx => tx.direction === 'sent').length,
+      received: transactions.filter(tx => tx.direction === 'received').length,
+      totalSent: 0,
+      totalReceived: 0,
+      byType: {
+        coin_transfer: 0,
+        payment_request: 0,
+        split_bill: 0,
+        emi_payment: 0,
+        nft_mint: 0,
+        other: 0
+      },
+      recentActivity: transactions.slice(0, 10)
+    };
+
+    transactions.forEach(tx => {
+      if (tx.amount_apt) {
+        if (tx.direction === 'sent') {
+          stats.totalSent += tx.amount_apt;
+        } else if (tx.direction === 'received') {
+          stats.totalReceived += tx.amount_apt;
+        }
+      }
+      stats.byType[tx.type]++;
+    });
+
+    return stats;
+  } catch (error) {
+    console.error('Error calculating transaction statistics:', error);
+    return null;
+  }
+};

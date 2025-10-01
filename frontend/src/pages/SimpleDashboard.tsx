@@ -33,8 +33,15 @@ import {
   clearWalletData,
   getAccountTransactions,
   fundAccount,
+  getAccountBalance,
 } from '@/utils/walletUtils';
 import { getWalletBalance, testAptosConnection } from '@/utils/aptosWalletUtils';
+import { 
+  getUserStats, 
+  getPaymentRequest, 
+  octasToApt,
+  UserStats 
+} from '@/utils/contractUtils';
 
 // Import all the new components
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
@@ -46,6 +53,7 @@ import { EnhancedSidebarLink, type SidebarLinkProps } from '@/components/dashboa
 import { AddressQRCode } from '@/components/dashboard/AddressQRCode';
 import { SidebarFooter } from '@/components/dashboard/SidebarFooter';
 import { SidebarHeader } from '@/components/dashboard/SidebarHeader';
+import { BlockchainStats } from '@/components/dashboard/BlockchainStats';
 import { RequestMoney } from '@/components/RequestMoney';
 import { ReceiveTransaction } from '@/components/ReceiveTransaction';
 import { SendPaymentRequest } from '@/components/SendPaymentRequest';
@@ -83,13 +91,17 @@ const SimpleDashboard = () => {
   const [addWalletLoading, setAddWalletLoading] = useState(false);
   const [accountList, setAccountList] = useState<WalletAccount[]>([]);
 
-const [showRequestMoney, setShowRequestMoney] = useState(false);
+  const [showRequestMoney, setShowRequestMoney] = useState(false);
   const [showSendPaymentRequest, setShowSendPaymentRequest] = useState(false);
   const [showRegisterWallet, setShowRegisterWallet] = useState(false);
 
   const [transactionRefreshFlag, setTransactionRefreshFlag] = useState(0);
 
-  // Persist sidebar state
+  // Blockchain stats state
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [activePaymentRequests, setActivePaymentRequests] = useState(0);
+  const [loyaltyTier, setLoyaltyTier] = useState<string>('None');  // Persist sidebar state
   useEffect(() => {
     localStorage.setItem('sidebar-open', JSON.stringify(sidebarOpen));
   }, [sidebarOpen]);
@@ -142,18 +154,63 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const loadWalletData = async (account: WalletAccount) => {
+  const loadBlockchainStats = useCallback(async (address: string) => {
+    setStatsLoading(true);
+    try {
+      // Fetch user stats from blockchain
+      const stats = await getUserStats(address);
+      setUserStats(stats);
+
+      if (stats) {
+        // Calculate loyalty tier based on transaction count
+        const txCount = parseInt(stats.transaction_count);
+        let tier = 'None';
+        if (txCount >= 100) tier = 'Diamond';
+        else if (txCount >= 50) tier = 'Platinum';
+        else if (txCount >= 20) tier = 'Gold';
+        else if (txCount >= 10) tier = 'Silver';
+        else if (txCount >= 1) tier = 'Bronze';
+        setLoyaltyTier(tier);
+
+        console.log('✓ Loaded blockchain stats:', {
+          txCount,
+          totalVolume: octasToApt(stats.total_amount_transacted).toFixed(4),
+          tier
+        });
+      } else {
+        setLoyaltyTier('None');
+        console.log('✓ No blockchain stats found for user');
+      }
+
+      // Count active payment requests (incoming)
+      let activeCount = 0;
+      for (let i = 0; i < 50; i++) {
+        try {
+          const request = await getPaymentRequest(i);
+          if (request && request.to_address === address && request.status === 0) {
+            activeCount++;
+          }
+        } catch (error) {
+          // Request doesn't exist, continue
+          break;
+        }
+      }
+      setActivePaymentRequests(activeCount);
+      console.log('✓ Found', activeCount, 'active payment requests');
+
+    } catch (error) {
+      console.error('Error loading blockchain stats:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  const loadWalletData = useCallback(async (account: WalletAccount) => {
     try {
       console.log('Loading wallet data for address:', account.address);
       
-      // Initialize account balance if it doesn't exist (for demo purposes)
-      
-      
-      // Initialize user stats for NFT system
-      
-      
       // Get balance from localStorage
-      const accountBalance = getAccountBalance(account.address);
+      const accountBalance = await getAccountBalance(account.address);
       console.log('✓ Loaded balance from localStorage:', accountBalance, 'APT');
       setBalance(accountBalance);
 
@@ -161,7 +218,14 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       try {
         const accountTransactions = await getAccountTransactions(account.address, 10);
         // Map transactions to our Transaction type
-        const mappedTransactions: Transaction[] = accountTransactions.map((tx: any) => ({
+        interface TransactionData {
+          version?: string;
+          timestamp?: string;
+          type?: string;
+          success?: boolean;
+          hash?: string;
+        }
+        const mappedTransactions: Transaction[] = accountTransactions.map((tx: TransactionData) => ({
           version: tx.version || 'N/A',
           timestamp: tx.timestamp || Date.now().toString(),
           type: tx.type || 'transaction',
@@ -174,10 +238,13 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
         console.error('Error loading transactions:', txError);
         setTransactions([]);
       }
+
+      // Load blockchain stats
+      await loadBlockchainStats(account.address);
     } catch (error) {
       console.error('Error loading wallet data:', error);
     }
-  };
+  }, [loadBlockchainStats]);
 
     const initializeWallet = useCallback(async () => {
     setIsLoading(true);
@@ -208,13 +275,13 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [loadWalletData]);
 
   const refreshWalletData = useCallback(async () => {
     if (currentAccount) {
       await loadWalletData(currentAccount);
     }
-  }, [currentAccount]);
+  }, [currentAccount, loadWalletData]);
 
   useEffect(() => {
     console.log('🚀 SimpleDashboard initializing...');
@@ -341,8 +408,9 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       setIsLoading(true);
       try {
         // Get fresh balance from localStorage
-        const freshBalance = getAccountBalance(currentAccount.address);
+        const freshBalance = await getAccountBalance(currentAccount.address);
         setBalance(freshBalance);
+        await loadBlockchainStats(currentAccount.address);
         console.log('✅ Balance refresh completed successfully:', freshBalance, 'APT');
       } catch (error) {
         console.error('❌ Balance refresh failed:', error);
@@ -593,6 +661,14 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
                     onCopyAddress={() => copyToClipboard(currentAccount?.address || '')}
                   />
                   
+                  <BlockchainStats
+                    transactionCount={userStats?.transaction_count || '0'}
+                    totalVolume={userStats?.total_amount_transacted || '0'}
+                    loyaltyTier={loyaltyTier}
+                    activePaymentRequests={activePaymentRequests}
+                    isLoading={statsLoading}
+                  />
+                  
                   <UpiQuickAccess 
                     onNavigateToUpi={() => handleSectionChange('upi')}
                     className="mb-6"
@@ -601,11 +677,12 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
                   <PaymentRequestsSection
                     userAddress={currentAccount?.address || ''}
                     onSendRequest={handleSendPaymentRequest}
-                    onBalanceUpdate={() => {
+                    onBalanceUpdate={async () => {
                       // Refresh balance after payment request is accepted
                       if (currentAccount) {
-                        const freshBalance = getAccountBalance(currentAccount.address);
+                        const freshBalance = await getAccountBalance(currentAccount.address);
                         setBalance(freshBalance);
+                        await loadBlockchainStats(currentAccount.address);
                       }
                     }}
                   />

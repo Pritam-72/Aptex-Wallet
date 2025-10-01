@@ -5,17 +5,16 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Download, Search, Filter, ExternalLink, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, RefreshCw, Users, FileImage } from 'lucide-react';
+import { Download, Search, Filter, ExternalLink, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, RefreshCw, Users, FileImage, Wallet, Receipt, DollarSign } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
-import { getAccountTransactions, ProcessedTransaction } from '@/utils/aptosWalletUtils';
-import { getAccountTransactions as getTransactions } from '@/utils/walletUtils';
+import { getEnhancedAccountTransactions, EnhancedTransaction } from '@/utils/contractUtils';
 import { SplitBillModal } from './SplitBillModal';
 import { InvoicePreviewModal } from './InvoicePreviewModal';
 import { InvoiceData, downloadInvoice } from '@/utils/invoiceGenerator';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 
-// Updated transaction interface to match real Aptos transactions
+// Updated transaction interface to match enhanced blockchain transactions
 interface PaymentTransaction {
   from: string;
   to: string;
@@ -28,6 +27,10 @@ interface PaymentTransaction {
   status: 'confirmed' | 'failed';
   gasUsed?: string;
   function?: string;
+  // Enhanced fields from blockchain
+  transactionType?: 'coin_transfer' | 'payment_request' | 'split_bill' | 'emi_payment' | 'nft_mint' | 'other';
+  description?: string;
+  version?: string;
 }
 
 export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refreshFlag }) => {
@@ -78,9 +81,27 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
 
   const { toast } = useToast();
 
-  // Mock APT to INR conversion (1 APT = 1000 INR for demo)
+  // Mock APT to INR conversion (1 APT = 373 INR for demo)
   const convertAPTToINR = (aptAmount: string): number => {
     return parseFloat(aptAmount) * 373;
+  };
+
+  // Get user-friendly transaction description
+  const getTransactionDescription = (tx: EnhancedTransaction): string => {
+    switch (tx.type) {
+      case 'coin_transfer':
+        return tx.direction === 'sent' ? 'Sent APT' : 'Received APT';
+      case 'payment_request':
+        return tx.function_name?.includes('create') ? 'Payment Request Created' : 'Payment Request Paid';
+      case 'split_bill':
+        return 'Split Bill Created';
+      case 'emi_payment':
+        return 'EMI Payment';
+      case 'nft_mint':
+        return 'NFT Minted';
+      default:
+        return tx.function_name || 'Transaction';
+    }
   };
 
   // Invoice generation functions
@@ -146,31 +167,55 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
     setError(null);
 
     try {
-      console.log('🔍 Loading transaction history for:', address);
+      console.log('🔍 Loading enhanced transaction history for:', address);
       
-      // Get real transactions from blockchain
-      const realTransactions = await getTransactions(address, 50);
+      // Get enhanced transactions from blockchain with parsed details
+      const enhancedTxs = await getEnhancedAccountTransactions(address, 50);
       
       // Transform to expected format
-      const formattedTransactions: PaymentTransaction[] = realTransactions.map((tx: any) => ({
-        from: tx.sender || address,
-        to: tx.payload?.arguments?.[0] || 'Unknown',
-        ethAmount: '0',
-        aptosAmount: tx.payload?.arguments?.[1] ? (parseInt(tx.payload.arguments[1]) / 100000000).toString() : '0',
-        inrAmount: 0,
-        timestamp: new Date(parseInt(tx.timestamp) / 1000),
-        txHash: tx.hash || tx.version,
-        type: tx.sender === address ? 'sent' as const : 'received' as const,
-        status: tx.success ? 'confirmed' as const : 'failed' as const,
-        gasUsed: tx.gas_used,
-        function: tx.payload?.function
-      }));
+      const formattedTransactions: PaymentTransaction[] = enhancedTxs.map((tx: EnhancedTransaction) => {
+        const aptAmount = tx.amount_apt?.toString() || '0';
+        const inrAmount = convertAPTToINR(aptAmount);
+        
+        return {
+          from: tx.sender,
+          to: tx.recipient || (tx.direction === 'received' ? address : 'Unknown'),
+          ethAmount: '0',
+          aptosAmount: aptAmount,
+          inrAmount: inrAmount,
+          timestamp: new Date(parseInt(tx.timestamp) / 1000),
+          txHash: tx.hash,
+          type: tx.direction === 'sent' ? 'sent' as const : 
+                tx.direction === 'received' ? 'received' as const : 'other' as const,
+          status: tx.success ? 'confirmed' as const : 'failed' as const,
+          gasUsed: tx.gas_used,
+          function: tx.payload?.function,
+          transactionType: tx.type,
+          description: tx.description || getTransactionDescription(tx),
+          version: tx.version
+        };
+      });
 
-      console.log('✅ Loaded', formattedTransactions.length, 'transactions from blockchain');
+      console.log('✅ Loaded', formattedTransactions.length, 'enhanced transactions from blockchain');
       setTransactions(formattedTransactions);
-    } catch (error: any) {
-      setError(error.message || 'Failed to load transactions');
+      
+      if (formattedTransactions.length > 0) {
+        toast({
+          title: "Transactions Loaded",
+          description: `Found ${formattedTransactions.length} transaction${formattedTransactions.length > 1 ? 's' : ''} on-chain`,
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load transactions';
+      setError(errorMessage);
       console.error('Transaction fetch error:', error);
+      toast({
+        title: "Error Loading Transactions",
+        description: "Could not fetch transaction history from blockchain",
+        variant: "destructive",
+        duration: 4000,
+      });
       // If there's an error, just show empty transactions
       setTransactions([]);
     } finally {
@@ -180,7 +225,7 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
         setLoading(false);
       }
     }
-  }, [isConnected, address]);
+  }, [isConnected, address, toast]);
 
   // Initial load
   useEffect(() => {
@@ -416,6 +461,14 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                       {getTypeIcon(tx.type)}
                       <div>
                         <div className="font-medium text-foreground capitalize">{tx.type}</div>
+                        {tx.description && (
+                          <div className="text-xs text-purple-400 font-medium">{tx.description}</div>
+                        )}
+                        {tx.transactionType && tx.transactionType !== 'coin_transfer' && (
+                          <Badge variant="outline" className="text-xs mt-1 border-blue-600/30 text-blue-400">
+                            {tx.transactionType.replace('_', ' ').toUpperCase()}
+                          </Badge>
+                        )}
                         <div className="text-xs text-muted-foreground">
                           {tx.timestamp.toLocaleDateString()} {tx.timestamp.toLocaleTimeString()}
                         </div>
@@ -437,8 +490,9 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                       <span className="text-sm text-muted-foreground">
                         {tx.type === 'sent' ? 'To:' : 'From:'}
                       </span>
-                      <div className="font-mono text-xs text-foreground text-right">
-                        {tx.type === 'sent' ? tx.to : tx.from}
+                      <div className="font-mono text-xs text-foreground text-right break-all">
+                        {(tx.type === 'sent' ? tx.to : tx.from).substring(0, 10)}...
+                        {(tx.type === 'sent' ? tx.to : tx.from).slice(-8)}
                       </div>
                     </div>
                     
@@ -455,10 +509,10 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
                       </a>
                     </div>
                     
-                    {tx.function && (
+                    {tx.gasUsed && (
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Function:</span>
-                        <span className="text-xs font-medium text-foreground">{tx.function}</span>
+                        <span className="text-sm text-muted-foreground">Gas Used:</span>
+                        <span className="text-xs text-foreground">{parseInt(tx.gasUsed).toLocaleString()}</span>
                       </div>
                     )}
                   </div>
