@@ -4,9 +4,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Send, AlertTriangle, X, IndianRupee } from 'lucide-react';
+import { Send, AlertTriangle, X, IndianRupee, Loader2, CheckCircle2, Fuel, User, CreditCard } from 'lucide-react';
 import { getAccountBalance } from '@/utils/walletUtils';
+import {
+  resolveRecipient,
+  getAccountFromPrivateKey,
+  aptToOctas,
+  octasToApt,
+  checkSufficientBalance,
+  estimateGas,
+  aptos
+} from '@/utils/contractUtils';
 
 interface SendTransactionProps {
   isOpen: boolean;
@@ -16,74 +26,234 @@ interface SendTransactionProps {
 
 export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClose, onSuccess }) => {
   const [recipient, setRecipient] = useState('');
-  const [inrAmount, setInrAmount] = useState('');
+  const [aptAmount, setAptAmount] = useState('');
   const [note, setNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isResolvingRecipient, setIsResolvingRecipient] = useState(false);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
   const [currentBalance, setCurrentBalance] = useState('0');
+  const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
+  const [recipientType, setRecipientType] = useState<'address' | 'walletId' | 'upiId' | null>(null);
+  const [gasEstimate, setGasEstimate] = useState('0.0002');
+  const [txHash, setTxHash] = useState('');
+  const [success, setSuccess] = useState(false);
   const { toast } = useToast();
 
-  const currentRate = 373;
-  const aptAmount = inrAmount && !isNaN(parseFloat(inrAmount)) ? (parseFloat(inrAmount) / currentRate).toFixed(8) : '0';
+  // Get current account
+  const getCurrentAccount = () => {
+    try {
+      const walletData = localStorage.getItem('cryptal_wallet');
+      if (walletData) {
+        const parsedWalletData = JSON.parse(walletData);
+        const currentIndex = parsedWalletData.currentAccountIndex || 0;
+        return parsedWalletData.accounts?.[currentIndex] || null;
+      }
+    } catch (error) {
+      console.error('Error getting current account:', error);
+    }
+    return null;
+  };
 
+  const currentAccount = getCurrentAccount();
+  const currentAddress = currentAccount?.address || null;
+
+  // Load balance when dialog opens
   useEffect(() => {
     const loadBalance = async () => {
-      if (isOpen) {
+      if (isOpen && currentAddress) {
         try {
-          const walletData = localStorage.getItem('cryptal_wallet');
-          if (walletData) {
-            const parsedWalletData = JSON.parse(walletData);
-            const currentIndex = parsedWalletData.currentAccountIndex || 0;
-            const currentAccount = parsedWalletData.accounts?.[currentIndex];
-            if (currentAccount) {
-              const balance = await getAccountBalance(currentAccount.address);
-              setCurrentBalance(balance);
-            }
-          }
+          const balance = await getAccountBalance(currentAddress);
+          setCurrentBalance(balance);
         } catch (error) {
           console.error('Error loading balance:', error);
         }
       }
     };
     loadBalance();
-  }, [isOpen]);
+  }, [isOpen, currentAddress]);
+
+  // Auto-resolve recipient when input changes
+  useEffect(() => {
+    const resolveRecipientAddress = async () => {
+      if (!recipient.trim()) {
+        setResolvedAddress(null);
+        setRecipientType(null);
+        setWarning('');
+        return;
+      }
+
+      setIsResolvingRecipient(true);
+      setWarning('');
+      
+      try {
+        const result = await resolveRecipient(recipient.trim());
+        
+        if (result.address) {
+          setResolvedAddress(result.address);
+          setRecipientType(result.type);
+          
+          if (result.type === 'walletId') {
+            setWarning(`✓ Resolved Wallet ID to: ${result.address.slice(0, 10)}...${result.address.slice(-8)}`);
+          } else if (result.type === 'upiId') {
+            setWarning(`✓ Resolved UPI ID to: ${result.address.slice(0, 10)}...${result.address.slice(-8)}`);
+          }
+        } else {
+          setResolvedAddress(null);
+          setRecipientType(null);
+          if (result.type === 'walletId') {
+            setWarning('⚠ Wallet ID not found');
+          } else if (result.type === 'upiId') {
+            setWarning('⚠ UPI ID not registered');
+          } else {
+            setWarning('⚠ Invalid recipient address');
+          }
+        }
+      } catch (error) {
+        console.error('Error resolving recipient:', error);
+        setResolvedAddress(null);
+        setRecipientType(null);
+      } finally {
+        setIsResolvingRecipient(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(resolveRecipientAddress, 500);
+    return () => clearTimeout(debounceTimer);
+  }, [recipient]);
+
+  // Check balance when amount changes
+  useEffect(() => {
+    const checkBalance = async () => {
+      if (!aptAmount || !currentAddress) return;
+
+      const amount = parseFloat(aptAmount);
+      if (isNaN(amount) || amount <= 0) return;
+
+      try {
+        const gasEstimateAPT = parseFloat(gasEstimate);
+        const balanceCheck = await checkSufficientBalance(currentAddress, amount, gasEstimateAPT);
+        
+        if (!balanceCheck.sufficient) {
+          setWarning(`⚠ Insufficient balance! You need ${balanceCheck.required.toFixed(8)} APT (including gas) but only have ${balanceCheck.currentBalance.toFixed(8)} APT`);
+        } else if (balanceCheck.currentBalance - balanceCheck.required < 0.01) {
+          setWarning(`⚠ Low balance warning! After this transaction you'll have only ${(balanceCheck.currentBalance - balanceCheck.required).toFixed(8)} APT left`);
+        }
+      } catch (error) {
+        console.error('Error checking balance:', error);
+      }
+    };
+
+    checkBalance();
+  }, [aptAmount, currentAddress, gasEstimate]);
 
   const handleSend = async () => {
-    if (!recipient || !inrAmount) {
-      setError('Please fill in recipient address and amount');
+    setError('');
+    setWarning('');
+
+    // Validation
+    if (!recipient.trim()) {
+      setError('Please enter recipient address, Wallet ID, or UPI ID');
       return;
     }
 
-    const transactionAptAmount = parseFloat(aptAmount);
-    if (transactionAptAmount <= 0 || isNaN(transactionAptAmount)) {
-      setError('Invalid amount');
+    if (!aptAmount.trim()) {
+      setError('Please enter amount to send');
+      return;
+    }
+
+    const amount = parseFloat(aptAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setError('Please enter a valid amount');
+      return;
+    }
+
+    if (!currentAccount || !currentAddress) {
+      setError('Wallet not connected');
+      return;
+    }
+
+    // Check if recipient is resolved (for wallet ID / UPI ID)
+    let finalRecipientAddress = recipient.trim();
+    if (recipientType === 'walletId' || recipientType === 'upiId') {
+      if (!resolvedAddress) {
+        setError(`${recipientType === 'walletId' ? 'Wallet ID' : 'UPI ID'} not found. Please check and try again.`);
+        return;
+      }
+      finalRecipientAddress = resolvedAddress;
+    }
+
+    // Validate address format
+    if (!finalRecipientAddress.startsWith('0x') || finalRecipientAddress.length !== 66) {
+      setError('Invalid recipient address format');
       return;
     }
 
     setIsLoading(true);
-    setError('');
 
     try {
-      const walletData = localStorage.getItem('cryptal_wallet');
-      if (!walletData) throw new Error('Wallet not found');
-
-      const parsedWalletData = JSON.parse(walletData);
-      const currentIndex = parsedWalletData.currentAccountIndex || 0;
-      const currentAccount = parsedWalletData.accounts?.[currentIndex];
+      // Check sufficient balance
+      const gasEstimateAPT = parseFloat(gasEstimate);
+      const balanceCheck = await checkSufficientBalance(currentAddress, amount, gasEstimateAPT);
       
-      if (!currentAccount) throw new Error('Account not found');
-
-      const senderBalance = parseFloat(await getAccountBalance(currentAccount.address));
-      
-      if (senderBalance < transactionAptAmount) {
-        throw new Error(`Insufficient balance. Available: ${senderBalance} APT, Required: ${transactionAptAmount} APT`);
+      if (!balanceCheck.sufficient) {
+        throw new Error(`Insufficient balance. You need ${balanceCheck.required.toFixed(8)} APT (including gas) but only have ${balanceCheck.currentBalance.toFixed(8)} APT`);
       }
 
-      throw new Error('Real blockchain transactions not yet implemented');
+      // Get account from private key
+      const account = getAccountFromPrivateKey(currentAccount.privateKey);
+      
+      // Convert APT to Octas (1 APT = 100,000,000 octas)
+      const amountInOctas = BigInt(aptToOctas(amount));
+
+      // Build transaction
+      const transaction = await aptos.transaction.build.simple({
+        sender: account.accountAddress,
+        data: {
+          function: "0x1::coin::transfer",
+          typeArguments: ["0x1::aptos_coin::AptosCoin"],
+          functionArguments: [finalRecipientAddress, amountInOctas],
+        },
+      });
+
+      // Sign and submit transaction
+      const pendingTxn = await aptos.signAndSubmitTransaction({
+        signer: account,
+        transaction,
+      });
+
+      // Wait for transaction confirmation
+      const response = await aptos.waitForTransaction({
+        transactionHash: pendingTxn.hash,
+      });
+
+      if (response.success) {
+        setTxHash(pendingTxn.hash);
+        setSuccess(true);
+
+        toast({
+          title: "Transaction Successful! 🎉",
+          description: `Sent ${amount} APT to ${recipientType === 'address' ? 'address' : recipientType === 'walletId' ? 'Wallet ID' : 'UPI ID'}`,
+          duration: 5000,
+        });
+
+        // Refresh balance
+        const newBalance = await getAccountBalance(currentAddress);
+        setCurrentBalance(newBalance);
+
+        // Reset form and close after delay
+        setTimeout(() => {
+          handleClose();
+          onSuccess?.();
+        }, 3000);
+      } else {
+        throw new Error('Transaction failed: ' + response.vm_status);
+      }
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Transaction failed';
       setError(errorMessage);
+      
       toast({
         title: "Transaction Failed",
         description: errorMessage,
@@ -96,11 +266,18 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
   };
 
   const handleClose = () => {
-    setRecipient('');
-    setInrAmount('');
-    setNote('');
-    setError('');
-    onClose();
+    if (!isLoading) {
+      setRecipient('');
+      setAptAmount('');
+      setNote('');
+      setError('');
+      setWarning('');
+      setSuccess(false);
+      setTxHash('');
+      setResolvedAddress(null);
+      setRecipientType(null);
+      onClose();
+    }
   };
 
   return (
@@ -126,6 +303,20 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
         </DialogHeader>
 
         <div className="space-y-4 pb-4">
+          {success && (
+            <Alert className="bg-green-900/50 border-green-700">
+              <CheckCircle2 className="h-4 w-4 text-green-400" />
+              <AlertDescription className="text-green-300">
+                <div>Transaction successful!</div>
+                {txHash && (
+                  <div className="text-xs mt-1 break-all">
+                    Hash: {txHash.slice(0, 20)}...{txHash.slice(-20)}
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {error && (
             <Alert className="bg-red-900/50 border-red-700">
               <AlertTriangle className="h-4 w-4" />
@@ -133,36 +324,69 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
             </Alert>
           )}
 
+          {warning && !error && (
+            <Alert className="bg-yellow-900/50 border-yellow-700">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-yellow-300">{warning}</AlertDescription>
+            </Alert>
+          )}
+
           <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-3">
             <p className="text-sm text-gray-400">Your Balance</p>
             <p className="text-2xl font-bold text-white">{currentBalance} APT</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm text-gray-300">Recipient Address</Label>
-            <Input
-              value={recipient}
-              onChange={(e) => setRecipient(e.target.value)}
-              placeholder="0x1234..."
-              className="bg-gray-900 border-gray-700 text-white font-mono text-sm"
-              disabled={isLoading}
-            />
+            <div className="flex items-center gap-2 mt-2">
+              <Fuel className="h-3 w-3 text-gray-500" />
+              <p className="text-xs text-gray-500">Est. Gas: ~{gasEstimate} APT</p>
+            </div>
           </div>
 
           <div className="space-y-2">
             <Label className="text-sm text-gray-300 flex items-center gap-2">
-              <IndianRupee className="h-4 w-4" />
-              Amount (INR)
+              Recipient
+              {recipientType && (
+                <Badge variant="outline" className="text-xs">
+                  {recipientType === 'walletId' ? (
+                    <><User className="h-3 w-3 mr-1" />Wallet ID</>
+                  ) : recipientType === 'upiId' ? (
+                    <><CreditCard className="h-3 w-3 mr-1" />UPI ID</>
+                  ) : (
+                    'Address'
+                  )}
+                </Badge>
+              )}
             </Label>
             <Input
-              type="number"
-              value={inrAmount}
-              onChange={(e) => setInrAmount(e.target.value)}
-              placeholder="0.00"
-              className="bg-gray-900 border-gray-700 text-white"
-              disabled={isLoading}
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              placeholder="Address, Wallet ID, or UPI ID..."
+              className="bg-gray-900 border-gray-700 text-white text-sm"
+              disabled={isLoading || success}
             />
-            {inrAmount && <p className="text-xs text-gray-400"> {aptAmount} APT</p>}
+            {isResolvingRecipient && (
+              <p className="text-xs text-gray-400 flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Resolving...
+              </p>
+            )}
+            <p className="text-xs text-gray-400">
+              Enter wallet address (0x...), Wallet ID (@username), or UPI ID (name@provider)
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm text-gray-300">Amount (APT)</Label>
+            <Input
+              type="number"
+              step="0.00000001"
+              value={aptAmount}
+              onChange={(e) => setAptAmount(e.target.value)}
+              placeholder="0.00000000"
+              className="bg-gray-900 border-gray-700 text-white"
+              disabled={isLoading || success}
+            />
+            <p className="text-xs text-gray-400">
+              Available: {currentBalance} APT
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -172,21 +396,39 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
               onChange={(e) => setNote(e.target.value)}
               placeholder="Add a note..."
               className="bg-gray-900 border-gray-700 text-white"
-              disabled={isLoading}
+              disabled={isLoading || success}
             />
           </div>
 
           <Button
             onClick={handleSend}
-            disabled={isLoading || !recipient || !inrAmount}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={isLoading || success || !recipient || !aptAmount || isResolvingRecipient}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
           >
-            {isLoading ? 'Sending...' : 'Send Transaction'}
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Sending Transaction...
+              </>
+            ) : success ? (
+              <>
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Transaction Sent!
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                Send Transaction
+              </>
+            )}
           </Button>
 
-          <div className="text-center text-xs text-yellow-500">
-             Real blockchain transactions coming soon
-          </div>
+          {!success && (
+            <div className="text-center text-xs text-gray-500">
+              <p>✓ Real blockchain transactions enabled</p>
+              <p className="mt-1">✓ Auto-detect: Address / Wallet ID / UPI ID</p>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
