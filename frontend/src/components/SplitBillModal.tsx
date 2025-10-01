@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { 
   Users, 
   Plus, 
@@ -12,10 +13,20 @@ import {
   User, 
   X, 
   AlertCircle,
-  Split
+  Split,
+  Loader2,
+  CheckCircle2,
+  CreditCard
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import {
+  createSplitBill,
+  getAccountFromPrivateKey,
+  aptToOctas,
+  resolveRecipient,
+  aptos
+} from '@/utils/contractUtils';
 
 interface SplitBillModalProps {
   isOpen: boolean;
@@ -32,6 +43,8 @@ interface Participant {
   id: string;
   address: string;
   amount: string;
+  recipientType?: 'address' | 'walletId' | 'upiId';
+  resolvedAddress?: string;
 }
 
 export const SplitBillModal: React.FC<SplitBillModalProps> = ({
@@ -46,8 +59,62 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
   const [description, setDescription] = useState(originalTransaction.description || '');
   const [splitType, setSplitType] = useState<'even' | 'custom'>('even');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [txHash, setTxHash] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resolvingParticipant, setResolvingParticipant] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Helper function to calculate custom split validation
+  const calculateCustomSplit = (totalAmount: string, customAmounts: Record<string, string>) => {
+    const total = parseFloat(totalAmount);
+    const sum = Object.values(customAmounts).reduce((acc, amt) => acc + parseFloat(amt || '0'), 0);
+    const remaining = total - sum;
+    
+    return {
+      valid: Math.abs(remaining) < 0.00000001, // Account for floating point precision
+      remaining: remaining.toFixed(8)
+    };
+  };
+
+  // Resolve participant addresses with debounce
+  useEffect(() => {
+    if (success) return;
+
+    const timeoutIds: NodeJS.Timeout[] = [];
+
+    for (const participant of participants) {
+      if (!participant.address.trim() || participant.resolvedAddress) continue;
+
+      const timeoutId = setTimeout(async () => {
+        setResolvingParticipant(participant.id);
+        try {
+          const result = await resolveRecipient(participant.address);
+          setParticipants(prev => prev.map(p =>
+            p.id === participant.id
+              ? { ...p, resolvedAddress: result.address, recipientType: result.type }
+              : p
+          ));
+        } catch (err) {
+          // Clear resolution if invalid
+          setParticipants(prev => prev.map(p =>
+            p.id === participant.id
+              ? { ...p, resolvedAddress: undefined, recipientType: undefined }
+              : p
+          ));
+        } finally {
+          setResolvingParticipant(null);
+        }
+      }, 500);
+
+      timeoutIds.push(timeoutId);
+    }
+
+    return () => {
+      timeoutIds.forEach(id => clearTimeout(id));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [participants.map(p => p.address).join(','), success]);
 
   // Generate unique ID for participants
   const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 5);
@@ -90,6 +157,8 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
     setDescription(originalTransaction.description || '');
     setSplitType('even');
     setError('');
+    setSuccess(false);
+    setTxHash('');
     setIsSubmitting(false);
     onClose();
   };
@@ -105,10 +174,10 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
       return false;
     }
 
-    // Check for valid Aptos addresses (basic validation)
+    // Check that all participants are resolved or have valid addresses
     for (const participant of validParticipants) {
-      if (!participant.address.startsWith('0x') || participant.address.length < 10) {
-        setError(`Invalid address: ${participant.address.slice(0, 20)}...`);
+      if (!participant.resolvedAddress && !participant.address.startsWith('0x')) {
+        setError(`Invalid recipient: ${participant.address}. Must be address, Wallet ID, or UPI ID.`);
         return false;
       }
     }
@@ -130,7 +199,7 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
 
       const calculation = calculateCustomSplit(originalTransaction.amount, customAmounts);
       if (!calculation.valid) {
-        setError(`Amount mismatch. Remaining: ${calculation.remaining} APT`);
+        setError(`Amount mismatch. Total should be ${originalTransaction.amount} APT. Remaining: ${calculation.remaining} APT`);
         return false;
       }
     }
@@ -142,16 +211,86 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!validateForm()) return;
+    
     setIsSubmitting(true);
+    setError('');
+    setSuccess(false);
+
     try {
+      // Get wallet data
+      const storedWallet = localStorage.getItem('aptosWallet');
+      if (!storedWallet) {
+        setError('Wallet not found. Please create or import a wallet first.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const walletData = JSON.parse(storedWallet);
+      const account = getAccountFromPrivateKey(walletData.privateKey);
+
+      // Get valid participants with resolved addresses
+      const validParticipants = participants.filter(p => p.address.trim());
+      
+      // Prepare split data
+      const totalAmount = parseFloat(originalTransaction.amount);
+      const participantAddresses: string[] = [];
+      const participantAmounts: string[] = [];
+
+      if (splitType === 'even') {
+        // Even split
+        const amountPerPerson = totalAmount / validParticipants.length;
+        const amountInOctas = aptToOctas(amountPerPerson);
+
+        for (const participant of validParticipants) {
+          const finalAddress = participant.resolvedAddress || participant.address;
+          participantAddresses.push(finalAddress);
+          participantAmounts.push(amountInOctas);
+        }
+      } else {
+        // Custom split
+        for (const participant of validParticipants) {
+          const finalAddress = participant.resolvedAddress || participant.address;
+          const amountInOctas = aptToOctas(parseFloat(participant.amount));
+          
+          participantAddresses.push(finalAddress);
+          participantAmounts.push(amountInOctas);
+        }
+      }
+
+      // Create split bill on-chain
+      const result = await createSplitBill(
+        account,
+        description || 'Split bill',
+        participantAddresses,
+        participantAmounts
+      );
+
+      setTxHash(result.hash);
+      setSuccess(true);
+
       toast({
-        title: "Feature Coming Soon",
-        description: "Bill splitting requires backend/smart contract implementation",
-        variant: "destructive",
-        duration: 3000,
+        title: "Split Bill Created!",
+        description: `Bill split among ${validParticipants.length} participants.`,
+        duration: 5000,
       });
 
-      handleClose();
+      // Close after 2 seconds
+      setTimeout(() => {
+        handleClose();
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error creating split bill:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create split bill';
+      setError(errorMessage);
+      
+      toast({
+        title: "Split Bill Failed",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -175,6 +314,29 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Success Alert */}
+          {success && (
+            <Alert className="bg-green-900/50 border-green-700">
+              <CheckCircle2 className="h-4 w-4 text-green-400" />
+              <AlertDescription className="text-green-300">
+                <div>Split bill created successfully!</div>
+                {txHash && (
+                  <div className="text-xs mt-1 break-all">
+                    TX: {txHash.slice(0, 20)}...{txHash.slice(-20)}
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Error Alert */}
+          {error && !success && (
+            <Alert className="bg-red-900/20 border-red-800 text-red-400">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           {/* Original Transaction Info */}
           <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
@@ -183,18 +345,12 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
                 {originalTransaction.amount} APT
               </span>
             </div>
-            <div className="text-xs text-gray-500 font-mono">
-              {originalTransaction.txHash.slice(0, 20)}...{originalTransaction.txHash.slice(-15)}
-            </div>
+            {originalTransaction.txHash && (
+              <div className="text-xs text-gray-500 font-mono">
+                {originalTransaction.txHash.slice(0, 20)}...{originalTransaction.txHash.slice(-15)}
+              </div>
+            )}
           </div>
-
-          {/* Error Alert */}
-          {error && (
-            <Alert className="bg-red-900/20 border-red-800 text-red-400">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
 
           {/* Split Type Selection */}
           <div className="space-y-3">
@@ -272,6 +428,17 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
                     <span className="text-sm text-gray-300">
                       Person {index + 1}
                     </span>
+                    {participant.recipientType && (
+                      <Badge variant="outline" className="text-xs">
+                        {participant.recipientType === 'walletId' ? (
+                          <><User className="h-3 w-3 mr-1" />Wallet ID</>
+                        ) : participant.recipientType === 'upiId' ? (
+                          <><CreditCard className="h-3 w-3 mr-1" />UPI ID</>
+                        ) : (
+                          'Address'
+                        )}
+                      </Badge>
+                    )}
                     {participants.length > 1 && (
                       <Button
                         type="button"
@@ -286,25 +453,31 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
+                    <div className="space-y-1">
                       <Input
-                        placeholder="0x..."
+                        placeholder="Address, Wallet ID, or UPI ID..."
                         value={participant.address}
                         onChange={(e) => updateParticipantAddress(participant.id, e.target.value)}
-                        className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 font-mono text-sm"
-                        disabled={isSubmitting}
+                        className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 text-sm"
+                        disabled={isSubmitting || success}
                       />
+                      {resolvingParticipant === participant.id && (
+                        <p className="text-xs text-gray-400 flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Resolving...
+                        </p>
+                      )}
                     </div>
                     
                     {splitType === 'custom' ? (
                       <Input
                         type="number"
-                        step="0.000001"
-                        placeholder="0.00"
+                        step="0.00000001"
+                        placeholder="0.00000000"
                         value={participant.amount}
                         onChange={(e) => updateParticipantAmount(participant.id, e.target.value)}
                         className="bg-gray-800 border-gray-700 text-white placeholder-gray-500"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || success}
                       />
                     ) : (
                       participant.address.trim() && (
@@ -331,23 +504,35 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
               disabled={isSubmitting}
               className="flex-1 border-gray-700 hover:bg-gray-800"
             >
-              Cancel
+              {success ? 'Close' : 'Cancel'}
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || participants.filter(p => p.address.trim()).length === 0}
-              className="flex-1 bg-white text-black hover:bg-gray-200"
+              disabled={isSubmitting || success || participants.filter(p => p.address.trim()).length === 0 || resolvingParticipant !== null}
+              className="flex-1 bg-white text-black hover:bg-gray-200 disabled:opacity-50"
             >
               {isSubmitting ? (
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
-                  Creating...
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating Split Bill...
+                </div>
+              ) : success ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Split Bill Created!
                 </div>
               ) : (
                 `Create Split (${participants.filter(p => p.address.trim()).length})`
               )}
             </Button>
           </div>
+
+          {!success && (
+            <div className="text-center text-xs text-gray-500">
+              <p>✓ On-chain split bill tracking</p>
+              <p className="mt-1">✓ Auto-detect: Address / Wallet ID / UPI ID</p>
+            </div>
+          )}
         </form>
       </DialogContent>
     </Dialog>
