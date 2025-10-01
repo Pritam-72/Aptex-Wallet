@@ -98,7 +98,11 @@ export const CompanyCouponSection: React.FC<CompanyCouponSectionProps> = ({ comp
       const result = await resolveRecipient(recipientInput.trim());
       if (result.address) {
         setResolvedAddress(result.address);
-        setRecipientType(result.type);
+        // Convert camelCase to snake_case for state
+        const normalizedType = result.type === 'walletId' ? 'wallet_id' : 
+                               result.type === 'upiId' ? 'upi_id' : 
+                               'address';
+        setRecipientType(normalizedType);
       } else {
         setResolvedAddress(null);
         setRecipientType(null);

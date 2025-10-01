@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Account } from "@aptos-labs/ts-sdk";
 import { CompanyEmiSection } from './CompanyEmiSection';
-import { CompanyCouponSection } from './CompanyCouponSection';
+import { CompanyCouponSection } from '@/components/CompanyCouponSection';
 
 interface CompanyDashboardProps {
   companyAddress: string;

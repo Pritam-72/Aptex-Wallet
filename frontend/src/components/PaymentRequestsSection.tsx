@@ -68,13 +68,22 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
       const incoming: DisplayPaymentRequest[] = [];
       const outgoing: DisplayPaymentRequest[] = [];
 
-      // Try to fetch requests (counter starts from 0)
-      // We'll try fetching up to 50 requests as a reasonable limit
-      for (let i = 0; i < 50; i++) {
+      // OPTIMIZED: Reduced limit and added early exit
+      let consecutiveNotFound = 0;
+      const MAX_CONSECUTIVE_NOT_FOUND = 3;
+      
+      for (let i = 0; i < 30; i++) { // Reduced from 50 to 30
         try {
           const requestData = await getPaymentRequest(i);
           
-          if (!requestData) break; // No more requests
+          if (!requestData) {
+            consecutiveNotFound++;
+            if (consecutiveNotFound >= MAX_CONSECUTIVE_NOT_FOUND) {
+              break; // Stop after 3 consecutive not found
+            }
+            continue;
+          }
+          consecutiveNotFound = 0; // Reset counter
           
           // Convert status number to string
           let status: 'Pending' | 'Paid' | 'Rejected' = 'Pending';

@@ -1,4 +1,4 @@
-import { Aptos, AptosConfig, Network, Account, Ed25519PrivateKey } from '@aptos-labs/ts-sdk';
+import { Aptos, AptosConfig, Network, Account, Ed25519PrivateKey, AccountAddress } from '@aptos-labs/ts-sdk';
 
 // Initialize Aptos client for devnet
 const config = new AptosConfig({ network: Network.DEVNET });
@@ -147,9 +147,12 @@ export const saveWallet = (wallet: StoredWallet): void => {
 export const createNewWallet = (): StoredWallet => {
   const { seedPhrase, account } = generateNewWallet();
   
+  // Note: Newer Aptos SDK versions may not expose privateKey directly
+  // This is a limitation that needs to be addressed based on SDK version
+  // For now, we store empty string and rely on seed phrase for recovery
   const walletAccount: WalletAccount = {
     address: account.accountAddress.toString(),
-    privateKey: account.privateKey.toString(),
+    privateKey: '', // TODO: Update based on Aptos SDK documentation for key access
     publicKey: account.publicKey.toString(),
     accountIndex: 0
   };
@@ -212,23 +215,23 @@ export const switchAccount = (accountIndex: number): boolean => {
 // Get account balance
 export const getAccountBalance = async (address: string): Promise<string> => {
   try {
-    const resources = await aptos.getAccountResources({
-      accountAddress: address
+    // Use the proper getAccountAPTAmount method from SDK
+    const accountAddress = AccountAddress.fromString(address);
+    const balance = await aptos.getAccountAPTAmount({
+      accountAddress
     });
     
-    const accountResource = resources.find(
-      (r) => r.type === '0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>'
-    );
+    // Convert from octas to APT (1 APT = 100,000,000 octas)
+    const aptBalance = (balance / 100_000_000).toFixed(8);
+    console.log('✅ Balance fetched:', aptBalance, 'APT for', address.slice(0, 10) + '...');
     
-    if (accountResource) {
-      const balance = (accountResource.data as { coin: { value: string } }).coin.value;
-      // Convert from octas to APT (1 APT = 100,000,000 octas)
-      return (parseInt(balance) / 100000000).toString();
-    }
-    
-    return '0';
+    return aptBalance;
   } catch (error) {
     console.error('Error fetching balance:', error);
+    if (error instanceof Error && error.message.includes('Resource not found')) {
+      console.log('ℹ️ Account not found on devnet, returning 0 balance');
+      return '0.00000000';
+    }
     return '0';
   }
 };

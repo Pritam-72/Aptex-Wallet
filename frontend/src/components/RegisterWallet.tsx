@@ -10,9 +10,9 @@ import {
   registerWalletId, 
   getWalletIdByAddress, 
   getAddressByWalletId,
-  getAccountFromPrivateKey,
-  parseContractError
+  getAccountFromPrivateKey
 } from '@/utils/contractUtils';
+import { parseContractError } from '@/utils/errorHandler';
 import { useToast } from '@/hooks/use-toast';
 
 interface RegisterWalletProps {
@@ -160,7 +160,8 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
           onClose();
         }, 3000);
       } else {
-        const errorMsg = result.error ? parseContractError(result.error) : 'Failed to register wallet ID';
+        const errorDetails = result.error ? parseContractError(result.error) : null;
+        const errorMsg = errorDetails?.message || 'Failed to register wallet ID';
         setError(errorMsg);
         setIsLoading(false);
         

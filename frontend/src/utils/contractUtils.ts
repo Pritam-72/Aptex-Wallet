@@ -14,6 +14,7 @@ import {
   InputEntryFunctionData,
 } from "@aptos-labs/ts-sdk";
 import { parseContractError, formatErrorForLog } from "./errorHandler";
+import { rpcCache, generateCacheKey } from "./rpcCache";
 
 // Initialize Aptos client for devnet
 const config = new AptosConfig({ network: Network.DEVNET });
@@ -760,51 +761,67 @@ export const mintCouponNftToUser = async (
  * Get address by wallet ID
  */
 export const getAddressByWalletId = async (walletId: string): Promise<string | null> => {
-  try {
-    const result = await aptos.view({
-      payload: {
-        function: `${MODULE_ID}::get_address_by_wallet_id`,
-        functionArguments: [CONTRACT_ADDRESS, walletId],
-      },
-    });
+  const cacheKey = generateCacheKey('getAddressByWalletId', walletId);
+  
+  return rpcCache.get(
+    cacheKey,
+    async () => {
+      try {
+        const result = await aptos.view({
+          payload: {
+            function: `${MODULE_ID}::get_address_by_wallet_id`,
+            functionArguments: [CONTRACT_ADDRESS, walletId],
+          },
+        });
 
-    // Result is Option<address>, check if vec is not empty
-    if (result && Array.isArray(result) && result.length > 0) {
-      const option = result[0] as Record<string, unknown>;
-      if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
-        return option.vec[0];
+        // Result is Option<address>, check if vec is not empty
+        if (result && Array.isArray(result) && result.length > 0) {
+          const option = result[0] as Record<string, unknown>;
+          if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
+            return option.vec[0];
+          }
+        }
+        return null;
+      } catch (error) {
+        console.error("Error getting address by wallet ID:", error);
+        return null;
       }
-    }
-    return null;
-  } catch (error) {
-    console.error("Error getting address by wallet ID:", error);
-    return null;
-  }
+    },
+    60000 // Cache for 60 seconds - wallet IDs rarely change
+  );
 };
 
 /**
  * Get address by UPI ID
  */
 export const getAddressByUpiId = async (upiId: string): Promise<string | null> => {
-  try {
-    const result = await aptos.view({
-      payload: {
-        function: `${MODULE_ID}::get_address_by_upi_id`,
-        functionArguments: [CONTRACT_ADDRESS, upiId],
-      },
-    });
+  const cacheKey = generateCacheKey('getAddressByUpiId', upiId);
+  
+  return rpcCache.get(
+    cacheKey,
+    async () => {
+      try {
+        const result = await aptos.view({
+          payload: {
+            function: `${MODULE_ID}::get_address_by_upi_id`,
+            functionArguments: [CONTRACT_ADDRESS, upiId],
+          },
+        });
 
-    if (result && Array.isArray(result) && result.length > 0) {
-      const option = result[0] as Record<string, unknown>;
-      if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
-        return option.vec[0];
+        if (result && Array.isArray(result) && result.length > 0) {
+          const option = result[0] as Record<string, unknown>;
+          if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
+            return option.vec[0];
+          }
+        }
+        return null;
+      } catch (error) {
+        console.error("Error getting address by UPI ID:", error);
+        return null;
       }
-    }
-    return null;
-  } catch (error) {
-    console.error("Error getting address by UPI ID:", error);
-    return null;
-  }
+    },
+    60000 // Cache for 60 seconds - UPI IDs rarely change
+  );
 };
 
 /**
@@ -861,34 +878,42 @@ export const getUpiIdByAddress = async (userAddress: string): Promise<string | n
  * Get payment request details
  */
 export const getPaymentRequest = async (requestId: number): Promise<PaymentRequest | null> => {
-  try {
-    const result = await aptos.view({
-      payload: {
-        function: `${MODULE_ID}::get_payment_request`,
-        functionArguments: [CONTRACT_ADDRESS, requestId.toString()],
-      },
-    });
+  const cacheKey = generateCacheKey('getPaymentRequest', requestId);
+  
+  return rpcCache.get(
+    cacheKey,
+    async () => {
+      try {
+        const result = await aptos.view({
+          payload: {
+            function: `${MODULE_ID}::get_payment_request`,
+            functionArguments: [CONTRACT_ADDRESS, requestId.toString()],
+          },
+        });
 
-    if (result && Array.isArray(result) && result.length > 0) {
-      const option = result[0] as Record<string, unknown>;
-      if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
-        const data = option.vec[0];
-        return {
-          id: requestId.toString(),
-          from_address: data.from_address,
-          to_address: data.to_address,
-          amount: data.amount,
-          description: data.description,
-          created_at: data.created_at,
-          status: data.status,
-        };
+        if (result && Array.isArray(result) && result.length > 0) {
+          const option = result[0] as Record<string, unknown>;
+          if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
+            const data = option.vec[0];
+            return {
+              id: requestId.toString(),
+              from_address: data.from_address,
+              to_address: data.to_address,
+              amount: data.amount,
+              description: data.description,
+              created_at: data.created_at,
+              status: data.status,
+            };
+          }
+        }
+        return null;
+      } catch (error) {
+        console.error("Error getting payment request:", error);
+        return null;
       }
-    }
-    return null;
-  } catch (error) {
-    console.error("Error getting payment request:", error);
-    return null;
-  }
+    },
+    10000 // Cache for 10 seconds
+  );
 };
 
 /**
@@ -1079,29 +1104,37 @@ export const getCompanyEmis = async (companyAddress: string): Promise<number[]> 
  * Get user statistics for loyalty tracking
  */
 export const getUserStats = async (userAddress: string): Promise<UserStats | null> => {
-  try {
-    const result = await aptos.view({
-      payload: {
-        function: `${MODULE_ID}::get_user_stats`,
-        functionArguments: [CONTRACT_ADDRESS, userAddress],
-      },
-    });
+  const cacheKey = generateCacheKey('getUserStats', userAddress);
+  
+  return rpcCache.get(
+    cacheKey,
+    async () => {
+      try {
+        const result = await aptos.view({
+          payload: {
+            function: `${MODULE_ID}::get_user_stats`,
+            functionArguments: [CONTRACT_ADDRESS, userAddress],
+          },
+        });
 
-    if (result && Array.isArray(result) && result.length > 0) {
-      const option = result[0] as Record<string, unknown>;
-      if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
-        const data = option.vec[0];
-        return {
-          transaction_count: data.transaction_count,
-          total_amount_transacted: data.total_amount_transacted,
-        };
+        if (result && Array.isArray(result) && result.length > 0) {
+          const option = result[0] as Record<string, unknown>;
+          if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
+            const data = option.vec[0];
+            return {
+              transaction_count: data.transaction_count,
+              total_amount_transacted: data.total_amount_transacted,
+            };
+          }
+        }
+        return null;
+      } catch (error) {
+        console.error("Error getting user stats:", error);
+        return null;
       }
-    }
-    return null;
-  } catch (error) {
-    console.error("Error getting user stats:", error);
-    return null;
-  }
+    },
+    30000 // Cache for 30 seconds - stats don't change frequently
+  );
 };
 
 /**
@@ -1218,6 +1251,26 @@ export const resolveRecipient = async (identifier: string): Promise<{
   // Assume it's a wallet ID
   const address = await getAddressByWalletId(identifier);
   return { address, type: 'walletId' };
+};
+
+/**
+ * Invalidate cache for a specific user (call after transactions)
+ */
+export const invalidateUserCache = (userAddress: string): void => {
+  rpcCache.invalidate(generateCacheKey('getUserStats', userAddress));
+  rpcCache.invalidate(generateCacheKey('getUserPaymentRequests', userAddress));
+  rpcCache.invalidate(generateCacheKey('getUserSentRequests', userAddress));
+  rpcCache.invalidate(generateCacheKey('getUserSplitBills', userAddress));
+  rpcCache.invalidate(generateCacheKey('getUserEmis', userAddress));
+  console.log('🔄 Invalidated cache for user:', userAddress.slice(0, 10) + '...');
+};
+
+/**
+ * Invalidate specific payment request cache
+ */
+export const invalidatePaymentRequestCache = (requestId: number): void => {
+  rpcCache.invalidate(generateCacheKey('getPaymentRequest', requestId));
+  console.log('🔄 Invalidated cache for payment request:', requestId);
 };
 
 // ============================================================================

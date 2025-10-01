@@ -40,17 +40,30 @@ export const UpiDashboard: React.FC = () => {
         setLoyaltyTier('None');
       }
 
-      // Count active payment requests (incoming)
+      // Count active payment requests (incoming) - OPTIMIZED
       let activeCount = 0;
-      for (let i = 0; i < 50; i++) {
+      let consecutiveNotFound = 0;
+      const MAX_CONSECUTIVE_NOT_FOUND = 3;
+      
+      for (let i = 0; i < 20; i++) { // Reduced from 50 to 20
         try {
           const request = await getPaymentRequest(i);
-          if (request && request.to_address === walletAddress && request.status === 0) {
-            activeCount++;
+          if (request) {
+            consecutiveNotFound = 0;
+            if (request.to_address === walletAddress && request.status === 0) {
+              activeCount++;
+            }
+          } else {
+            consecutiveNotFound++;
+            if (consecutiveNotFound >= MAX_CONSECUTIVE_NOT_FOUND) {
+              break;
+            }
           }
         } catch (error) {
-          // Request doesn't exist, continue
-          break;
+          consecutiveNotFound++;
+          if (consecutiveNotFound >= MAX_CONSECUTIVE_NOT_FOUND) {
+            break;
+          }
         }
       }
       setActivePaymentRequests(activeCount);

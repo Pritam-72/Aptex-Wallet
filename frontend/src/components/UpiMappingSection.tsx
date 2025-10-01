@@ -10,9 +10,9 @@ import {
   registerUpiId,
   getUpiIdByAddress,
   getAddressByUpiId,
-  getAccountFromPrivateKey,
-  parseContractError
+  getAccountFromPrivateKey
 } from '@/utils/contractUtils';
+import { parseContractError } from '@/utils/errorHandler';
 
 interface UpiMapping {
   upiId: string;
@@ -130,7 +130,8 @@ export const UpiMappingSection: React.FC = () => {
           setSuccess(false);
         }, 3000);
       } else {
-        const errorMsg = result.error ? parseContractError(result.error) : 'Failed to register UPI ID';
+        const errorDetails = result.error ? parseContractError(result.error) : null;
+        const errorMsg = errorDetails?.message || 'Failed to register UPI ID';
         setError(errorMsg);
         
         toast({

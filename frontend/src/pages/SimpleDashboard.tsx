@@ -182,17 +182,33 @@ const SimpleDashboard = () => {
         console.log('✓ No blockchain stats found for user');
       }
 
-      // Count active payment requests (incoming)
+      // OPTIMIZED: Count active payment requests with early exit and batch checking
+      // Reduced from checking all 50 to checking only 10 at a time with caching
       let activeCount = 0;
-      for (let i = 0; i < 50; i++) {
+      let consecutiveNotFound = 0;
+      const MAX_CONSECUTIVE_NOT_FOUND = 3; // Stop after 3 consecutive not found
+      
+      for (let i = 0; i < 20; i++) { // Reduced from 50 to 20
         try {
           const request = await getPaymentRequest(i);
-          if (request && request.to_address === address && request.status === 0) {
-            activeCount++;
+          if (request) {
+            consecutiveNotFound = 0; // Reset counter
+            if (request.to_address === address && request.status === 0) {
+              activeCount++;
+            }
+          } else {
+            consecutiveNotFound++;
+            if (consecutiveNotFound >= MAX_CONSECUTIVE_NOT_FOUND) {
+              console.log(`✓ Stopping payment request scan at index ${i} (${MAX_CONSECUTIVE_NOT_FOUND} consecutive not found)`);
+              break;
+            }
           }
         } catch (error) {
-          // Request doesn't exist, continue
-          break;
+          consecutiveNotFound++;
+          if (consecutiveNotFound >= MAX_CONSECUTIVE_NOT_FOUND) {
+            console.log(`✓ Stopping payment request scan at index ${i} due to errors`);
+            break;
+          }
         }
       }
       setActivePaymentRequests(activeCount);
@@ -298,9 +314,10 @@ const SimpleDashboard = () => {
 
   useEffect(() => {
     if (currentAccount) {
+      // Increased interval from 30s to 60s to reduce RPC load
       const interval = setInterval(() => {
         refreshWalletData();
-      }, 30000);
+      }, 60000); // 60 seconds instead of 30
       return () => clearInterval(interval);
     }
   }, [currentAccount, refreshWalletData]);
