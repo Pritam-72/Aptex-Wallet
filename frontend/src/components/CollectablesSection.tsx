@@ -22,10 +22,17 @@ import {
   Hash,
   User,
   CreditCard,
-  Eye
+  Eye,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
+import {
+  getUserStats,
+  octasToApt,
+  UserStats as ContractUserStats
+} from '@/utils/contractUtils';
 
 interface OfferNFT {
   id: string;
@@ -43,8 +50,9 @@ interface OfferNFT {
 interface LoyaltyNFT {
   id: string;
   tier: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';
+  tierNumber: number; // 0-4
   transactionCount: number;
-  mintedAt: string;
+  totalAmountTransacted: string; // in APT
   name: string;
   description: string;
   imageUrl: string;
@@ -73,33 +81,113 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
   const [loyaltyNFTs, setLoyaltyNFTs] = useState<LoyaltyNFT[]>([]);
   const [invoiceNFTs, setInvoiceNFTs] = useState<InvoiceNFT[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingLoyalty, setLoadingLoyalty] = useState(false);
   const { toast } = useToast();
 
-  // Load NFTs from localStorage
+  // Helper function to determine loyalty tier from transaction count
+  const getLoyaltyTier = (txCount: number): { tier: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond', tierNumber: number } => {
+    if (txCount >= 100) return { tier: 'diamond', tierNumber: 4 };
+    if (txCount >= 50) return { tier: 'platinum', tierNumber: 3 };
+    if (txCount >= 20) return { tier: 'gold', tierNumber: 2 };
+    if (txCount >= 10) return { tier: 'silver', tierNumber: 1 };
+    return { tier: 'bronze', tierNumber: 0 };
+  };
+
+  // Helper function to get tier attributes
+  const getTierAttributes = (tier: string, txCount: number, totalAmount: string): string[] => {
+    const baseAttributes = [
+      `${txCount} Transactions`,
+      `${totalAmount} APT Total Volume`,
+      `Tier: ${tier.charAt(0).toUpperCase() + tier.slice(1)}`
+    ];
+
+    switch (tier) {
+      case 'diamond':
+        return [...baseAttributes, 'Elite Member', 'Max Benefits', '20% Bonus Rewards'];
+      case 'platinum':
+        return [...baseAttributes, 'Premium Member', '15% Bonus Rewards', 'Priority Support'];
+      case 'gold':
+        return [...baseAttributes, 'Gold Member', '10% Bonus Rewards'];
+      case 'silver':
+        return [...baseAttributes, 'Silver Member', '5% Bonus Rewards'];
+      default:
+        return [...baseAttributes, 'Bronze Member', 'Standard Benefits'];
+    }
+  };
+
+  // Load NFTs from blockchain and localStorage
   useEffect(() => {
     if (userAddress) {
-      loadNFTs();
+      void loadNFTs();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userAddress]);
 
-  const loadNFTs = () => {
+  const loadNFTs = async () => {
     try {
-      // Load Offer NFTs
+      setLoading(true);
+      
+      // Load Loyalty NFT from blockchain
+      await loadLoyaltyNFT();
+
+      // Load Offer/Coupon NFTs from localStorage (for now)
       const storedOfferNFTs = localStorage.getItem(`offer_nfts_${userAddress}`);
       if (storedOfferNFTs) {
         setOfferNFTs(JSON.parse(storedOfferNFTs));
-      }
-
-      // Load Loyalty NFTs
-      const storedLoyaltyNFTs = localStorage.getItem(`loyalty_nfts_${userAddress}`);
-      if (storedLoyaltyNFTs) {
-        setLoyaltyNFTs(JSON.parse(storedLoyaltyNFTs));
       }
 
       // Load Invoice NFTs from transaction history
       loadInvoiceNFTs();
     } catch (error) {
       console.error('Error loading NFTs:', error);
+      toast({
+        title: "Error Loading NFTs",
+        description: "Failed to load your collectables. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load Loyalty NFT from blockchain based on user stats
+  const loadLoyaltyNFT = async () => {
+    setLoadingLoyalty(true);
+    try {
+      const stats = await getUserStats(userAddress);
+      
+      if (stats) {
+        const txCount = parseInt(stats.transaction_count);
+        const totalAmount = octasToApt(stats.total_amount_transacted).toFixed(4);
+        const { tier, tierNumber } = getLoyaltyTier(txCount);
+
+        // Only create loyalty NFT if user has made transactions
+        if (txCount > 0) {
+          const loyaltyNFT: LoyaltyNFT = {
+            id: `loyalty-${userAddress}`,
+            tier,
+            tierNumber,
+            transactionCount: txCount,
+            totalAmountTransacted: totalAmount,
+            name: `${tier.charAt(0).toUpperCase() + tier.slice(1)} Loyalty Badge`,
+            description: `Earned through ${txCount} transactions with ${totalAmount} APT total volume. This NFT represents your loyalty and activity on the platform.`,
+            imageUrl: `/nft-images/${tier}.png`, // Placeholder
+            attributes: getTierAttributes(tier, txCount, totalAmount)
+          };
+
+          setLoyaltyNFTs([loyaltyNFT]);
+        } else {
+          setLoyaltyNFTs([]);
+        }
+      } else {
+        // No stats found, user hasn't registered or made transactions
+        setLoyaltyNFTs([]);
+      }
+    } catch (error) {
+      console.error('Error loading loyalty NFT:', error);
+      setLoyaltyNFTs([]);
+    } finally {
+      setLoadingLoyalty(false);
     }
   };
 
@@ -119,7 +207,17 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
             const transactions = JSON.parse(storedTransactions);
             
             // Convert transactions to Invoice NFTs
-            const invoices: InvoiceNFT[] = transactions.map((tx: any, index: number) => ({
+            interface StoredTransaction {
+              txHash?: string;
+              from: string;
+              to: string;
+              aptosAmount?: string;
+              ethAmount?: string;
+              type: string;
+              timestamp: string;
+            }
+            
+            const invoices: InvoiceNFT[] = transactions.map((tx: StoredTransaction, index: number) => ({
               id: `invoice-${tx.txHash || Date.now()}-${index}`,
               transactionHash: tx.txHash || `mock-${Date.now()}-${index}`,
               from: tx.from,
@@ -407,13 +505,42 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
 
         {/* Loyalty Tab */}
         <TabsContent value="loyalty" className="space-y-4">
-          {loyaltyNFTs.length === 0 ? (
+          <div className="flex justify-end mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadLoyaltyNFT()}
+              disabled={loadingLoyalty}
+              className="gap-2"
+            >
+              {loadingLoyalty ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh
+                </>
+              )}
+            </Button>
+          </div>
+
+          {loadingLoyalty ? (
+            <Card className="bg-card/50 border-border/50 cosmic-glow">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
+                <p className="text-muted-foreground">Loading your loyalty status from blockchain...</p>
+              </CardContent>
+            </Card>
+          ) : loyaltyNFTs.length === 0 ? (
             <Card className="bg-card/50 border-border/50 cosmic-glow">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Crown className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium text-foreground mb-2">No Loyalty NFTs Yet</h3>
                 <p className="text-muted-foreground text-center max-w-md">
-                  Complete more transactions to unlock loyalty NFTs and showcase your wallet activity!
+                  Complete your first transaction to unlock a loyalty NFT and showcase your wallet activity!
                 </p>
                 <div className="mt-6 grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
                   <div className="space-y-2">
@@ -429,17 +556,17 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
                   <div className="space-y-2">
                     <Trophy className="h-6 w-6 text-muted-foreground mx-auto" />
                     <div className="text-xs text-foreground">Gold</div>
-                    <div className="text-xs text-muted-foreground">50+ transactions</div>
+                    <div className="text-xs text-muted-foreground">20+ transactions</div>
                   </div>
                   <div className="space-y-2">
                     <Star className="h-6 w-6 text-muted-foreground mx-auto" />
                     <div className="text-xs text-foreground">Platinum</div>
-                    <div className="text-xs text-muted-foreground">100+ transactions</div>
+                    <div className="text-xs text-muted-foreground">50+ transactions</div>
                   </div>
                   <div className="space-y-2">
                     <Gem className="h-6 w-6 text-muted-foreground mx-auto" />
                     <div className="text-xs text-foreground">Diamond</div>
-                    <div className="text-xs text-muted-foreground">250+ transactions</div>
+                    <div className="text-xs text-muted-foreground">100+ transactions</div>
                   </div>
                 </div>
               </CardContent>
@@ -491,8 +618,8 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
                           <p className="text-sm text-foreground">{nft.description}</p>
                           
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            <span>Minted: {formatDate(nft.mintedAt)}</span>
+                            <Award className="h-3 w-3" />
+                            <span>Total Volume: {nft.totalAmountTransacted} APT</span>
                           </div>
                         </div>
 
