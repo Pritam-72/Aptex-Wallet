@@ -228,9 +228,20 @@ export const getAccountBalance = async (address: string): Promise<string> => {
     return aptBalance;
   } catch (error) {
     console.error('Error fetching balance:', error);
-    if (error instanceof Error && error.message.includes('Resource not found')) {
-      console.log('ℹ️ Account not found on devnet, returning 0 balance');
-      return '0.00000000';
+    
+    // Check if it's a network/API issue
+    if (error instanceof Error) {
+      if (error.message.includes('Resource not found')) {
+        console.log('ℹ️ Account not found on devnet, returning 0 balance');
+        return '0.00000000';
+      }
+      if (error.message.includes('Unexpected token') || 
+          error.message.includes('Bad Gateway') ||
+          error.message.includes('502') ||
+          error.message.includes('503')) {
+        console.error('🔴 Aptos Devnet API is down. Please try again in a few minutes.');
+        throw new Error('Aptos Devnet API is temporarily unavailable. Please try again later.');
+      }
     }
     return '0';
   }

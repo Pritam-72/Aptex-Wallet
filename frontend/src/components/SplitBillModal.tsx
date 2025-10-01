@@ -218,8 +218,8 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
     setSuccess(false);
 
     try {
-      // Get wallet data
-      const storedWallet = localStorage.getItem('aptosWallet');
+      // Get wallet data (using correct storage key)
+      const storedWallet = localStorage.getItem('cryptal_wallet');
       if (!storedWallet) {
         setError('Wallet not found. Please create or import a wallet first.');
         setIsSubmitting(false);
@@ -227,7 +227,16 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
       }
 
       const walletData = JSON.parse(storedWallet);
-      const account = getAccountFromPrivateKey(walletData.privateKey);
+      const currentIndex = walletData.currentAccountIndex || 0;
+      const currentAccount = walletData.accounts?.[currentIndex];
+      
+      if (!currentAccount || !currentAccount.privateKey) {
+        setError('Account not found. Please ensure your wallet is properly set up.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const account = getAccountFromPrivateKey(currentAccount.privateKey);
 
       // Get valid participants with resolved addresses
       const validParticipants = participants.filter(p => p.address.trim());

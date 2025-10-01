@@ -98,8 +98,8 @@ export const SendPaymentRequest: React.FC<SendPaymentRequestProps> = ({
         return;
       }
 
-      // Get private key from localStorage
-      const storedWallet = localStorage.getItem('aptosWallet');
+      // Get private key from localStorage (using correct storage key)
+      const storedWallet = localStorage.getItem('cryptal_wallet');
       if (!storedWallet) {
         setError('Wallet not found. Please create or import a wallet first.');
         setIsSubmitting(false);
@@ -107,7 +107,16 @@ export const SendPaymentRequest: React.FC<SendPaymentRequestProps> = ({
       }
 
       const walletData = JSON.parse(storedWallet);
-      const account = getAccountFromPrivateKey(walletData.privateKey);
+      const currentIndex = walletData.currentAccountIndex || 0;
+      const currentAccount = walletData.accounts?.[currentIndex];
+      
+      if (!currentAccount || !currentAccount.privateKey) {
+        setError('Account not found. Please ensure your wallet is properly set up.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const account = getAccountFromPrivateKey(currentAccount.privateKey);
 
       // Convert APT to Octas (1 APT = 100,000,000 Octas)
       const amountInOctas = aptToOctas(parseFloat(aptAmount));

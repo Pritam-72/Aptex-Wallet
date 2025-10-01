@@ -19,6 +19,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   getPaymentRequest,
+  getUserPaymentRequests,
+  getUserSentRequests,
   payRequest,
   rejectRequest,
   getAccountFromPrivateKey,
@@ -68,22 +70,22 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
       const incoming: DisplayPaymentRequest[] = [];
       const outgoing: DisplayPaymentRequest[] = [];
 
-      // OPTIMIZED: Reduced limit and added early exit
-      let consecutiveNotFound = 0;
-      const MAX_CONSECUTIVE_NOT_FOUND = 3;
-      
-      for (let i = 0; i < 30; i++) { // Reduced from 50 to 30
+      console.log('🔍 Loading requests for user:', userAddress);
+
+      // Get incoming request IDs (requests sent TO this user)
+      const incomingIds = await getUserPaymentRequests(userAddress);
+      console.log('📥 Incoming request IDs:', incomingIds);
+
+      // Get outgoing request IDs (requests sent BY this user)
+      const outgoingIds = await getUserSentRequests(userAddress);
+      console.log('📤 Outgoing request IDs:', outgoingIds);
+
+      // Load incoming requests
+      for (const requestId of incomingIds) {
         try {
-          const requestData = await getPaymentRequest(i);
+          const requestData = await getPaymentRequest(requestId);
           
-          if (!requestData) {
-            consecutiveNotFound++;
-            if (consecutiveNotFound >= MAX_CONSECUTIVE_NOT_FOUND) {
-              break; // Stop after 3 consecutive not found
-            }
-            continue;
-          }
-          consecutiveNotFound = 0; // Reset counter
+          if (!requestData) continue;
           
           // Convert status number to string
           let status: 'Pending' | 'Paid' | 'Rejected' = 'Pending';
@@ -101,23 +103,52 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
             txHash: status === 'Paid' ? 'Transaction completed' : undefined
           };
 
-          // Categorize: incoming if user is to_address, outgoing if user is from_address
-          if (requestData.to_address.toLowerCase() === userAddress.toLowerCase()) {
-            incoming.push(request);
-          } else if (requestData.from_address.toLowerCase() === userAddress.toLowerCase()) {
-            outgoing.push(request);
-          }
+          incoming.push(request);
         } catch (err) {
-          // Stop when we hit an error (likely means no more requests)
-          break;
+          console.error(`Error loading incoming request ${requestId}:`, err);
         }
       }
 
+      // Load outgoing requests
+      for (const requestId of outgoingIds) {
+        try {
+          const requestData = await getPaymentRequest(requestId);
+          
+          if (!requestData) continue;
+          
+          // Convert status number to string
+          let status: 'Pending' | 'Paid' | 'Rejected' = 'Pending';
+          if (requestData.status === 1) status = 'Paid';
+          else if (requestData.status === 2) status = 'Rejected';
+
+          const request: DisplayPaymentRequest = {
+            id: requestData.id,
+            fromAddress: requestData.from_address,
+            toAddress: requestData.to_address,
+            amount: octasToApt(requestData.amount).toFixed(8),
+            description: requestData.description,
+            timestamp: new Date(parseInt(requestData.created_at) / 1000), // Convert microseconds to milliseconds
+            status,
+            txHash: status === 'Paid' ? 'Transaction completed' : undefined
+          };
+
+          outgoing.push(request);
+        } catch (err) {
+          console.error(`Error loading outgoing request ${requestId}:`, err);
+        }
+      }
+
+      console.log('✅ Loaded:', incoming.length, 'incoming,', outgoing.length, 'outgoing');
       setIncomingRequests(incoming.reverse()); // Most recent first
       setOutgoingRequests(outgoing.reverse());
       
     } catch (error) {
       console.error('Error loading payment requests:', error);
+      toast({
+        title: "Failed to Load Requests",
+        description: error instanceof Error ? error.message : "Could not load payment requests",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -131,8 +162,8 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
   const handleAcceptRequest = async (requestId: string) => {
     setProcessingRequest(requestId);
     try {
-      // Get wallet data
-      const storedWallet = localStorage.getItem('aptosWallet');
+      // Get wallet data (using correct storage key)
+      const storedWallet = localStorage.getItem('cryptal_wallet');
       if (!storedWallet) {
         toast({
           title: "Wallet Not Found",
@@ -143,7 +174,19 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
       }
 
       const walletData = JSON.parse(storedWallet);
-      const account = getAccountFromPrivateKey(walletData.privateKey);
+      const currentIndex = walletData.currentAccountIndex || 0;
+      const currentAccount = walletData.accounts?.[currentIndex];
+      
+      if (!currentAccount || !currentAccount.privateKey) {
+        toast({
+          title: "Account Not Found",
+          description: "Please ensure your wallet is properly set up.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const account = getAccountFromPrivateKey(currentAccount.privateKey);
 
       // Get request data to check amount
       const request = incomingRequests.find(r => r.id === requestId);
@@ -195,8 +238,8 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
   const handleRejectRequest = async (requestId: string) => {
     setProcessingRequest(requestId);
     try {
-      // Get wallet data
-      const storedWallet = localStorage.getItem('aptosWallet');
+      // Get wallet data (using correct storage key)
+      const storedWallet = localStorage.getItem('cryptal_wallet');
       if (!storedWallet) {
         toast({
           title: "Wallet Not Found",
@@ -207,7 +250,19 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
       }
 
       const walletData = JSON.parse(storedWallet);
-      const account = getAccountFromPrivateKey(walletData.privateKey);
+      const currentIndex = walletData.currentAccountIndex || 0;
+      const currentAccount = walletData.accounts?.[currentIndex];
+      
+      if (!currentAccount || !currentAccount.privateKey) {
+        toast({
+          title: "Account Not Found",
+          description: "Please ensure your wallet is properly set up.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const account = getAccountFromPrivateKey(currentAccount.privateKey);
 
       // Reject the request on-chain
       await rejectRequest(account, parseInt(requestId));
@@ -309,8 +364,16 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
           </button>
         </div>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">Loading payment requests...</p>
+          </div>
+        )}
+
         {/* Incoming Requests */}
-        {activeTab === 'incoming' && (
+        {!isLoading && activeTab === 'incoming' && (
           <div className="space-y-3">
             {incomingRequests.length > 0 ? (
               incomingRequests.map((request) => (
@@ -424,7 +487,7 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
         )}
 
         {/* Outgoing Requests */}
-        {activeTab === 'outgoing' && (
+        {!isLoading && activeTab === 'outgoing' && (
           <div className="space-y-3">
             {outgoingRequests.length > 0 ? (
               outgoingRequests.map((request) => (

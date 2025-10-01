@@ -165,26 +165,33 @@ export const checkSufficientBalance = async (
   gasEstimateAPT: number
 ): Promise<{ sufficient: boolean; currentBalance: number; required: number }> => {
   try {
-    const resources = await aptos.getAccountResources({ accountAddress: address });
-    const accountResource = resources.find(
-      (r) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
-    );
+    // Use the same reliable method as getAccountBalance
+    const accountAddress = AccountAddress.fromString(address);
+    const balanceInOctas = await aptos.getAccountAPTAmount({
+      accountAddress
+    });
+    
+    // Convert from octas to APT (1 APT = 100,000,000 octas)
+    const balanceAPT = balanceInOctas / 100_000_000;
+    const required = amountAPT + gasEstimateAPT;
 
-    if (accountResource) {
-      const balance = (accountResource.data as { coin: { value: string } }).coin.value;
-      const balanceAPT = parseInt(balance) / 100000000;
-      const required = amountAPT + gasEstimateAPT;
+    console.log('✅ Balance check:', {
+      currentBalance: balanceAPT.toFixed(8),
+      required: required.toFixed(8),
+      sufficient: balanceAPT >= required
+    });
 
-      return {
-        sufficient: balanceAPT >= required,
-        currentBalance: balanceAPT,
-        required,
-      };
-    }
-
-    return { sufficient: false, currentBalance: 0, required: amountAPT + gasEstimateAPT };
+    return {
+      sufficient: balanceAPT >= required,
+      currentBalance: balanceAPT,
+      required,
+    };
   } catch (error) {
     console.error("Error checking balance:", error);
+    if (error instanceof Error && error.message.includes('Resource not found')) {
+      console.log('ℹ️ Account not found on devnet, returning 0 balance');
+      return { sufficient: false, currentBalance: 0, required: amountAPT + gasEstimateAPT };
+    }
     return { sufficient: false, currentBalance: 0, required: amountAPT + gasEstimateAPT };
   }
 };
@@ -934,6 +941,16 @@ export const getUserPaymentRequests = async (userAddress: string): Promise<numbe
     return [];
   } catch (error) {
     console.error("Error getting user payment requests:", error);
+    
+    // Check if it's a network/API issue
+    if (error instanceof Error && 
+        (error.message.includes('Unexpected token') || 
+         error.message.includes('Bad Gateway') ||
+         error.message.includes('502') ||
+         error.message.includes('503'))) {
+      console.error("🔴 Aptos Devnet API is down. Payment requests cannot be loaded.");
+      throw new Error('Aptos Devnet API is temporarily unavailable. Please try again later.');
+    }
     return [];
   }
 };
@@ -956,6 +973,16 @@ export const getUserSentRequests = async (userAddress: string): Promise<number[]
     return [];
   } catch (error) {
     console.error("Error getting user sent requests:", error);
+    
+    // Check if it's a network/API issue
+    if (error instanceof Error && 
+        (error.message.includes('Unexpected token') || 
+         error.message.includes('Bad Gateway') ||
+         error.message.includes('502') ||
+         error.message.includes('503'))) {
+      console.error("🔴 Aptos Devnet API is down. Payment requests cannot be loaded.");
+      throw new Error('Aptos Devnet API is temporarily unavailable. Please try again later.');
+    }
     return [];
   }
 };
