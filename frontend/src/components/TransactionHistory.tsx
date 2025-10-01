@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Download, Search, Filter, ExternalLink, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, RefreshCw, Users, FileImage } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import { getAccountTransactions, ProcessedTransaction } from '@/utils/aptosWalletUtils';
-import { getCurrentPublicKey, getStoredTransactions, addTransactionToStorage } from '@/utils/transactionStorage';
+import { getAccountTransactions as getTransactions } from '@/utils/walletUtils';
 import { SplitBillModal } from './SplitBillModal';
 import { InvoicePreviewModal } from './InvoicePreviewModal';
 import { InvoiceData, downloadInvoice } from '@/utils/invoiceGenerator';
@@ -148,20 +148,26 @@ export const TransactionHistory: React.FC<{ refreshFlag?: number }> = ({ refresh
     try {
       console.log('🔍 Loading transaction history for:', address);
       
-      const publicKey = getCurrentPublicKey();
-      if (!publicKey) {
-        setError('Could not find public key');
-        return;
-      }
-
-      // Load transactions from localStorage using public key as key
-      const storedTransactions = getStoredTransactions(publicKey);
+      // Get real transactions from blockchain
+      const realTransactions = await getTransactions(address, 50);
       
-      // Sort transactions by timestamp in descending order (newest first)
-      const sortedTransactions = storedTransactions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      // Transform to expected format
+      const formattedTransactions: PaymentTransaction[] = realTransactions.map((tx: any) => ({
+        from: tx.sender || address,
+        to: tx.payload?.arguments?.[0] || 'Unknown',
+        ethAmount: '0',
+        aptosAmount: tx.payload?.arguments?.[1] ? (parseInt(tx.payload.arguments[1]) / 100000000).toString() : '0',
+        inrAmount: 0,
+        timestamp: new Date(parseInt(tx.timestamp) / 1000),
+        txHash: tx.hash || tx.version,
+        type: tx.sender === address ? 'sent' as const : 'received' as const,
+        status: tx.success ? 'confirmed' as const : 'failed' as const,
+        gasUsed: tx.gas_used,
+        function: tx.payload?.function
+      }));
 
-      console.log('✅ Loaded', sortedTransactions.length, 'transactions from localStorage');
-      setTransactions(sortedTransactions);
+      console.log('✅ Loaded', formattedTransactions.length, 'transactions from blockchain');
+      setTransactions(formattedTransactions);
     } catch (error: any) {
       setError(error.message || 'Failed to load transactions');
       console.error('Transaction fetch error:', error);

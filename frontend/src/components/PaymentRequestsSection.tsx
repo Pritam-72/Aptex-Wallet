@@ -15,15 +15,19 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  getIncomingPaymentRequests, 
-  getOutgoingPaymentRequests,
-  acceptPaymentRequest, 
-  rejectPaymentRequest,
-  PaymentRequest 
-} from '@/utils/paymentRequestStorage';
-import { handleTransactionAndMintNFTs } from '@/utils/nftStorage';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+
+// Payment Request interface for type safety
+interface PaymentRequest {
+  id: string;
+  fromAddress: string;
+  toAddress: string;
+  amount: string;
+  description?: string;
+  timestamp: Date;
+  status: 'pending' | 'accepted' | 'rejected';
+  txHash?: string;
+}
 
 interface PaymentRequestsSectionProps {
   userAddress: string;
@@ -42,15 +46,11 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
   const [activeTab, setActiveTab] = useState<'incoming' | 'outgoing'>('incoming');
   const { toast } = useToast();
 
-  // Load requests
+  // Load requests - Feature disabled
   const loadRequests = () => {
-    if (!userAddress) return;
-    
-    const incoming = getIncomingPaymentRequests(userAddress);
-    const outgoing = getOutgoingPaymentRequests(userAddress);
-    
-    setIncomingRequests(incoming);
-    setOutgoingRequests(outgoing);
+    // Payment requests feature requires backend/smart contract
+    setIncomingRequests([]);
+    setOutgoingRequests([]);
   };
 
   useEffect(() => {
@@ -60,35 +60,9 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
   const handleAcceptRequest = async (requestId: string) => {
     setProcessingRequest(requestId);
     try {
-      await acceptPaymentRequest(requestId, userAddress);
-      
-      // Handle NFT minting after successful payment
-      const nftResults = handleTransactionAndMintNFTs(userAddress);
-      
-      // Show success toast with NFT minting results
-      let toastDescription = "Payment has been sent successfully";
-      
-      if (nftResults.loyaltyNFT) {
-        toastDescription += ` 🏆 New ${nftResults.loyaltyNFT.tier} loyalty NFT earned!`;
-      }
-      
-      if (nftResults.offerNFT) {
-        toastDescription += ` 🎁 Bonus offer NFT received: ${nftResults.offerNFT.discountPercentage}% off at ${nftResults.offerNFT.companyName}!`;
-      }
-      
       toast({
-        title: "Request Accepted! ✅",
-        description: toastDescription,
-        duration: 6000,
-      });
-      
-      loadRequests();
-      onBalanceUpdate?.();
-      
-    } catch (error: any) {
-      toast({
-        title: "Failed to Accept Request",
-        description: error.message || "Please try again",
+        title: "Feature Coming Soon",
+        description: "Payment requests require backend/smart contract implementation",
         variant: "destructive",
         duration: 4000,
       });
@@ -100,22 +74,11 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
   const handleRejectRequest = async (requestId: string) => {
     setProcessingRequest(requestId);
     try {
-      await rejectPaymentRequest(requestId, userAddress);
-      
       toast({
-        title: "Request Rejected",
-        description: "Payment request has been declined",
-        duration: 3000,
-      });
-      
-      loadRequests();
-      
-    } catch (error: any) {
-      toast({
-        title: "Failed to Reject Request",
-        description: error.message || "Please try again",
+        title: "Feature Coming Soon",
+        description: "Payment requests require backend/smart contract implementation",
         variant: "destructive",
-        duration: 4000,
+        duration: 3000,
       });
     } finally {
       setProcessingRequest(null);

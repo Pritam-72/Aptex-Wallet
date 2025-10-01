@@ -35,8 +35,6 @@ import {
   fundAccount,
 } from '@/utils/walletUtils';
 import { getWalletBalance, testAptosConnection } from '@/utils/aptosWalletUtils';
-import { getBalanceForAddress, initializeAccountBalance } from '@/utils/balanceStorage';
-import { initializeUserStats } from '@/utils/nftStorage';
 
 // Import all the new components
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
@@ -149,13 +147,13 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       console.log('Loading wallet data for address:', account.address);
       
       // Initialize account balance if it doesn't exist (for demo purposes)
-      initializeAccountBalance(account.address, '100');
+      
       
       // Initialize user stats for NFT system
-      initializeUserStats(account.address);
+      
       
       // Get balance from localStorage
-      const accountBalance = getBalanceForAddress(account.address);
+      const accountBalance = getAccountBalance(account.address);
       console.log('✓ Loaded balance from localStorage:', accountBalance, 'APT');
       setBalance(accountBalance);
 
@@ -270,9 +268,9 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       setShowCreateWallet(false);
       if (account) {
         // Initialize with demo balance for new wallet
-        initializeAccountBalance(account.address, '100');
+        
         // Initialize user stats for NFT system
-        initializeUserStats(account.address);
+        
         await loadWalletData(account);
       }
     } catch (error) {
@@ -291,9 +289,9 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
         setWallet(updatedWallet);
         setCurrentAccount(newAccount);
         // Initialize with demo balance for new account
-        initializeAccountBalance(newAccount.address, '100');
+        
         // Initialize user stats for NFT system
-        initializeUserStats(newAccount.address);
+        
         await loadWalletData(newAccount);
       }
     } catch (error) {
@@ -310,9 +308,9 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
         setIsLoading(true);
         setCurrentAccount(newAccount);
         // Initialize balance if it doesn't exist for this account
-        initializeAccountBalance(newAccount.address, '100');
+        
         // Initialize user stats for NFT system
-        initializeUserStats(newAccount.address);
+        
         await loadWalletData(newAccount);
         setIsLoading(false);
       }
@@ -343,7 +341,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       setIsLoading(true);
       try {
         // Get fresh balance from localStorage
-        const freshBalance = getBalanceForAddress(currentAccount.address);
+        const freshBalance = getAccountBalance(currentAccount.address);
         setBalance(freshBalance);
         console.log('✅ Balance refresh completed successfully:', freshBalance, 'APT');
       } catch (error) {
@@ -606,7 +604,7 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
                     onBalanceUpdate={() => {
                       // Refresh balance after payment request is accepted
                       if (currentAccount) {
-                        const freshBalance = getBalanceForAddress(currentAccount.address);
+                        const freshBalance = getAccountBalance(currentAccount.address);
                         setBalance(freshBalance);
                       }
                     }}

@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Send, User, DollarSign, MessageSquare, X, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { createPaymentRequest } from '@/utils/paymentRequestStorage';
 
 interface SendPaymentRequestProps {
   isOpen: boolean;
@@ -59,23 +58,13 @@ export const SendPaymentRequest: React.FC<SendPaymentRequestProps> = ({
     }
 
     try {
-      const request = createPaymentRequest(
-        userAddress,
-        recipientAddress,
-        amount,
-        description || undefined
-      );
-
       toast({
-        title: "Payment Request Sent! 💸",
-        description: `Request for ${amount} APT sent to ${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}`,
+        title: "Feature Coming Soon",
+        description: "Payment requests require backend/smart contract implementation",
+        variant: "destructive",
         duration: 5000,
       });
-
-      // Reset form
-      setRecipientAddress('');
-      setAmount('');
-      setDescription('');
+      
       onClose();
       
     } catch (error) {

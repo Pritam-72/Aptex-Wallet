@@ -6,8 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { QrCode, Copy, ArrowDownLeft, X, Shield, Check, Download, Plus, ExternalLink } from 'lucide-react';
 import QRCodeLib from 'qrcode';
-import { simulateReceiveTransaction, createPaymentRequest } from '@/utils/receiveTransactionUtils';
-import { getBalanceForAddress } from '@/utils/balanceStorage';
+import { getAccountBalance } from '@/utils/walletUtils';
 
 interface ReceiveTransactionProps {
   isOpen: boolean;
@@ -53,10 +52,13 @@ export const ReceiveTransaction: React.FC<ReceiveTransactionProps> = ({
 
   // Load current balance
   useEffect(() => {
-    if (address) {
-      const balance = getBalanceForAddress(address);
-      setCurrentBalance(balance);
-    }
+    const loadBalance = async () => {
+      if (address) {
+        const balance = await getAccountBalance(address);
+        setCurrentBalance(balance);
+      }
+    };
+    loadBalance();
   }, [address]);
 
   const copyToClipboard = async (text: string) => {
@@ -91,43 +93,12 @@ export const ReceiveTransaction: React.FC<ReceiveTransactionProps> = ({
   };
 
   const handleSimulateReceive = async () => {
-    if (!simulateAmount || parseFloat(simulateAmount) <= 0) {
-      toast({
-        title: "Invalid Amount",
-        description: "Please enter a valid amount to receive",
-        variant: "destructive",
-        duration: 3000,
-      });
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      const result = await simulateReceiveTransaction(address, simulateAmount);
-      
-      // Update current balance display
-      setCurrentBalance(result.newBalance);
-      
-      toast({
-        title: "✅ Money Received!",
-        description: `Successfully received ${simulateAmount} APT. New balance: ${result.newBalance} APT`,
-        duration: 5000,
-      });
-      
-      // Clear the input
-      setSimulateAmount('');
-      
-    } catch (error) {
-      console.error('Error simulating receive:', error);
-      toast({
-        title: "Transaction Failed",
-        description: "Failed to simulate receiving transaction",
-        variant: "destructive",
-        duration: 3000,
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+    toast({
+      title: "Feature Unavailable",
+      description: "Simulation feature has been removed. Real transactions only.",
+      variant: "destructive",
+      duration: 3000,
+    });
   };
 
   return (

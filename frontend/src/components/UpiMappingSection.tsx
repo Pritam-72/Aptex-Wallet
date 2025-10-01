@@ -5,118 +5,151 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, CreditCard, AlertTriangle, CheckCircle } from 'lucide-react';
-import { 
-  addUpiMapping, 
-  getUserUpiMappings, 
-  removeUpiMapping, 
-  isValidUpiId,
-  type UpiMapping 
-} from '@/utils/upiStorage';
+import { Plus, Trash2, CreditCard, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import {
+  registerUpiId,
+  getUpiIdByAddress,
+  getAddressByUpiId,
+  getAccountFromPrivateKey,
+  parseContractError
+} from '@/utils/contractUtils';
+
+interface UpiMapping {
+  upiId: string;
+  address: string;
+  registeredAt: Date;
+}
 
 export const UpiMappingSection: React.FC = () => {
-  const [upiMappings, setUpiMappings] = useState<UpiMapping[]>([]);
+  const [existingUpiId, setExistingUpiId] = useState<string | null>(null);
   const [newUpiId, setNewUpiId] = useState('');
-  const [newName, setNewName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingExisting, setIsCheckingExisting] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   const { toast } = useToast();
 
-  // Load UPI mappings on component mount
-  useEffect(() => {
-    loadUpiMappings();
-  }, []);
-
-  const loadUpiMappings = () => {
-    try {
-      const mappings = getUserUpiMappings();
-      setUpiMappings(mappings);
-    } catch (error) {
-      console.error('Error loading UPI mappings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load UPI mappings",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const getCurrentWalletAddress = (): string | null => {
+  // Get current account from localStorage
+  const getCurrentAccount = () => {
     try {
       const walletData = localStorage.getItem('cryptal_wallet');
       if (walletData) {
         const parsedWalletData = JSON.parse(walletData);
         const currentIndex = parsedWalletData.currentAccountIndex || 0;
         const currentAccount = parsedWalletData.accounts?.[currentIndex];
-        return currentAccount?.address || null;
+        return currentAccount || null;
       }
     } catch (error) {
-      console.error('Error getting current wallet address:', error);
+      console.error('Error getting current wallet account:', error);
     }
     return null;
   };
 
+  const currentAccount = getCurrentAccount();
+  const address = currentAccount?.address || null;
+
+  // Load existing UPI ID on component mount
+  useEffect(() => {
+    const loadExistingUpiId = async () => {
+      if (!address) return;
+      
+      setIsCheckingExisting(true);
+      try {
+        const upiId = await getUpiIdByAddress(address);
+        if (upiId) {
+          setExistingUpiId(upiId);
+          setNewUpiId(upiId);
+        }
+      } catch (error) {
+        console.error('Error loading existing UPI ID:', error);
+      } finally {
+        setIsCheckingExisting(false);
+      }
+    };
+
+    loadExistingUpiId();
+  }, [address]);
+
   const handleAddMapping = async () => {
+    setError('');
+    setSuccess(false);
+
+    // Check if user already has a UPI ID registered
+    if (existingUpiId) {
+      setError('You have already registered a UPI ID: ' + existingUpiId);
+      return;
+    }
+
+    // Check wallet connection
+    if (!currentAccount || !address) {
+      setError('Please connect your wallet first');
+      return;
+    }
+
+    // Validation
     if (!newUpiId.trim()) {
       setError('Please enter a UPI ID');
       return;
     }
 
-    if (!isValidUpiId(newUpiId.trim())) {
-      setError('Please enter a valid UPI ID (e.g., user@paytm)');
-      return;
-    }
-
-    const currentAddress = getCurrentWalletAddress();
-    if (!currentAddress) {
-      setError('No active wallet found. Please connect your wallet first.');
+    // Basic UPI ID format validation (username@provider)
+    if (!/^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$/.test(newUpiId)) {
+      setError('Please enter a valid UPI ID format (e.g., yourname@paytm)');
       return;
     }
 
     setIsLoading(true);
-    setError('');
 
     try {
-      await addUpiMapping(newUpiId.trim(), currentAddress, newName.trim() || undefined);
+      // Check if UPI ID is already taken
+      const existingAddress = await getAddressByUpiId(newUpiId);
+      if (existingAddress) {
+        setError('This UPI ID is already registered by another user');
+        setIsLoading(false);
+        return;
+      }
+
+      // Get account from private key to sign transaction
+      const account = getAccountFromPrivateKey(currentAccount.privateKey);
       
-      toast({
-        title: "UPI Mapping Added",
-        description: `Successfully mapped ${newUpiId} to your wallet`,
-      });
-
-      // Reset form and reload mappings
-      setNewUpiId('');
-      setNewName('');
-      loadUpiMappings();
-    } catch (error: any) {
-      setError(error.message || 'Failed to add UPI mapping');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRemoveMapping = (upiId: string) => {
-    try {
-      const success = removeUpiMapping(upiId);
-      if (success) {
+      // Register UPI ID on-chain
+      const result = await registerUpiId(account, newUpiId);
+      
+      if (result.success && result.hash) {
+        setSuccess(true);
+        setExistingUpiId(newUpiId);
+        
         toast({
-          title: "UPI Mapping Removed",
-          description: `Successfully removed ${upiId} mapping`,
+          title: "UPI ID Registered! 🎉",
+          description: `Your UPI ID "${newUpiId}" has been registered successfully.`,
+          duration: 5000,
         });
-        loadUpiMappings();
+        
+        // Reset form after delay
+        setTimeout(() => {
+          setSuccess(false);
+        }, 3000);
       } else {
+        const errorMsg = result.error ? parseContractError(result.error) : 'Failed to register UPI ID';
+        setError(errorMsg);
+        
         toast({
-          title: "Error",
-          description: "Failed to remove UPI mapping",
+          title: "Registration Failed",
+          description: errorMsg,
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to register UPI ID';
+      setError(errorMsg);
+      
       toast({
-        title: "Error",
-        description: "Failed to remove UPI mapping",
+        title: "Registration Failed",
+        description: errorMsg,
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -140,97 +173,82 @@ export const UpiMappingSection: React.FC = () => {
             </Alert>
           )}
 
+          {existingUpiId && (
+            <Alert className="bg-green-500/10 border-green-500/20 text-green-300">
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>
+                Your UPI ID <strong>{existingUpiId}</strong> is registered and mapped to your wallet.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {success && (
+            <Alert className="bg-green-500/10 border-green-500/20 text-green-300">
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>
+                UPI ID registered successfully! Others can now send payments to your UPI ID.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Add New UPI Mapping */}
           <div className="space-y-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
-            <h3 className="text-white font-medium">Add New UPI ID</h3>
+            <h3 className="text-white font-medium">
+              {existingUpiId ? 'Your Registered UPI ID' : 'Register UPI ID'}
+            </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="upiId" className="text-gray-300">UPI ID</Label>
-                <Input
-                  id="upiId"
-                  type="text"
-                  placeholder="yourname@paytm"
-                  value={newUpiId}
-                  onChange={(e) => setNewUpiId(e.target.value)}
-                  className="bg-gray-900 border-gray-700 text-white placeholder:text-gray-500"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-gray-300">Display Name (Optional)</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Your Name"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="bg-gray-900 border-gray-700 text-white placeholder:text-gray-500"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="upiId" className="text-gray-300">UPI ID</Label>
+              <Input
+                id="upiId"
+                type="text"
+                placeholder="yourname@paytm"
+                value={newUpiId}
+                onChange={(e) => setNewUpiId(e.target.value.toLowerCase())}
+                className="bg-gray-900 border-gray-700 text-white placeholder:text-gray-500"
+                disabled={isLoading || isCheckingExisting || !!existingUpiId}
+              />
+              <p className="text-xs text-gray-400">
+                Enter your UPI ID in the format: username@provider (e.g., yourname@paytm, yourname@phonepe)
+              </p>
             </div>
+
+            {address && (
+              <div className="space-y-2">
+                <Label className="text-gray-300">Wallet Address</Label>
+                <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                  <p className="text-xs text-gray-400 font-mono break-all">{address}</p>
+                </div>
+              </div>
+            )}
 
             <Button
               onClick={handleAddMapping}
-              disabled={isLoading || !newUpiId.trim()}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={isLoading || isCheckingExisting || !newUpiId.trim() || !!existingUpiId}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
             >
-              {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Adding...
-                </div>
+              {isCheckingExisting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Checking...
+                </>
+              ) : isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Registering...
+                </>
+              ) : existingUpiId ? (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Already Registered
+                </>
               ) : (
                 <>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add UPI Mapping
+                  Register UPI ID
                 </>
               )}
             </Button>
-          </div>
-
-          {/* Existing UPI Mappings */}
-          <div className="space-y-3">
-            <h3 className="text-white font-medium">Your UPI Mappings</h3>
-            
-            {upiMappings.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                <CreditCard className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No UPI mappings found</p>
-                <p className="text-sm mt-1">Add your first UPI ID to get started</p>
-              </div>
-            ) : (
-              <div className="grid gap-3">
-                {upiMappings.map((mapping, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg border border-gray-700"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                        <span className="text-white font-medium">{mapping.upiId}</span>
-                      </div>
-                      {mapping.name && (
-                        <p className="text-sm text-gray-400 mt-1">{mapping.name}</p>
-                      )}
-                      <p className="text-xs text-gray-500 mt-1">
-                        Added on {new Date(mapping.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    
-                    <Button
-                      onClick={() => handleRemoveMapping(mapping.upiId)}
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-400 hover:text-red-300 hover:bg-red-950/50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Info Box */}

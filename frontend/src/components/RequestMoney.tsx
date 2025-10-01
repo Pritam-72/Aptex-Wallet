@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { HandCoins, User, DollarSign, MessageSquare, QrCode, Copy, Share, X, Check } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { createPaymentRequest } from '@/utils/receiveTransactionUtils';
 import QRCodeLib from 'qrcode';
 
 interface RequestMoneyProps {
@@ -47,28 +46,14 @@ export const RequestMoney: React.FC<RequestMoneyProps> = ({
 
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-
-    // Validation
-    if (!amount.trim() || parseFloat(amount) <= 0) {
-      setError('Please enter a valid amount');
-      return;
-    }
-
-    try {
-      const request = createPaymentRequest(userAddress, amount, description);
-      setPaymentRequest(request);
-      
-      toast({
-        title: "Payment Request Created!",
-        description: `Request for ${amount} APT has been generated`,
-        duration: 3000,
-      });
-      
-    } catch (error) {
-      console.error('Error creating payment request:', error);
-      setError('Failed to create payment request');
-    }
+    setError('Payment request feature coming soon - requires backend implementation');
+    
+    toast({
+      title: "Feature Coming Soon",
+      description: "Payment requests require backend/smart contract implementation",
+      variant: "destructive",
+      duration: 3000,
+    });
   };
 
   const copyToClipboard = async (text: string) => {

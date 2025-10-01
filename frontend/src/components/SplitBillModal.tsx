@@ -16,11 +16,6 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  createBillSplit, 
-  calculateEvenSplit, 
-  calculateCustomSplit 
-} from '@/utils/billSplitStorage';
 
 interface SplitBillModalProps {
   isOpen: boolean;
@@ -147,46 +142,16 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) return;
-
     setIsSubmitting(true);
     try {
-      const validParticipants = participants.filter(p => p.address.trim());
-
-      // Calculate final amounts
-      let finalParticipants: { address: string; amount: string }[];
-      
-      if (splitType === 'even') {
-        const evenAmount = calculateEvenSplit(originalTransaction.amount, validParticipants.length);
-        finalParticipants = validParticipants.map(p => ({
-          address: p.address,
-          amount: evenAmount
-        }));
-      } else {
-        finalParticipants = validParticipants.map(p => ({
-          address: p.address,
-          amount: p.amount
-        }));
-      }
-
-      // Create bill split
-      const billSplit = createBillSplit(
-        originalTransaction.txHash,
-        userAddress,
-        originalTransaction.amount,
-        description,
-        finalParticipants
-      );
-
       toast({
-        title: "Bill Split Created",
-        description: `Successfully created bill split for ${finalParticipants.length} participants`,
+        title: "Feature Coming Soon",
+        description: "Bill splitting requires backend/smart contract implementation",
+        variant: "destructive",
         duration: 3000,
       });
 
       handleClose();
-    } catch (error: any) {
-      setError(error.message || 'Failed to create bill split');
     } finally {
       setIsSubmitting(false);
     }
@@ -345,7 +310,7 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
                       participant.address.trim() && (
                         <div className="bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-sm text-gray-300">
                           {participants.filter(p => p.address.trim()).length > 0
-                            ? calculateEvenSplit(originalTransaction.amount, participants.filter(p => p.address.trim()).length)
+                            ? (parseFloat(originalTransaction.amount) / participants.filter(p => p.address.trim()).length).toFixed(8)
                             : '0.00'
                           } APT
                         </div>

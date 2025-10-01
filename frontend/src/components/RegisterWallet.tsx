@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,14 @@ import { Label } from '@/components/ui/label';
 import { Wallet, Loader2, CheckCircle, AlertCircle, Upload, FileText, Shield } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useWallet } from '../contexts/WalletContext';
+import { 
+  registerWalletId, 
+  getWalletIdByAddress, 
+  getAddressByWalletId,
+  getAccountFromPrivateKey,
+  parseContractError
+} from '@/utils/contractUtils';
+import { useToast } from '@/hooks/use-toast';
 
 interface RegisterWalletProps {
   isOpen: boolean;
@@ -18,16 +26,18 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
   onClose,
   onSuccess
 }) => {
-  const { registerWalletId, isConnected, setIdentityVerified } = useWallet();
+  const { setIdentityVerified } = useWallet();
+  const { toast } = useToast();
   
-  // Get current address from local storage
-  const getCurrentAddress = () => {
+  // Get current address and private key from local storage
+  const getCurrentAccount = () => {
     try {
       const walletData = localStorage.getItem('cryptal_wallet');
       if (walletData) {
         const parsedData = JSON.parse(walletData);
         const currentIndex = parsedData.currentAccountIndex || 0;
-        return parsedData.accounts?.[currentIndex]?.address || null;
+        const account = parsedData.accounts?.[currentIndex];
+        return account || null;
       }
     } catch (error) {
       console.error('Error reading wallet from localStorage:', error);
@@ -35,12 +45,16 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
     return null;
   };
 
-  const address = getCurrentAddress();
+  const currentAccount = getCurrentAccount();
+  const address = currentAccount?.address || null;
+  
   const [walletId, setWalletId] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingExisting, setIsCheckingExisting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [txHash, setTxHash] = useState('');
+  const [existingWalletId, setExistingWalletId] = useState<string | null>(null);
   
   // Identity verification states
   const [identityFile, setIdentityFile] = useState<File | null>(null);
@@ -49,14 +63,43 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
   const [verificationError, setVerificationError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Check if user already has a wallet ID registered
+  useEffect(() => {
+    const checkExistingWalletId = async () => {
+      if (!address) return;
+      
+      setIsCheckingExisting(true);
+      try {
+        const existingId = await getWalletIdByAddress(address);
+        if (existingId) {
+          setExistingWalletId(existingId);
+          setWalletId(existingId);
+        }
+      } catch (error) {
+        console.error('Error checking existing wallet ID:', error);
+      } finally {
+        setIsCheckingExisting(false);
+      }
+    };
+
+    if (isOpen && address) {
+      checkExistingWalletId();
+    }
+  }, [isOpen, address]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess(false);
 
+    // Check if wallet ID already exists
+    if (existingWalletId) {
+      setError('You have already registered a wallet ID: ' + existingWalletId);
+      return;
+    }
+
     // Check wallet connection
-    const currentAddress = getCurrentAddress();
-    if (!currentAddress) {
+    if (!currentAccount || !address) {
       setError('Please connect your wallet first');
       return;
     }
@@ -80,25 +123,63 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
     setIsLoading(true);
 
     try {
-      const transactionHash = await registerWalletId(walletId);
-      setTxHash(transactionHash);
-      setSuccess(true);
-      
-      // Reset form after a delay and call onSuccess
-      setTimeout(() => {
-        setWalletId('');
-        setSuccess(false);
-        setTxHash('');
+      // Check if wallet ID is already taken
+      const existingAddress = await getAddressByWalletId(walletId);
+      if (existingAddress) {
+        setError('This wallet ID is already registered by another user');
         setIsLoading(false);
-        setIdentityFile(null);
-        setVerificationSuccess(false);
-        setVerificationError('');
-        onSuccess?.();
-        onClose();
-      }, 3000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to register wallet ID');
+        return;
+      }
+
+      // Get account from private key to sign transaction
+      const account = getAccountFromPrivateKey(currentAccount.privateKey);
+      
+      // Register wallet ID on-chain
+      const result = await registerWalletId(account, walletId);
+      
+      if (result.success && result.hash) {
+        setTxHash(result.hash);
+        setSuccess(true);
+        
+        toast({
+          title: "Wallet ID Registered! 🎉",
+          description: `Your wallet ID "${walletId}" has been registered successfully.`,
+          duration: 5000,
+        });
+        
+        // Reset form after a delay and call onSuccess
+        setTimeout(() => {
+          setWalletId('');
+          setSuccess(false);
+          setTxHash('');
+          setIsLoading(false);
+          setIdentityFile(null);
+          setVerificationSuccess(false);
+          setVerificationError('');
+          onSuccess?.();
+          onClose();
+        }, 3000);
+      } else {
+        const errorMsg = result.error ? parseContractError(result.error) : 'Failed to register wallet ID';
+        setError(errorMsg);
+        setIsLoading(false);
+        
+        toast({
+          title: "Registration Failed",
+          description: errorMsg,
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to register wallet ID';
+      setError(errorMsg);
       setIsLoading(false);
+      
+      toast({
+        title: "Registration Failed",
+        description: errorMsg,
+        variant: "destructive",
+      });
     }
   };
 
@@ -117,10 +198,9 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
   };
 
   const generateSuggestion = () => {
-    const currentAddress = getCurrentAddress();
-    if (currentAddress) {
+    if (address) {
       // Generate a suggestion based on address
-      const shortAddress = currentAddress.slice(-8);
+      const shortAddress = address.slice(-8);
       setWalletId(`wallet_${shortAddress}`);
     }
   };
@@ -159,7 +239,7 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
       
       // Update identity verification status in wallet context
       setIdentityVerified(true);
-    } catch (err: any) {
+    } catch (err) {
       setVerificationError('Failed to verify identity document. Please try again.');
       setIsVerificationLoading(false);
     }
@@ -187,6 +267,15 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+          {existingWalletId && (
+            <Alert className="bg-blue-500/10 border-blue-500/20 text-blue-300">
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>
+                You already have a wallet ID registered: <strong>{existingWalletId}</strong>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {error && (
             <Alert className="bg-red-500/10 border-red-500/20 text-red-300">
               <AlertCircle className="h-4 w-4" />
@@ -226,7 +315,7 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
                 value={walletId}
                 onChange={(e) => setWalletId(e.target.value.toLowerCase())}
                 className="bg-gray-800/50 border-gray-600 text-white placeholder-gray-400 focus:border-white/50 flex-1"
-                disabled={isLoading || success || isVerificationLoading}
+                disabled={isLoading || success || isVerificationLoading || isCheckingExisting || !!existingWalletId}
                 autoComplete="off"
               />
               <Button
@@ -234,7 +323,7 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={generateSuggestion}
-                disabled={isLoading || success || isVerificationLoading}
+                disabled={isLoading || success || isVerificationLoading || isCheckingExisting || !!existingWalletId}
                 className="bg-transparent border-gray-600 text-white hover:bg-gray-800/50 whitespace-nowrap"
               >
                 Auto
@@ -351,10 +440,15 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || success || isVerificationLoading}
-              className="flex-1 bg-white hover:bg-gray-100 text-black font-medium"
+              disabled={isLoading || success || isVerificationLoading || isCheckingExisting || !!existingWalletId}
+              className="flex-1 bg-white hover:bg-gray-100 text-black font-medium disabled:opacity-50"
             >
-              {isLoading ? (
+              {isCheckingExisting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Checking...
+                </>
+              ) : isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Registering...
@@ -363,6 +457,11 @@ export const RegisterWallet: React.FC<RegisterWalletProps> = ({
                 <>
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Registered!
+                </>
+              ) : existingWalletId ? (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Already Registered
                 </>
               ) : (
                 <>
