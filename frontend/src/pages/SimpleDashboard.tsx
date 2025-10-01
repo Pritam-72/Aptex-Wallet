@@ -193,6 +193,12 @@ const [showRequestMoney, setShowRequestMoney] = useState(false);
       const storedWallet = getStoredWallet();
       const current = getCurrentAccount();
       
+      console.log('📝 Wallet initialization:', {
+        hasWallet: !!storedWallet,
+        hasCurrentAccount: !!current,
+        accountCount: storedWallet?.accounts?.length || 0
+      });
+      
       setWallet(storedWallet);
       setCurrentAccount(current);
       

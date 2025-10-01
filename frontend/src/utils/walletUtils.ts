@@ -28,6 +28,46 @@ export interface Transaction {
 // LocalStorage keys
 const WALLET_STORAGE_KEY = 'cryptal_wallet';
 const ACCOUNT_COUNT_KEY = 'cryptal_account_count';
+const LEGACY_WALLET_KEY = 'aptos_wallet'; // Legacy key from AuthContext
+
+// Migrate legacy wallet data to new format
+const migrateLegacyWallet = (): void => {
+  try {
+    // Check if we already have the new format
+    const existingWallet = localStorage.getItem(WALLET_STORAGE_KEY);
+    if (existingWallet) {
+      return; // Already migrated
+    }
+
+    // Check for legacy wallet
+    const legacyWalletData = localStorage.getItem(LEGACY_WALLET_KEY);
+    if (!legacyWalletData) {
+      return; // No legacy wallet to migrate
+    }
+
+    const legacyWallet = JSON.parse(legacyWalletData);
+    
+    // Convert legacy wallet to new format
+    const walletAccount: WalletAccount = {
+      address: legacyWallet.address,
+      privateKey: legacyWallet.privateKey,
+      publicKey: legacyWallet.publicKey,
+      accountIndex: 0
+    };
+
+    const newWallet: StoredWallet = {
+      seedPhrase: legacyWallet.mnemonic || '',
+      accounts: [walletAccount],
+      currentAccountIndex: 0
+    };
+
+    // Save in new format
+    saveWallet(newWallet);
+    console.log('✓ Successfully migrated legacy wallet to new format');
+  } catch (error) {
+    console.error('Error migrating legacy wallet:', error);
+  }
+};
 
 // Generate a new wallet with seed phrase
 export const generateNewWallet = (): { seedPhrase: string; account: Account } => {
@@ -67,6 +107,9 @@ const generateSeedPhrase = (): string => {
 // Get wallet from localStorage
 export const getStoredWallet = (): StoredWallet | null => {
   try {
+    // First, try to migrate any legacy wallet data
+    migrateLegacyWallet();
+    
     const walletData = localStorage.getItem(WALLET_STORAGE_KEY);
     if (walletData) {
       return JSON.parse(walletData);
