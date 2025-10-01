@@ -383,6 +383,43 @@ module aptos_contract::wallet_system {
         move_to(admin, registry);
     }
 
+    /// Initialize if not already initialized (safe for redeployment)
+    /// This function will only create WalletRegistry if it doesn't exist
+    public entry fun initialize_if_needed(admin: &signer) {
+        let admin_addr = signer::address_of(admin);
+        
+        // Only initialize if registry doesn't exist
+        if (!exists<WalletRegistry>(admin_addr)) {
+            let registry = WalletRegistry {
+                wallet_id_to_address: table::new(),
+                address_to_wallet_id: table::new(),
+                upi_id_to_address: table::new(),
+                address_to_upi_id: table::new(),
+                payment_requests: table::new(),
+                user_payment_requests: table::new(),
+                user_sent_requests: table::new(),
+                split_bills: table::new(),
+                user_split_bills: table::new(),
+                emi_agreements: table::new(),
+                user_emis: table::new(),
+                company_emis: table::new(),
+                emi_coin_store: coin::zero<AptosCoin>(),
+                user_stats: table::new(),
+                coupon_templates: table::new(),
+                company_coupon_templates: table::new(),
+                user_coupon_nfts: table::new(),
+                next_request_id: 1,
+                next_split_id: 1,
+                next_emi_id: 1,
+                next_coupon_template_id: 1,
+                next_coupon_nft_id: 1,
+            };
+            
+            move_to(admin, registry);
+        };
+        // If registry already exists, do nothing (keep existing data)
+    }
+
     /// Helper function to update user stats and check for loyalty NFT minting
     fun update_user_stats_and_check_loyalty(
         user_addr: address,
@@ -702,9 +739,17 @@ module aptos_contract::wallet_system {
         
         table::add(&mut registry.payment_requests, request_id, payment_request);
         
+        // Initialize recipient's payment requests vector if it doesn't exist
+        if (!table::contains(&registry.user_payment_requests, recipient_addr)) {
+            table::add(&mut registry.user_payment_requests, recipient_addr, vector::empty());
+        };
         let recipient_requests = table::borrow_mut(&mut registry.user_payment_requests, recipient_addr);
         vector::push_back(recipient_requests, request_id);
         
+        // Initialize requester's sent requests vector if it doesn't exist
+        if (!table::contains(&registry.user_sent_requests, requester_addr)) {
+            table::add(&mut registry.user_sent_requests, requester_addr, vector::empty());
+        };
         let requester_requests = table::borrow_mut(&mut registry.user_sent_requests, requester_addr);
         vector::push_back(requester_requests, request_id);
         
