@@ -679,13 +679,13 @@ const SimpleDashboard = () => {
                     onCopyAddress={() => copyToClipboard(currentAccount?.address || '')}
                   />
                   
-                  <BlockchainStats
+                  {/* <BlockchainStats
                     transactionCount={userStats?.transaction_count || '0'}
                     totalVolume={userStats?.total_amount_transacted || '0'}
                     loyaltyTier={loyaltyTier}
                     activePaymentRequests={activePaymentRequests}
                     isLoading={statsLoading}
-                  />
+                  /> */}
                   
                   <UpiQuickAccess 
                     onNavigateToUpi={() => handleSectionChange('upi')}

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { QrCode, Copy, ArrowDownLeft, X, Shield, Check, Download, Plus, ExternalLink } from 'lucide-react';
+import { QrCode, Copy, ArrowDownLeft, X, Shield, Check, Download } from 'lucide-react';
 import QRCodeLib from 'qrcode';
 import { getAccountBalance } from '@/utils/walletUtils';
 
@@ -43,10 +43,7 @@ export const ReceiveTransaction: React.FC<ReceiveTransactionProps> = ({
   address 
 }) => {
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'receive' | 'simulate'>('receive');
-  const [simulateAmount, setSimulateAmount] = useState('');
   const [currentBalance, setCurrentBalance] = useState('0');
-  const [isProcessing, setIsProcessing] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
 
@@ -92,15 +89,6 @@ export const ReceiveTransaction: React.FC<ReceiveTransactionProps> = ({
     }
   };
 
-  const handleSimulateReceive = async () => {
-    toast({
-      title: "Feature Unavailable",
-      description: "Simulation feature has been removed. Real transactions only.",
-      variant: "destructive",
-      duration: 3000,
-    });
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto bg-black/95 backdrop-blur-md border border-gray-800 shadow-2xl">
@@ -112,38 +100,11 @@ export const ReceiveTransaction: React.FC<ReceiveTransactionProps> = ({
           </div>
           
           <h2 className="text-xl font-semibold text-center mb-2 text-white">Receive APT</h2>
-          <p className="text-sm text-gray-400 text-center mb-4">
+          <p className="text-sm text-gray-400 text-center mb-6">
             Current Balance: <span className="text-green-500 font-semibold">{currentBalance} APT</span>
           </p>
 
-          {/* Tab Navigation */}
-          <div className="flex bg-gray-900 rounded-lg p-1 mb-4">
-            <button
-              onClick={() => setActiveTab('receive')}
-              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-                activeTab === 'receive'
-                  ? 'bg-white text-black'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <QrCode className="h-4 w-4 inline mr-2" />
-              Receive
-            </button>
-            <button
-              onClick={() => setActiveTab('simulate')}
-              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-                activeTab === 'simulate'
-                  ? 'bg-white text-black'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <Plus className="h-4 w-4 inline mr-2" />
-              Simulate
-            </button>
-          </div>
-
-          {activeTab === 'receive' ? (
-            <div className="space-y-4">
+          <div className="space-y-4">
               {/* QR Code Section */}
               <div className="flex justify-center">
                 <div className="p-4 bg-gray-900 rounded-xl border border-gray-800">
@@ -218,59 +179,6 @@ export const ReceiveTransaction: React.FC<ReceiveTransactionProps> = ({
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Simulate Receive Section */}
-              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
-                  <ExternalLink className="h-4 w-4 text-green-500" />
-                  Simulate External Transfer
-                </h3>
-                
-                <div className="space-y-3">
-                  <div>
-                    <Label htmlFor="simulate-amount" className="text-xs text-gray-400 mb-1 block">
-                      Amount to Receive (APT)
-                    </Label>
-                    <Input
-                      id="simulate-amount"
-                      type="number"
-                      step="0.000001"
-                      placeholder="Enter amount..."
-                      value={simulateAmount}
-                      onChange={(e) => setSimulateAmount(e.target.value)}
-                      className="bg-gray-800 border-gray-700 text-white placeholder-gray-500"
-                    />
-                  </div>
-
-                  <Button
-                    onClick={handleSimulateReceive}
-                    disabled={isProcessing || !simulateAmount || parseFloat(simulateAmount) <= 0}
-                    className="w-full h-10 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-medium rounded-lg transition-all duration-200"
-                  >
-                    {isProcessing ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Processing...
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <Plus className="h-4 w-4" />
-                        Simulate Receive
-                      </div>
-                    )}
-                  </Button>
-                </div>
-
-                <div className="mt-3 p-3 bg-gray-800 rounded-lg">
-                  <div className="text-xs text-gray-400">
-                    💡 This simulates receiving money from an external wallet. 
-                    It will add the amount to your balance and create a transaction record.
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>
