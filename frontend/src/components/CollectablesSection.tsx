@@ -131,11 +131,8 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
       // Load Loyalty NFT from blockchain
       await loadLoyaltyNFT();
 
-      // Load Offer/Coupon NFTs from localStorage (for now)
-      const storedOfferNFTs = localStorage.getItem(`offer_nfts_${userAddress}`);
-      if (storedOfferNFTs) {
-        setOfferNFTs(JSON.parse(storedOfferNFTs));
-      }
+      // Load Offer/Coupon NFTs from blockchain
+      await loadOfferNFTs();
 
       // Load Invoice NFTs from transaction history
       loadInvoiceNFTs();
@@ -191,6 +188,42 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
       setLoyaltyNFTs([]);
     } finally {
       setLoadingLoyalty(false);
+    }
+  };
+
+  // Load Offer/Coupon NFTs from blockchain
+  const loadOfferNFTs = async () => {
+    try {
+      const { getUserCouponNFTInstances } = await import('@/utils/contractUtils');
+      const couponNFTs = await getUserCouponNFTInstances(userAddress);
+      
+      console.log('🎟️ Loaded coupon NFTs:', couponNFTs);
+      
+      if (couponNFTs && couponNFTs.length > 0) {
+        const mappedOffers: OfferNFT[] = couponNFTs.map((coupon) => {
+          const metadata = coupon.metadata as Record<string, unknown>;
+          return {
+            id: coupon.id.toString(),
+            companyName: metadata.company_name as string || 'Partner Company',
+            companyLogo: metadata.image_url as string || '/placeholder.svg',
+            discountPercentage: parseInt(coupon.discount_percentage.toString()),
+            productLink: coupon.discount_link,
+            description: coupon.description,
+            // Convert microseconds to ISO date string
+            expiryDate: new Date(parseInt(coupon.expires_at.toString()) / 1000).toISOString(),
+            isRedeemed: coupon.is_redeemed,
+            // Convert microseconds to ISO date string
+            mintedAt: new Date(parseInt(coupon.created_at.toString()) / 1000).toISOString(),
+            category: metadata.coupon_type as string || 'general',
+          };
+        });
+        setOfferNFTs(mappedOffers);
+      } else {
+        setOfferNFTs([]);
+      }
+    } catch (error) {
+      console.error('Error loading offer NFTs:', error);
+      setOfferNFTs([]);
     }
   };
 

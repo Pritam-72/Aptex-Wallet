@@ -21,7 +21,7 @@ const config = new AptosConfig({ network: Network.DEVNET });
 export const aptos = new Aptos(config);
 
 // Contract configuration
-export const CONTRACT_ADDRESS = "0x9c2fe13427bfa2d51671cdc2c04b4915ed4ef81709ccd8cd31c1150769596d2c";
+export const CONTRACT_ADDRESS = "0x26edd69f33b924746d8bcc972027477d46e79406975f9c370260fd9c99aa255d";
 export const MODULE_NAME = "wallet_system";
 
 // Full module identifier
@@ -1315,6 +1315,51 @@ export const getUserStats = async (userAddress: string): Promise<UserStats | nul
       }
     },
     30000 // Cache for 30 seconds - stats don't change frequently
+  );
+};
+
+/**
+ * Get all coupon NFT instances for a user
+ */
+export const getUserCouponNFTInstances = async (userAddress: string) => {
+  const cacheKey = generateCacheKey('getUserCouponNFTInstances', userAddress);
+  
+  return rpcCache.get(
+    cacheKey,
+    async () => {
+      try {
+        const result = await aptos.view({
+          payload: {
+            function: `${MODULE_ID}::get_user_coupon_nft_instances`,
+            functionArguments: [CONTRACT_ADDRESS, userAddress],
+          },
+        });
+
+        if (result && Array.isArray(result) && result.length > 0) {
+          const coupons = result[0] as Array<Record<string, unknown>>;
+          console.log('🎟️ User coupon NFTs from contract:', coupons);
+          return coupons.map((coupon: Record<string, unknown>) => ({
+            id: coupon.id as string,
+            template_id: coupon.template_id as string,
+            owner: coupon.owner as string,
+            company: coupon.company as string,
+            discount_percentage: coupon.discount_percentage as number,
+            discount_link: coupon.discount_link as string,
+            description: coupon.description as string,
+            expires_at: coupon.expires_at as string,
+            created_at: coupon.created_at as string,
+            is_redeemed: coupon.is_redeemed as boolean,
+            metadata: coupon.metadata as Record<string, unknown>,
+          }));
+        }
+        console.log('❌ No coupon NFTs found for:', userAddress);
+        return [];
+      } catch (error) {
+        console.error("Error getting user coupon NFTs:", error);
+        return [];
+      }
+    },
+    10000 // Cache for 10 seconds
   );
 };
 
