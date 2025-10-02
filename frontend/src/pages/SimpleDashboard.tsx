@@ -738,6 +738,7 @@ const SimpleDashboard = () => {
       <AnimatePresence>
         {showSendTransaction && (
           <motion.div
+            key="send-transaction-modal"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -764,50 +765,38 @@ const SimpleDashboard = () => {
             </motion.div>
           </motion.div>
         )}
-
-         {/* Request Money Modal */}
-
-        <RequestMoney
-          isOpen={showRequestMoney}
-          onClose={() => setShowRequestMoney(false)}
-          userAddress={currentAccount?.address || ''}
-        />
-
-        {/* Send Payment Request Modal */}
-        <SendPaymentRequest
-          isOpen={showSendPaymentRequest}
-          onClose={() => setShowSendPaymentRequest(false)}
-          userAddress={currentAccount?.address || ''}
-        />
-
-
-
-        {/* Register Wallet Modal */}
-
-        <RegisterWallet
-
-          isOpen={showRegisterWallet}
-
-          onClose={() => setShowRegisterWallet(false)}
-
-          onSuccess={() => {
-
-            // Optionally refresh balance or show success message
-
-            console.log('Wallet ID registered successfully!');
-
-          }}
-
-        />
-
-
-
-        <ReceiveTransaction
-          isOpen={showReceiveQR}
-          onClose={() => setShowReceiveQR(false)}
-          address={currentAccount?.address || ''}
-        />
       </AnimatePresence>
+
+      {/* Request Money Modal */}
+      <RequestMoney
+        isOpen={showRequestMoney}
+        onClose={() => setShowRequestMoney(false)}
+        userAddress={currentAccount?.address || ''}
+      />
+
+      {/* Send Payment Request Modal */}
+      <SendPaymentRequest
+        isOpen={showSendPaymentRequest}
+        onClose={() => setShowSendPaymentRequest(false)}
+        userAddress={currentAccount?.address || ''}
+      />
+
+      {/* Register Wallet Modal */}
+      <RegisterWallet
+        isOpen={showRegisterWallet}
+        onClose={() => setShowRegisterWallet(false)}
+        onSuccess={() => {
+          // Optionally refresh balance or show success message
+          console.log('Wallet ID registered successfully!');
+        }}
+      />
+
+      {/* Receive Transaction Modal */}
+      <ReceiveTransaction
+        isOpen={showReceiveQR}
+        onClose={() => setShowReceiveQR(false)}
+        address={currentAccount?.address || ''}
+      />
     </div>
   );
 };

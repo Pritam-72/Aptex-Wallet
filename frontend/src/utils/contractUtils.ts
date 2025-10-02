@@ -421,19 +421,40 @@ export const rejectRequest = async (
 
 /**
  * Create a split bill with custom amounts
+ * NOTE: The contract expects wallet IDs (not addresses) for participants
  */
 export const createSplitBill = async (
   account: Account,
   description: string,
-  participants: string[],
-  participantAmounts: string[] // amounts in octas
+  participantWalletIds: string[], // Wallet IDs (e.g., "testing1", "testing2")
+  participantAmounts: string[] // amounts in octas as strings
 ): Promise<TransactionResult> => {
   try {
+    // Calculate total amount from participant amounts
+    const totalAmount = participantAmounts.reduce((sum, amount) => sum + BigInt(amount), BigInt(0));
+    
+    // Convert string amounts to numbers for the contract
+    const amountsAsNumbers = participantAmounts.map(amount => Number(amount));
+    
+    console.log('🔧 createSplitBill called with:', {
+      description,
+      participantWalletIds,
+      participantAmounts,
+      amountsAsNumbers,
+      totalAmount: totalAmount.toString()
+    });
+    
     const transaction = await aptos.transaction.build.simple({
       sender: account.accountAddress,
       data: {
         function: `${MODULE_ID}::create_split_bill`,
-        functionArguments: [CONTRACT_ADDRESS, description, participants, participantAmounts],
+        functionArguments: [
+          CONTRACT_ADDRESS, 
+          totalAmount.toString(), // total_amount as string (will be converted to u64)
+          description, 
+          participantWalletIds, // Wallet IDs (contract will resolve to addresses)
+          amountsAsNumbers // amounts as numbers
+        ],
       },
     });
 
@@ -784,6 +805,7 @@ export const getAddressByWalletId = async (walletId: string): Promise<string | n
     cacheKey,
     async () => {
       try {
+        console.log(`🔍 Looking up wallet ID "${walletId}" in contract ${CONTRACT_ADDRESS}`);
         const result = await aptos.view({
           payload: {
             function: `${MODULE_ID}::get_address_by_wallet_id`,
@@ -791,16 +813,21 @@ export const getAddressByWalletId = async (walletId: string): Promise<string | n
           },
         });
 
+        console.log(`📥 Raw result for wallet ID "${walletId}":`, result);
+
         // Result is Option<address>, check if vec is not empty
         if (result && Array.isArray(result) && result.length > 0) {
           const option = result[0] as Record<string, unknown>;
           if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
-            return option.vec[0];
+            const address = option.vec[0];
+            console.log(`✅ Found address for wallet ID "${walletId}": ${address}`);
+            return address;
           }
         }
+        console.log(`❌ Wallet ID "${walletId}" not found in registry`);
         return null;
       } catch (error) {
-        console.error("Error getting address by wallet ID:", error);
+        console.error(`Error getting address by wallet ID "${walletId}":`, error);
         return null;
       }
     },

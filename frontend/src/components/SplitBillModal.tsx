@@ -174,10 +174,10 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
       return false;
     }
 
-    // Check that all participants are resolved or have valid addresses
+    // Check that all participants have valid wallet IDs (must be resolved)
     for (const participant of validParticipants) {
-      if (!participant.resolvedAddress && !participant.address.startsWith('0x')) {
-        setError(`Invalid recipient: ${participant.address}. Must be address, Wallet ID, or UPI ID.`);
+      if (!participant.resolvedAddress) {
+        setError(`Invalid or unregistered wallet ID: "${participant.address}". Please ensure the wallet ID is registered.`);
         return false;
       }
     }
@@ -238,13 +238,27 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
 
       const account = getAccountFromPrivateKey(currentAccount.privateKey);
 
+      console.log('👤 Creator account:', {
+        address: account.accountAddress.toString(),
+        userAddress: userAddress
+      });
+
       // Get valid participants with resolved addresses
       const validParticipants = participants.filter(p => p.address.trim());
       
       // Prepare split data
       const totalAmount = parseFloat(originalTransaction.amount);
-      const participantAddresses: string[] = [];
+      const participantWalletIds: string[] = [];
       const participantAmounts: string[] = [];
+
+      console.log('🔍 Preparing split bill data:', {
+        validParticipantsCount: validParticipants.length,
+        participants: validParticipants.map(p => ({
+          input: p.address,
+          resolvedAddress: p.resolvedAddress,
+          recipientType: p.recipientType
+        }))
+      });
 
       if (splitType === 'even') {
         // Even split
@@ -252,26 +266,57 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
         const amountInOctas = aptToOctas(amountPerPerson);
 
         for (const participant of validParticipants) {
-          const finalAddress = participant.resolvedAddress || participant.address;
-          participantAddresses.push(finalAddress);
+          // Use the original wallet ID input (not resolved address)
+          participantWalletIds.push(participant.address);
           participantAmounts.push(amountInOctas);
         }
       } else {
         // Custom split
         for (const participant of validParticipants) {
-          const finalAddress = participant.resolvedAddress || participant.address;
+          // Use the original wallet ID input (not resolved address)
           const amountInOctas = aptToOctas(parseFloat(participant.amount));
           
-          participantAddresses.push(finalAddress);
+          participantWalletIds.push(participant.address);
           participantAmounts.push(amountInOctas);
         }
+      }
+
+      console.log('📤 Sending to contract:', {
+        participantWalletIds,
+        participantAmounts,
+        description: description || 'Split bill'
+      });
+
+      // Verify all wallet IDs exist before sending (bypass cache for fresh check)
+      console.log('🔄 Verifying wallet IDs (bypassing cache)...');
+      for (const walletId of participantWalletIds) {
+        // Direct check without cache
+        const checkResult = await aptos.view({
+          payload: {
+            function: `${CONTRACT_ADDRESS}::wallet_system::get_address_by_wallet_id`,
+            functionArguments: [CONTRACT_ADDRESS, walletId],
+          },
+        });
+        
+        console.log(`📋 Direct check for "${walletId}":`, checkResult);
+        
+        if (!checkResult || !Array.isArray(checkResult) || checkResult.length === 0) {
+          throw new Error(`Wallet ID "${walletId}" not found in contract registry. Please ensure it's registered.`);
+        }
+        
+        const option = checkResult[0] as Record<string, unknown>;
+        if (!option.vec || !Array.isArray(option.vec) || option.vec.length === 0) {
+          throw new Error(`Wallet ID "${walletId}" not found in contract registry. Please ensure it's registered.`);
+        }
+        
+        console.log(`✅ Verified wallet ID "${walletId}" -> ${option.vec[0]}`);
       }
 
       // Create split bill on-chain
       const result = await createSplitBill(
         account,
         description || 'Split bill',
-        participantAddresses,
+        participantWalletIds,
         participantAmounts
       );
 
@@ -464,7 +509,7 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Input
-                        placeholder="Address, Wallet ID, or UPI ID..."
+                        placeholder="Enter registered Wallet ID (e.g., testing1)..."
                         value={participant.address}
                         onChange={(e) => updateParticipantAddress(participant.id, e.target.value)}
                         className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 text-sm"
@@ -473,7 +518,19 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
                       {resolvingParticipant === participant.id && (
                         <p className="text-xs text-gray-400 flex items-center gap-1">
                           <Loader2 className="h-3 w-3 animate-spin" />
-                          Resolving...
+                          Verifying wallet ID...
+                        </p>
+                      )}
+                      {participant.address.trim() && !resolvingParticipant && participant.resolvedAddress && (
+                        <p className="text-xs text-green-400 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Wallet ID found: {participant.resolvedAddress.slice(0, 6)}...{participant.resolvedAddress.slice(-4)}
+                        </p>
+                      )}
+                      {participant.address.trim() && !resolvingParticipant && !participant.resolvedAddress && (
+                        <p className="text-xs text-red-400 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          Wallet ID not registered
                         </p>
                       )}
                     </div>
@@ -539,7 +596,7 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
           {!success && (
             <div className="text-center text-xs text-gray-500">
               <p>✓ On-chain split bill tracking</p>
-              <p className="mt-1">✓ Auto-detect: Address / Wallet ID / UPI ID</p>
+              <p className="mt-1">✓ Participants must have registered Wallet IDs</p>
             </div>
           )}
         </form>
