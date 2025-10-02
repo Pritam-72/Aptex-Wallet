@@ -10,12 +10,12 @@ aptos_contract = "9c2fe13427bfa2d51671cdc2c04b4915ed4ef81709ccd8cd31c1150769596d
 
 [dependencies.AptosFramework]
 git = "https://github.com/aptos-labs/aptos-core.git"
-rev = "devnet"
+rev = "aptos-node-v1.27.1"
 subdir = "aptos-move/framework/aptos-framework"
 
 [dependencies.AptosStdlib]
 git = "https://github.com/aptos-labs/aptos-core.git"
-rev = "devnet"
+rev = "aptos-node-v1.27.1"
 subdir = "aptos-move/framework/aptos-stdlib"
 
 [dev-dependencies]

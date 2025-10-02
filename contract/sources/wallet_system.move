@@ -786,6 +786,9 @@ module aptos_contract::wallet_system {
         let request_from = request.from;
         let request_amount = request.amount;
         
+        // ✨ FIXED: Actually transfer the APT coins from payer to requester
+        coin::transfer<AptosCoin>(payer, request_from, request_amount);
+        
         request.status = STATUS_PAID;
         request.paid_at = option::some(timestamp::now_microseconds());
         
