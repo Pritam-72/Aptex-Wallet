@@ -74,9 +74,10 @@ interface InvoiceNFT {
 
 interface CollectablesSectionProps {
   userAddress: string;
+  refreshTrigger?: number; // Add refresh trigger to reload NFTs when transactions happen
 }
 
-export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAddress }) => {
+export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAddress, refreshTrigger }) => {
   const [offerNFTs, setOfferNFTs] = useState<OfferNFT[]>([]);
   const [loyaltyNFTs, setLoyaltyNFTs] = useState<LoyaltyNFT[]>([]);
   const [invoiceNFTs, setInvoiceNFTs] = useState<InvoiceNFT[]>([]);
@@ -121,7 +122,7 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
       void loadNFTs();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userAddress]);
+  }, [userAddress, refreshTrigger]); // Also reload when refreshTrigger changes (after transactions)
 
   const loadNFTs = async () => {
     try {
@@ -156,9 +157,11 @@ export const CollectablesSection: React.FC<CollectablesSectionProps> = ({ userAd
     try {
       const stats = await getUserStats(userAddress);
       
+      console.log('📊 Loaded user stats:', stats);
+      
       if (stats) {
-        const txCount = parseInt(stats.transaction_count);
-        const totalAmount = octasToApt(stats.total_amount_transacted).toFixed(4);
+        const txCount = parseInt(stats.total_transactions);
+        const totalAmount = '0.0000'; // Contract doesn't track total amount anymore
         const { tier, tierNumber } = getLoyaltyTier(txCount);
 
         // Only create loyalty NFT if user has made transactions

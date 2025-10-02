@@ -98,7 +98,7 @@ export const WalletSection: React.FC<WalletSectionProps> = ({
               <Button 
                 variant="outline" 
                 className="w-full h-12 border-border hover:bg-muted/50 cosmic-glow" 
-                onClick={onRequestMoney}
+                onClick={onSendPaymentRequest}
               >
                 <HandCoins className="h-4 w-4 mr-2" />
                 Request

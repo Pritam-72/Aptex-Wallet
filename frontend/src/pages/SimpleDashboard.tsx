@@ -96,6 +96,7 @@ const SimpleDashboard = () => {
   const [showRegisterWallet, setShowRegisterWallet] = useState(false);
 
   const [transactionRefreshFlag, setTransactionRefreshFlag] = useState(0);
+  const [nftRefreshTrigger, setNftRefreshTrigger] = useState(0); // Add NFT refresh trigger
 
   // Blockchain stats state
   const [userStats, setUserStats] = useState<UserStats | null>(null);
@@ -707,7 +708,10 @@ const SimpleDashboard = () => {
               )}
 
               {activeSection === 'collectables' && (
-                <CollectablesSection userAddress={currentAccount?.address || ''} />
+                <CollectablesSection 
+                  userAddress={currentAccount?.address || ''} 
+                  refreshTrigger={nftRefreshTrigger}
+                />
               )}
 
               {activeSection === 'transactions' && (
@@ -760,6 +764,8 @@ const SimpleDashboard = () => {
                   setTransactionRefreshFlag(prev => prev + 1);
                   // Refresh balance to show updated amount
                   refreshBalance();
+                  // Refresh NFTs to show updated loyalty NFT
+                  setNftRefreshTrigger(prev => prev + 1);
                 }}
               />
             </motion.div>

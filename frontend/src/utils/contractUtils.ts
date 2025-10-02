@@ -73,8 +73,9 @@ export interface EmiAgreement {
 }
 
 export interface UserStats {
-  transaction_count: string;
-  total_amount_transacted: string;
+  total_transactions: string; // Changed from transaction_count to match contract
+  last_transaction_date: string;
+  loyalty_nfts_minted: number[];
 }
 
 export interface LoyaltyNFTMetadata {
@@ -337,6 +338,49 @@ export const createPaymentRequest = async (
     return {
       success: false,
       error: errorDetails?.message || (error instanceof Error ? error.message : "Failed to create payment request"),
+    };
+  }
+};
+
+/**
+ * Transfer APT with tracking (for loyalty NFT minting)
+ * This function transfers APT and updates user stats for loyalty NFT eligibility
+ */
+export const transferWithTracking = async (
+  account: Account,
+  recipient: string,
+  amount: number
+): Promise<TransactionResult> => {
+  try {
+    const amountInOctas = aptToOctas(amount);
+    
+    const transaction = await aptos.transaction.build.simple({
+      sender: account.accountAddress,
+      data: {
+        function: `${MODULE_ID}::transfer_with_tracking`,
+        functionArguments: [CONTRACT_ADDRESS, recipient, amountInOctas.toString()],
+      },
+    });
+
+    const pendingTxn = await aptos.signAndSubmitTransaction({
+      signer: account,
+      transaction,
+    });
+
+    const response = await aptos.waitForTransaction({
+      transactionHash: pendingTxn.hash,
+    });
+
+    return {
+      success: response.success,
+      hash: pendingTxn.hash,
+      vm_status: response.vm_status,
+    };
+  } catch (error) {
+    console.error("Error transferring with tracking:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to transfer",
     };
   }
 };
@@ -1254,13 +1298,16 @@ export const getUserStats = async (userAddress: string): Promise<UserStats | nul
         if (result && Array.isArray(result) && result.length > 0) {
           const option = result[0] as Record<string, unknown>;
           if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
-            const data = option.vec[0];
+            const data = option.vec[0] as Record<string, unknown>;
+            console.log('📊 User stats from contract:', data);
             return {
-              transaction_count: data.transaction_count,
-              total_amount_transacted: data.total_amount_transacted,
+              total_transactions: (data.total_transactions || '0') as string,
+              last_transaction_date: (data.last_transaction_date || '0') as string,
+              loyalty_nfts_minted: (data.loyalty_nfts_minted || []) as number[],
             };
           }
         }
+        console.log('❌ No user stats found for:', userAddress);
         return null;
       } catch (error) {
         console.error("Error getting user stats:", error);

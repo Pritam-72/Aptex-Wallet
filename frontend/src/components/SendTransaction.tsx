@@ -15,10 +15,12 @@ import {
   octasToApt,
   checkSufficientBalance,
   estimateGas,
-  aptos
+  aptos,
+  transferWithTracking
 } from '@/utils/contractUtils';
 import { getToastErrorMessage } from '@/utils/errorHandler';
 import { ContractErrorDisplay } from './ContractErrorDisplay';
+import { rpcCache, generateCacheKey } from '@/utils/rpcCache';
 
 interface SendTransactionProps {
   isOpen: boolean;
@@ -205,39 +207,23 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
       // Get account from private key
       const account = getAccountFromPrivateKey(currentAccount.privateKey);
       
-      // Convert APT to Octas (1 APT = 100,000,000 octas)
-      const amountInOctas = BigInt(aptToOctas(amount));
+      // Use contract's transfer_with_tracking function to enable loyalty NFT minting
+      const result = await transferWithTracking(account, finalRecipientAddress, amount);
 
-      // Build transaction
-      const transaction = await aptos.transaction.build.simple({
-        sender: account.accountAddress,
-        data: {
-          function: "0x1::coin::transfer",
-          typeArguments: ["0x1::aptos_coin::AptosCoin"],
-          functionArguments: [finalRecipientAddress, amountInOctas],
-        },
-      });
-
-      // Sign and submit transaction
-      const pendingTxn = await aptos.signAndSubmitTransaction({
-        signer: account,
-        transaction,
-      });
-
-      // Wait for transaction confirmation
-      const response = await aptos.waitForTransaction({
-        transactionHash: pendingTxn.hash,
-      });
-
-      if (response.success) {
-        setTxHash(pendingTxn.hash);
+      if (result.success && result.hash) {
+        setTxHash(result.hash);
         setSuccess(true);
 
         toast({
           title: "Transaction Successful! 🎉",
-          description: `Sent ${amount} APT to ${recipientType === 'address' ? 'address' : recipientType === 'walletId' ? 'Wallet ID' : 'UPI ID'}`,
+          description: `Sent ${amount} APT to ${recipientType === 'address' ? 'address' : recipientType === 'walletId' ? 'Wallet ID' : 'UPI ID'}. Loyalty NFT will be minted if eligible!`,
           duration: 5000,
         });
+
+        // Invalidate user stats cache so loyalty NFT can refresh with new transaction count
+        rpcCache.invalidate(generateCacheKey('getUserStats', currentAddress));
+        console.log('🔄 Invalidated user stats cache after transaction');
+        console.log('✨ Transaction tracked! Check for loyalty NFT minting...');
 
         // Refresh balance
         const newBalance = await getAccountBalance(currentAddress);
@@ -249,7 +235,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
           onSuccess?.();
         }, 3000);
       } else {
-        throw new Error('Transaction failed: ' + response.vm_status);
+        throw new Error('Transaction failed: ' + (result.error || 'Unknown error'));
       }
 
     } catch (err) {
