@@ -15,6 +15,7 @@ import AptosTestComponent from "./components/AptosTestComponent";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "./components/ui/button";
+import { CompanyDashboard } from "./components/CompanyDashboard";
 
 
 
@@ -109,6 +110,7 @@ const AppContent = () => {
         } />
         {/* Landing page route that all users can access */}
         <Route path="/home" element={<LandingPage />} />
+        <Route path="/company-dashboard" element={<CompanyDashboard companyAddress={""} account={undefined} />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/market" element={<Index />} />
         {/* Aptos Test Component */}

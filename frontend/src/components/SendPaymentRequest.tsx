@@ -13,6 +13,7 @@ import {
   getAccountFromPrivateKey,
   aptToOctas,
   createPaymentRequest,
+  getWalletIdByAddress,
   aptos
 } from '@/utils/contractUtils';
 
@@ -87,9 +88,18 @@ export const SendPaymentRequest: React.FC<SendPaymentRequestProps> = ({
 
       // Ensure recipient is resolved
       let finalRecipientAddress = resolvedAddress;
+      let finalRecipientType = recipientType;
+      
       if (!finalRecipientAddress) {
         const result = await resolveRecipient(recipient);
         finalRecipientAddress = result.address;
+        finalRecipientType = result.type;
+      }
+
+      if (!finalRecipientAddress) {
+        setError('Recipient not found. Please ensure they have registered their wallet ID.');
+        setIsSubmitting(false);
+        return;
       }
 
       if (finalRecipientAddress === userAddress) {
@@ -121,15 +131,45 @@ export const SendPaymentRequest: React.FC<SendPaymentRequestProps> = ({
       // Convert APT to Octas (1 APT = 100,000,000 Octas)
       const amountInOctas = aptToOctas(parseFloat(aptAmount));
 
-      // Create payment request on-chain
+      // The contract requires wallet_id, so we need to get it
+      let recipientWalletId: string;
+      
+      if (finalRecipientType === 'walletId') {
+        // Already have wallet ID
+        recipientWalletId = recipient;
+      } else {
+        // Need to get wallet ID from address
+        const walletId = await getWalletIdByAddress(finalRecipientAddress);
+        if (!walletId) {
+          setError('Recipient has not registered a wallet ID. They must register before receiving payment requests.');
+          setIsSubmitting(false);
+          return;
+        }
+        recipientWalletId = walletId;
+      }
+
+      // Create payment request on-chain with wallet ID
       const result = await createPaymentRequest(
         account,
-        finalRecipientAddress,
+        recipientWalletId,
         amountInOctas,
         description || ''
       );
 
-      setTxHash(result.hash);
+      // Check if transaction failed
+      if (!result.success) {
+        setError(result.error || 'Transaction failed');
+        toast({
+          title: "Request Failed",
+          description: result.error || 'Transaction failed on blockchain',
+          variant: "destructive",
+          duration: 5000,
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      setTxHash(result.hash || '');
       setSuccess(true);
 
       toast({
@@ -219,6 +259,11 @@ export const SendPaymentRequest: React.FC<SendPaymentRequestProps> = ({
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="text-red-300">
                 {error}
+                {error.includes('wallet ID') && (
+                  <div className="text-xs mt-2 text-red-200">
+                    💡 Tip: Both you and the recipient must register a Wallet ID in Settings → Profile before sending payment requests.
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -258,6 +303,12 @@ export const SendPaymentRequest: React.FC<SendPaymentRequestProps> = ({
             <p className="text-xs text-gray-500">
               Enter wallet address (0x...), Wallet ID (@username), or UPI ID (name@provider)
             </p>
+            {resolvedAddress && !isResolvingRecipient && (
+              <div className="text-xs text-green-400 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Recipient found: {resolvedAddress.slice(0, 6)}...{resolvedAddress.slice(-4)}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">

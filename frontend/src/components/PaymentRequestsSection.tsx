@@ -85,7 +85,16 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
         try {
           const requestData = await getPaymentRequest(requestId);
           
-          if (!requestData) continue;
+          if (!requestData) {
+            console.warn(`⚠️ Request ${requestId} returned null data`);
+            continue;
+          }
+
+          // Validate required fields
+          if (!requestData.from_address || !requestData.to_address || !requestData.amount) {
+            console.warn(`⚠️ Request ${requestId} missing required fields:`, requestData);
+            continue;
+          }
           
           // Convert status number to string
           let status: 'Pending' | 'Paid' | 'Rejected' = 'Pending';
@@ -97,7 +106,7 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
             fromAddress: requestData.from_address,
             toAddress: requestData.to_address,
             amount: octasToApt(requestData.amount).toFixed(8),
-            description: requestData.description,
+            description: requestData.description || 'No description',
             timestamp: new Date(parseInt(requestData.created_at) / 1000), // Convert microseconds to milliseconds
             status,
             txHash: status === 'Paid' ? 'Transaction completed' : undefined
@@ -114,7 +123,16 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
         try {
           const requestData = await getPaymentRequest(requestId);
           
-          if (!requestData) continue;
+          if (!requestData) {
+            console.warn(`⚠️ Request ${requestId} returned null data`);
+            continue;
+          }
+
+          // Validate required fields
+          if (!requestData.from_address || !requestData.to_address || !requestData.amount) {
+            console.warn(`⚠️ Request ${requestId} missing required fields:`, requestData);
+            continue;
+          }
           
           // Convert status number to string
           let status: 'Pending' | 'Paid' | 'Rejected' = 'Pending';
@@ -126,7 +144,7 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
             fromAddress: requestData.from_address,
             toAddress: requestData.to_address,
             amount: octasToApt(requestData.amount).toFixed(8),
-            description: requestData.description,
+            description: requestData.description || 'No description',
             timestamp: new Date(parseInt(requestData.created_at) / 1000), // Convert microseconds to milliseconds
             status,
             txHash: status === 'Paid' ? 'Transaction completed' : undefined
@@ -287,7 +305,8 @@ export const PaymentRequestsSection: React.FC<PaymentRequestsSectionProps> = ({
     }
   };
 
-  const formatAddress = (address: string) => {
+  const formatAddress = (address: string | undefined) => {
+    if (!address) return 'Unknown';
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 

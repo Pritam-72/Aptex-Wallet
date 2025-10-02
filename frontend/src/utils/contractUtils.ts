@@ -280,19 +280,29 @@ export const registerUpiId = async (
 
 /**
  * Create a payment request
+ * NOTE: The contract expects a wallet_id (String), not an address
  */
 export const createPaymentRequest = async (
   account: Account,
-  toAddress: string,
+  toWalletId: string,
   amountOctas: string,
   description: string
 ): Promise<TransactionResult> => {
   try {
+    // Validate that recipient wallet ID exists by trying to resolve it
+    const recipientAddress = await getAddressByWalletId(toWalletId);
+    if (!recipientAddress) {
+      return {
+        success: false,
+        error: `Wallet ID "${toWalletId}" not found. Please ensure the recipient has registered their wallet ID.`,
+      };
+    }
+
     const transaction = await aptos.transaction.build.simple({
       sender: account.accountAddress,
       data: {
         function: `${MODULE_ID}::create_payment_request`,
-        functionArguments: [CONTRACT_ADDRESS, toAddress, amountOctas, description],
+        functionArguments: [CONTRACT_ADDRESS, toWalletId, amountOctas, description],
       },
     });
 
@@ -898,24 +908,42 @@ export const getPaymentRequest = async (requestId: number): Promise<PaymentReque
           },
         });
 
+        console.log(`📋 Raw payment request ${requestId} result:`, JSON.stringify(result, null, 2));
+
         if (result && Array.isArray(result) && result.length > 0) {
           const option = result[0] as Record<string, unknown>;
           if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
-            const data = option.vec[0];
+            const data = option.vec[0] as Record<string, unknown>;
+            
+            // Validate data structure
+            if (!data || typeof data !== 'object') {
+              console.error(`❌ Payment request ${requestId} has invalid data structure:`, data);
+              return null;
+            }
+
+            // Check for required fields
+            const requiredFields = ['from', 'to', 'amount', 'description', 'created_at', 'status'];
+            const missingFields = requiredFields.filter(field => !(field in data));
+            
+            if (missingFields.length > 0) {
+              console.error(`❌ Payment request ${requestId} missing fields:`, missingFields, 'Data:', data);
+              return null;
+            }
+
             return {
               id: requestId.toString(),
-              from_address: data.from_address,
-              to_address: data.to_address,
-              amount: data.amount,
-              description: data.description,
-              created_at: data.created_at,
-              status: data.status,
+              from_address: data.from as string,
+              to_address: data.to as string,
+              amount: data.amount as string,
+              description: data.description as string,
+              created_at: data.created_at as string,
+              status: data.status as number,
             };
           }
         }
         return null;
       } catch (error) {
-        console.error("Error getting payment request:", error);
+        console.error(`Error getting payment request ${requestId}:`, error);
         return null;
       }
     },
