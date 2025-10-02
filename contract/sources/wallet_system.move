@@ -181,6 +181,21 @@ module aptos_contract::wallet_system {
         is_active: bool,
     }
 
+    /// Minted coupon NFT instance (copyable for view functions)
+    struct CouponNFTInstance has store, drop, copy {
+        id: u64,
+        template_id: u64,
+        owner: address,
+        company: address,
+        discount_percentage: u64,
+        discount_link: String,
+        description: String,
+        expires_at: u64,
+        created_at: u64,
+        is_redeemed: bool,
+        metadata: CouponMetadata,
+    }
+
     /// Main wallet registry resource
     struct WalletRegistry has key {
         // Existing mappings
@@ -210,6 +225,7 @@ module aptos_contract::wallet_system {
         // Coupon system
         coupon_templates: Table<u64, CouponTemplate>,
         company_coupon_templates: Table<address, vector<u64>>,
+        coupon_nft_instances: Table<u64, CouponNFTInstance>, // Store actual NFT instances
         user_coupon_nfts: Table<address, vector<u64>>,
         
         // Counters
@@ -372,6 +388,7 @@ module aptos_contract::wallet_system {
             user_stats: table::new(),
             coupon_templates: table::new(),
             company_coupon_templates: table::new(),
+            coupon_nft_instances: table::new(),
             user_coupon_nfts: table::new(),
             next_request_id: 1,
             next_split_id: 1,
@@ -407,6 +424,7 @@ module aptos_contract::wallet_system {
                 user_stats: table::new(),
                 coupon_templates: table::new(),
                 company_coupon_templates: table::new(),
+                coupon_nft_instances: table::new(),
                 user_coupon_nfts: table::new(),
                 next_request_id: 1,
                 next_split_id: 1,
@@ -418,6 +436,118 @@ module aptos_contract::wallet_system {
             move_to(admin, registry);
         };
         // If registry already exists, do nothing (keep existing data)
+    }
+
+    /// Create demo coupon templates for testing (called by admin after initialization)
+    public entry fun create_demo_coupon_templates(admin: &signer) acquires WalletRegistry {
+        let admin_addr = signer::address_of(admin);
+        let registry = borrow_global_mut<WalletRegistry>(admin_addr);
+        let current_time = timestamp::now_microseconds();
+        
+        // Only create demo templates if none exist
+        if (registry.next_coupon_template_id == 1) {
+            // Template 1: Amazon 10% discount
+            let template1_metadata = CouponMetadata {
+                name: string::utf8(b"Amazon Gift Card"),
+                description: string::utf8(b"Get 10% off on Amazon purchases"),
+                image_url: string::utf8(b"https://example.com/amazon-coupon.png"),
+                company_name: string::utf8(b"Amazon"),
+                coupon_type: string::utf8(b"discount"),
+                attributes: vector[string::utf8(b"electronics"), string::utf8(b"shopping")],
+            };
+            
+            let template1 = CouponTemplate {
+                id: 1,
+                company: admin_addr,
+                discount_percentage: 10,
+                discount_link: string::utf8(b"https://amazon.com/deals"),
+                description: string::utf8(b"Enjoy 10% off on your next Amazon purchase"),
+                lifetime_hours: 168, // 7 days
+                metadata: template1_metadata,
+                is_active: true,
+            };
+            
+            table::add(&mut registry.coupon_templates, 1, template1);
+            if (!table::contains(&registry.company_coupon_templates, admin_addr)) {
+                table::add(&mut registry.company_coupon_templates, admin_addr, vector::empty<u64>());
+            };
+            let company_templates = table::borrow_mut(&mut registry.company_coupon_templates, admin_addr);
+            vector::push_back(company_templates, 1);
+            
+            // Template 2: Flipkart 15% discount
+            let template2_metadata = CouponMetadata {
+                name: string::utf8(b"Flipkart Super Deal"),
+                description: string::utf8(b"Get 15% off on Flipkart"),
+                image_url: string::utf8(b"https://example.com/flipkart-coupon.png"),
+                company_name: string::utf8(b"Flipkart"),
+                coupon_type: string::utf8(b"discount"),
+                attributes: vector[string::utf8(b"fashion"), string::utf8(b"shopping")],
+            };
+            
+            let template2 = CouponTemplate {
+                id: 2,
+                company: admin_addr,
+                discount_percentage: 15,
+                discount_link: string::utf8(b"https://flipkart.com/offers"),
+                description: string::utf8(b"Save 15% on your Flipkart order"),
+                lifetime_hours: 120, // 5 days
+                metadata: template2_metadata,
+                is_active: true,
+            };
+            
+            table::add(&mut registry.coupon_templates, 2, template2);
+            vector::push_back(company_templates, 2);
+            
+            // Template 3: Swiggy 20% discount
+            let template3_metadata = CouponMetadata {
+                name: string::utf8(b"Swiggy Food Offer"),
+                description: string::utf8(b"Get 20% off on food delivery"),
+                image_url: string::utf8(b"https://example.com/swiggy-coupon.png"),
+                company_name: string::utf8(b"Swiggy"),
+                coupon_type: string::utf8(b"discount"),
+                attributes: vector[string::utf8(b"food"), string::utf8(b"delivery")],
+            };
+            
+            let template3 = CouponTemplate {
+                id: 3,
+                company: admin_addr,
+                discount_percentage: 20,
+                discount_link: string::utf8(b"https://swiggy.com/deals"),
+                description: string::utf8(b"Enjoy 20% off on your next food order"),
+                lifetime_hours: 72, // 3 days
+                metadata: template3_metadata,
+                is_active: true,
+            };
+            
+            table::add(&mut registry.coupon_templates, 3, template3);
+            vector::push_back(company_templates, 3);
+            
+            registry.next_coupon_template_id = 4;
+            
+            event::emit(CouponTemplateCreatedEvent {
+                template_id: 1,
+                company: admin_addr,
+                discount_percentage: 10,
+                lifetime_hours: 168,
+                timestamp: current_time,
+            });
+            
+            event::emit(CouponTemplateCreatedEvent {
+                template_id: 2,
+                company: admin_addr,
+                discount_percentage: 15,
+                lifetime_hours: 120,
+                timestamp: current_time,
+            });
+            
+            event::emit(CouponTemplateCreatedEvent {
+                template_id: 3,
+                company: admin_addr,
+                discount_percentage: 20,
+                lifetime_hours: 72,
+                timestamp: current_time,
+            });
+        };
     }
 
     /// Helper function to update user stats and check for loyalty NFT minting
@@ -597,8 +727,8 @@ module aptos_contract::wallet_system {
         let current_time = timestamp::now_microseconds();
         let random_factor = current_time % 100; // 0-99
         
-        // 20% chance to get a coupon NFT
-        if (random_factor < 20) {
+        // 40% chance to get a coupon NFT
+        if (random_factor < 40) {
             // Get a random active coupon template (simplified)
             let template_count = registry.next_coupon_template_id - 1;
             if (template_count > 0) {
@@ -625,8 +755,28 @@ module aptos_contract::wallet_system {
         
         let coupon_nft_id = registry.next_coupon_nft_id;
         
-        // In a real implementation, you would create the actual NFT here
-        // For now, we'll just track it in the user's coupon list
+        // Create the coupon NFT instance
+        let coupon_nft = CouponNFTInstance {
+            id: coupon_nft_id,
+            template_id,
+            owner: user_addr,
+            company: template.company,
+            discount_percentage: template.discount_percentage,
+            discount_link: template.discount_link,
+            description: template.description,
+            expires_at,
+            created_at: current_time,
+            is_redeemed: false,
+            metadata: template.metadata,
+        };
+        
+        // Store the NFT instance
+        table::add(&mut registry.coupon_nft_instances, coupon_nft_id, coupon_nft);
+        
+        // Add to user's coupon list
+        if (!table::contains(&registry.user_coupon_nfts, user_addr)) {
+            table::add(&mut registry.user_coupon_nfts, user_addr, vector::empty<u64>());
+        };
         let user_coupons = table::borrow_mut(&mut registry.user_coupon_nfts, user_addr);
         vector::push_back(user_coupons, coupon_nft_id);
         
@@ -1577,5 +1727,40 @@ module aptos_contract::wallet_system {
         
         let emi = table::borrow(&registry.emi_agreements, emi_id);
         emi.pre_deposited_amount
+    }
+
+    /// Get coupon NFT instance details
+    #[view]
+    public fun get_coupon_nft_instance(admin_addr: address, coupon_nft_id: u64): Option<CouponNFTInstance> acquires WalletRegistry {
+        let registry = borrow_global<WalletRegistry>(admin_addr);
+        if (table::contains(&registry.coupon_nft_instances, coupon_nft_id)) {
+            option::some(*table::borrow(&registry.coupon_nft_instances, coupon_nft_id))
+        } else {
+            option::none()
+        }
+    }
+
+    /// Get all coupon NFT instances for a user
+    #[view]
+    public fun get_user_coupon_nft_instances(admin_addr: address, user_addr: address): vector<CouponNFTInstance> acquires WalletRegistry {
+        let registry = borrow_global<WalletRegistry>(admin_addr);
+        let result = vector::empty<CouponNFTInstance>();
+        
+        if (table::contains(&registry.user_coupon_nfts, user_addr)) {
+            let coupon_ids = table::borrow(&registry.user_coupon_nfts, user_addr);
+            let len = vector::length(coupon_ids);
+            let i = 0;
+            
+            while (i < len) {
+                let coupon_id = *vector::borrow(coupon_ids, i);
+                if (table::contains(&registry.coupon_nft_instances, coupon_id)) {
+                    let coupon = *table::borrow(&registry.coupon_nft_instances, coupon_id);
+                    vector::push_back(&mut result, coupon);
+                };
+                i = i + 1;
+            };
+        };
+        
+        result
     }
 }
