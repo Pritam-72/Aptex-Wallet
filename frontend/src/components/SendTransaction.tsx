@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Send, AlertTriangle, X, IndianRupee, Loader2, CheckCircle2, Fuel, User, CreditCard } from 'lucide-react';
+import { Send, AlertTriangle, X, IndianRupee, Loader2, CheckCircle2, Fuel, User, CreditCard, QrCode, Camera, Upload } from 'lucide-react';
+import QrScanner from 'qr-scanner';
 import { getAccountBalance } from '@/utils/walletUtils';
 import {
   resolveRecipient,
@@ -42,6 +43,11 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
   const [gasEstimate, setGasEstimate] = useState('0.0002');
   const [txHash, setTxHash] = useState('');
   const [success, setSuccess] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const qrScannerRef = useRef<QrScanner | null>(null);
   const { toast } = useToast();
 
   // Get current account
@@ -61,6 +67,129 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
 
   const currentAccount = getCurrentAccount();
   const currentAddress = currentAccount?.address || null;
+
+  // QR Scanner Functions
+  const handleQrScan = (result: string) => {
+    console.log('QR Code Scanned:', result);
+    
+    // Extract address from QR code data
+    // Support formats: plain address, JSON with address field, or URI format
+    let scannedAddress = result.trim();
+    
+    try {
+      // Try parsing as JSON first
+      const parsed = JSON.parse(result);
+      if (parsed.address) {
+        scannedAddress = parsed.address;
+      } else if (parsed.recipient) {
+        scannedAddress = parsed.recipient;
+      }
+    } catch {
+      // Not JSON, check if it's a URI format (e.g., aptos:0x...)
+      if (scannedAddress.includes(':')) {
+        const parts = scannedAddress.split(':');
+        scannedAddress = parts[parts.length - 1];
+      }
+    }
+    
+    setRecipient(scannedAddress);
+    setShowQrScanner(false);
+    stopScanning();
+    
+    toast({
+      title: "QR Code Scanned! 📸",
+      description: "Recipient address loaded from QR code",
+      duration: 3000,
+    });
+  };
+
+  const startScanning = async () => {
+    if (!videoRef.current) return;
+    
+    try {
+      setIsScanning(true);
+      setError('');
+      
+      // Create QR scanner instance
+      qrScannerRef.current = new QrScanner(
+        videoRef.current,
+        (result) => handleQrScan(result.data),
+        {
+          returnDetailedScanResult: true,
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+        }
+      );
+      
+      await qrScannerRef.current.start();
+      
+      toast({
+        title: "Camera Started 📹",
+        description: "Point your camera at a QR code",
+        duration: 3000,
+      });
+    } catch (err) {
+      console.error('Error starting QR scanner:', err);
+      setError('Failed to start camera. Please check permissions.');
+      setIsScanning(false);
+    }
+  };
+
+  const stopScanning = () => {
+    if (qrScannerRef.current) {
+      qrScannerRef.current.stop();
+      qrScannerRef.current.destroy();
+      qrScannerRef.current = null;
+    }
+    setIsScanning(false);
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    try {
+      setError('');
+      const result = await QrScanner.scanImage(file, {
+        returnDetailedScanResult: true,
+      });
+      
+      handleQrScan(result.data);
+    } catch (err) {
+      console.error('Error scanning QR from file:', err);
+      setError('Failed to read QR code from image. Please try another image.');
+    }
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const toggleQrScanner = () => {
+    if (showQrScanner) {
+      stopScanning();
+      setShowQrScanner(false);
+    } else {
+      setShowQrScanner(true);
+      // Start scanning after state update
+      setTimeout(() => startScanning(), 100);
+    }
+  };
+
+  // Cleanup scanner on unmount or dialog close
+  useEffect(() => {
+    return () => {
+      stopScanning();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      stopScanning();
+      setShowQrScanner(false);
+    }
+  }, [isOpen]);
 
   // Load balance when dialog opens
   useEffect(() => {
@@ -346,13 +475,72 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
                 </Badge>
               )}
             </Label>
-            <Input
-              value={recipient}
-              onChange={(e) => setRecipient(e.target.value)}
-              placeholder="Address, Wallet ID, or UPI ID..."
-              className="bg-gray-900 border-gray-700 text-white text-sm"
-              disabled={isLoading || success}
-            />
+            
+            <div className="flex gap-2">
+              <Input
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                placeholder="Address, Wallet ID, or UPI ID..."
+                className="bg-gray-900 border-gray-700 text-white text-sm flex-1"
+                disabled={isLoading || success}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={toggleQrScanner}
+                disabled={isLoading || success}
+                className="bg-gray-900 border-gray-700 hover:bg-gray-800 shrink-0"
+                title="Scan QR Code"
+              >
+                {showQrScanner ? (
+                  <X className="h-4 w-4 text-red-400" />
+                ) : (
+                  <QrCode className="h-4 w-4 text-blue-400" />
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading || success}
+                className="bg-gray-900 border-gray-700 hover:bg-gray-800 shrink-0"
+                title="Upload QR Code"
+              >
+                <Upload className="h-4 w-4 text-green-400" />
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </div>
+
+            {/* QR Scanner View */}
+            {showQrScanner && (
+              <div className="relative bg-black rounded-lg overflow-hidden border border-gray-700">
+                <video
+                  ref={videoRef}
+                  className="w-full h-64 object-cover"
+                  playsInline
+                />
+                {isScanning && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-48 h-48 border-2 border-blue-500 rounded-lg animate-pulse" />
+                  </div>
+                )}
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                  <p className="text-center text-sm text-white flex items-center justify-center gap-2">
+                    <Camera className="h-4 w-4" />
+                    {isScanning ? 'Point camera at QR code...' : 'Starting camera...'}
+                  </p>
+                </div>
+              </div>
+            )}
+            
             {isResolvingRecipient && (
               <p className="text-xs text-gray-400 flex items-center gap-1">
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -360,7 +548,7 @@ export const SendTransaction: React.FC<SendTransactionProps> = ({ isOpen, onClos
               </p>
             )}
             <p className="text-xs text-gray-400">
-              Enter wallet address (0x...), Wallet ID (@username), or UPI ID (name@provider)
+              Enter address manually, scan QR code, or upload QR image
             </p>
           </div>
 
