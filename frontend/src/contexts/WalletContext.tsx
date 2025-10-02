@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 
 interface Transaction {
@@ -51,7 +51,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const getStorageKey = (addr: string) => `wallet_data_${addr}`;
 
   // Default wallet data for new accounts
-  const getDefaultWalletData = (): WalletData => ({
+  const getDefaultWalletData = useCallback((): WalletData => ({
     balance: '12.87',
     transactions: [
       {
@@ -74,10 +74,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     identityVerified: false,
     createdAt: Date.now() - 604800000, // 1 week ago
     lastUpdated: Date.now()
-  });
+  }), []);
 
   // Load wallet data from localStorage
-  const loadWalletData = (addr: string): WalletData => {
+  const loadWalletData = useCallback((addr: string): WalletData => {
     try {
       const stored = localStorage.getItem(getStorageKey(addr));
       if (stored) {
@@ -87,7 +87,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.error('Error loading wallet data:', error);
     }
     return getDefaultWalletData();
-  };
+  }, [getDefaultWalletData]);
 
   // Save wallet data to localStorage
   const saveWalletData = (addr: string, data: WalletData) => {
@@ -99,18 +99,46 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  // Get current wallet address from localStorage
+  const getCurrentWalletAddress = useCallback((): string | null => {
+    try {
+      const walletData = localStorage.getItem('cryptal_wallet');
+      if (walletData) {
+        const parsedWalletData = JSON.parse(walletData);
+        const currentIndex = parsedWalletData.currentAccountIndex || 0;
+        const currentAccount = parsedWalletData.accounts?.[currentIndex];
+        return currentAccount?.address || null;
+      }
+    } catch (error) {
+      console.error('Error getting current wallet address:', error);
+    }
+    return null;
+  }, []);
+
   // Update wallet connection status based on authentication
   useEffect(() => {
-    if (user && hasWallet && user.walletAddress) {
-      setIsConnected(true);
-      setAddress(user.walletAddress);
+    if (user && hasWallet) {
+      // Get the actual current wallet address from localStorage
+      const currentAddress = getCurrentWalletAddress();
       
-      // Load data from localStorage
-      const walletData = loadWalletData(user.walletAddress);
-      setBalance(walletData.balance);
-      setWalletId(walletData.walletId);
-      setTransactions(walletData.transactions);
-      setIdentityVerified(walletData.identityVerified);
+      if (currentAddress) {
+        setIsConnected(true);
+        setAddress(currentAddress);
+        
+        // Load data from localStorage
+        const walletData = loadWalletData(currentAddress);
+        setBalance(walletData.balance);
+        setWalletId(walletData.walletId);
+        setTransactions(walletData.transactions);
+        setIdentityVerified(walletData.identityVerified);
+      } else {
+        setIsConnected(false);
+        setAddress(null);
+        setBalance('0.0');
+        setWalletId(undefined);
+        setTransactions([]);
+        setIdentityVerified(false);
+      }
     } else {
       setIsConnected(false);
       setAddress(null);
@@ -119,12 +147,59 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setTransactions([]);
       setIdentityVerified(false);
     }
-  }, [user, hasWallet]);
+  }, [user, hasWallet, loadWalletData, getCurrentWalletAddress]);
+
+  // Listen for storage changes (when user switches accounts)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'cryptal_wallet' && user && hasWallet) {
+        const currentAddress = getCurrentWalletAddress();
+        if (currentAddress && currentAddress !== address) {
+          console.log('🔄 Wallet account switched:', address, '→', currentAddress);
+          setAddress(currentAddress);
+          
+          // Load data for new address
+          const walletData = loadWalletData(currentAddress);
+          setBalance(walletData.balance);
+          setWalletId(walletData.walletId);
+          setTransactions(walletData.transactions);
+          setIdentityVerified(walletData.identityVerified);
+        }
+      }
+    };
+
+    // Custom event for same-window changes (StorageEvent doesn't fire in same window)
+    const handleCustomWalletChange = () => {
+      if (user && hasWallet) {
+        const currentAddress = getCurrentWalletAddress();
+        if (currentAddress && currentAddress !== address) {
+          console.log('🔄 Wallet account switched (custom event):', address, '→', currentAddress);
+          setAddress(currentAddress);
+          
+          // Load data for new address
+          const walletData = loadWalletData(currentAddress);
+          setBalance(walletData.balance);
+          setWalletId(walletData.walletId);
+          setTransactions(walletData.transactions);
+          setIdentityVerified(walletData.identityVerified);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('wallet-account-changed', handleCustomWalletChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('wallet-account-changed', handleCustomWalletChange);
+    };
+  }, [user, hasWallet, address, loadWalletData, getCurrentWalletAddress]);
 
   const connectWallet = async () => {
-    if (user && hasWallet && user.walletAddress) {
+    const currentAddress = getCurrentWalletAddress();
+    if (user && hasWallet && currentAddress) {
       setIsConnected(true);
-      setAddress(user.walletAddress);
+      setAddress(currentAddress);
       
       // Load data from localStorage
       const walletData = loadWalletData(user.walletAddress);

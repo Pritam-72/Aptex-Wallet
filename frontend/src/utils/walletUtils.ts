@@ -207,8 +207,18 @@ export const switchAccount = (accountIndex: number): boolean => {
     return false;
   }
   
+  const oldAddress = wallet.accounts[wallet.currentAccountIndex]?.address;
   wallet.currentAccountIndex = accountIndex;
+  const newAddress = wallet.accounts[accountIndex]?.address;
+  
   saveWallet(wallet);
+  
+  // Dispatch custom event to notify components about account change
+  console.log('🔄 Dispatching wallet-account-changed event:', oldAddress, '→', newAddress);
+  window.dispatchEvent(new CustomEvent('wallet-account-changed', {
+    detail: { oldAddress, newAddress, accountIndex }
+  }));
+  
   return true;
 };
 

@@ -4,7 +4,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Upload, Wallet, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
-import { getUserStats, getPaymentRequest, registerUpiId, UserStats } from '@/utils/contractUtils';
+import { getUserStats, getPaymentRequest, registerUpiId, getUpiIdByAddress, UserStats } from '@/utils/contractUtils';
 import { getAccountBalance } from '@/utils/walletUtils';
 import { BlockchainStats } from '@/components/dashboard/BlockchainStats';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,8 @@ export const UpiDashboard: React.FC = () => {
   const [statsLoading, setStatsLoading] = useState(false);
   const [activePaymentRequests, setActivePaymentRequests] = useState(0);
   const [loyaltyTier, setLoyaltyTier] = useState<string>('None');
+  const [registeredUpiId, setRegisteredUpiId] = useState<string | null>(null);
+  const [isLoadingUpiId, setIsLoadingUpiId] = useState(false);
   
   // QR Code Upload states
   const [qrImage, setQrImage] = useState<File | null>(null);
@@ -150,6 +152,7 @@ export const UpiDashboard: React.FC = () => {
       
       if (result.success) {
         setRegistrationStatus('success');
+        setRegisteredUpiId(extractedUpiId); // Update the registered UPI ID state
         toast({
           title: "Registration Successful! 🎉",
           description: `Your UPI ID "${extractedUpiId}" has been mapped to your wallet.`,
@@ -175,12 +178,28 @@ export const UpiDashboard: React.FC = () => {
     }
   };
 
-  const loadBlockchainData = useCallback(async (walletAddress: string) => {
+  const loadBlockchainData = async (walletAddress: string) => {
     setStatsLoading(true);
+    setIsLoadingUpiId(true);
+    
+    // Reset states when switching wallets
+    setRegisteredUpiId(null);
+    setBalance('0.0');
+    setUserStats(null);
+    setActivePaymentRequests(0);
+    setLoyaltyTier('None');
+    
     try {
       // Get balance
       const accountBalance = await getAccountBalance(walletAddress);
       setBalance(accountBalance);
+
+      // Fetch registered UPI ID
+      console.log('🔍 Requesting UPI ID for wallet:', walletAddress);
+      const upiId = await getUpiIdByAddress(walletAddress);
+      console.log('📥 Received UPI ID:', upiId, 'for wallet:', walletAddress);
+      setRegisteredUpiId(upiId);
+      setIsLoadingUpiId(false);
 
       // Fetch user stats from blockchain
       const stats = await getUserStats(walletAddress);
@@ -233,13 +252,21 @@ export const UpiDashboard: React.FC = () => {
     } finally {
       setStatsLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
     if (address) {
+      // Reset form states when wallet changes
+      setQrImage(null);
+      setExtractedUpiId('');
+      setIsScanning(false);
+      setIsRegistering(false);
+      setRegistrationStatus('idle');
+      
+      // Load blockchain data for new address
       loadBlockchainData(address);
     }
-  }, [address, loadBlockchainData]);
+  }, [address]);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -290,151 +317,184 @@ export const UpiDashboard: React.FC = () => {
                 <Upload className="h-5 w-5 text-white" />
               </div>
               <div>
-                <CardTitle className="text-2xl">UPI QR Code Upload</CardTitle>
+                <CardTitle className="text-2xl">
+                  {registeredUpiId ? 'Registered UPI ID' : 'UPI QR Code Upload'}
+                </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Upload your UPI QR code to link it with your wallet
+                  {registeredUpiId 
+                    ? 'Your UPI ID is mapped to this wallet' 
+                    : 'Upload your UPI QR code to link it with your wallet'}
                 </p>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Upload Section */}
-            <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              
-              {!qrImage ? (
-                <div className="space-y-4">
-                  <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
-                  <div>
-                    <p className="text-lg font-medium mb-2">Upload UPI QR Code</p>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Click to select an image containing your UPI QR code
-                    </p>
-                    <Button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                    >
-                      Select Image
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-center gap-2">
-                    {isScanning ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-                        <span className="text-sm">Scanning QR code...</span>
-                      </>
-                    ) : extractedUpiId ? (
-                      <>
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                        <span className="text-sm text-green-500">QR code scanned successfully!</span>
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="h-5 w-5 text-red-500" />
-                        <span className="text-sm text-red-500">Failed to extract UPI ID</span>
-                      </>
-                    )}
-                  </div>
-                  
-                  <p className="text-sm text-muted-foreground">
-                    Selected: {qrImage.name}
-                  </p>
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setQrImage(null);
-                      setExtractedUpiId('');
-                      setRegistrationStatus('idle');
-                    }}
-                  >
-                    Choose Different Image
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {/* Extracted UPI ID Display */}
-            {extractedUpiId && (
-              <Alert className="bg-green-900/20 border-green-700">
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <AlertDescription className="text-green-300">
-                  <strong>Extracted UPI ID:</strong>
-                  <div className="mt-2 p-3 bg-green-950/50 rounded font-mono text-lg">
-                    {extractedUpiId}
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Registration Section */}
-            {extractedUpiId && registrationStatus !== 'success' && (
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Click the button below to register this UPI ID on the blockchain and map it to your wallet address.
-                </p>
-                <Button
-                  onClick={handleRegisterUpiId}
-                  disabled={isRegistering}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                >
-                  {isRegistering ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Registering on Blockchain...
-                    </>
-                  ) : (
-                    'Register UPI ID on Blockchain'
-                  )}
-                </Button>
+            {/* Loading State */}
+            {isLoadingUpiId && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                <span className="ml-3 text-muted-foreground">Loading UPI mapping...</span>
               </div>
             )}
 
-            {/* Success Status */}
-            {registrationStatus === 'success' && (
-              <Alert className="bg-blue-900/20 border-blue-700">
-                <CheckCircle className="h-4 w-4 text-blue-500" />
-                <AlertDescription className="text-blue-300">
-                  <strong>Successfully Registered! 🎉</strong>
-                  <p className="mt-2">
-                    Your UPI ID <span className="font-mono">{extractedUpiId}</span> is now mapped to your wallet address on the blockchain.
+            {/* Registered UPI ID Display */}
+            {!isLoadingUpiId && registeredUpiId && (
+              <Alert className="bg-green-900/20 border-green-700">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <AlertDescription className="text-green-300">
+                  <strong>Your Registered UPI ID:</strong>
+                  <div className="mt-3 p-4 bg-green-950/50 rounded-lg">
+                    <p className="font-mono text-xl text-center">{registeredUpiId}</p>
+                  </div>
+                  <p className="mt-3 text-sm text-green-400">
+                    This UPI ID is permanently mapped to your wallet address on the blockchain.
                   </p>
                 </AlertDescription>
               </Alert>
             )}
 
-            {/* Error Status */}
-            {registrationStatus === 'error' && (
-              <Alert className="bg-red-900/20 border-red-700">
-                <XCircle className="h-4 w-4 text-red-500" />
-                <AlertDescription className="text-red-300">
-                  <strong>Registration Failed</strong>
-                  <p className="mt-2">
-                    Could not register the UPI ID. Please try again or contact support.
-                  </p>
-                </AlertDescription>
-              </Alert>
-            )}
+            {/* Upload Interface - Only show if no UPI ID is registered */}
+            {!isLoadingUpiId && !registeredUpiId && (
+              <>
+                {/* Upload Section */}
+                <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  
+                  {!qrImage ? (
+                    <div className="space-y-4">
+                      <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
+                      <div>
+                        <p className="text-lg font-medium mb-2">Upload UPI QR Code</p>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Click to select an image containing your UPI QR code
+                        </p>
+                        <Button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                        >
+                          Select Image
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-center gap-2">
+                        {isScanning ? (
+                          <>
+                            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                            <span className="text-sm">Scanning QR code...</span>
+                          </>
+                        ) : extractedUpiId ? (
+                          <>
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                            <span className="text-sm text-green-500">QR code scanned successfully!</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-5 w-5 text-red-500" />
+                            <span className="text-sm text-red-500">Failed to extract UPI ID</span>
+                          </>
+                        )}
+                      </div>
+                      
+                      <p className="text-sm text-muted-foreground">
+                        Selected: {qrImage.name}
+                      </p>
+                      
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setQrImage(null);
+                          setExtractedUpiId('');
+                          setRegistrationStatus('idle');
+                        }}
+                      >
+                        Choose Different Image
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
-            {/* Info Section */}
-            <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm font-medium mb-2">How it works:</p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                <li>Upload an image of your UPI QR code</li>
-                <li>We extract the UPI ID automatically</li>
-                <li>Register it on the blockchain to link with your wallet</li>
-                <li>Send/receive payments using your UPI ID</li>
-              </ul>
-            </div>
+                {/* Extracted UPI ID Display */}
+                {extractedUpiId && (
+                  <Alert className="bg-green-900/20 border-green-700">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <AlertDescription className="text-green-300">
+                      <strong>Extracted UPI ID:</strong>
+                      <div className="mt-2 p-3 bg-green-950/50 rounded font-mono text-lg">
+                        {extractedUpiId}
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Registration Section */}
+                {extractedUpiId && registrationStatus !== 'success' && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Click the button below to register this UPI ID on the blockchain and map it to your wallet address.
+                    </p>
+                    <Button
+                      onClick={handleRegisterUpiId}
+                      disabled={isRegistering}
+                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                    >
+                      {isRegistering ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Registering on Blockchain...
+                        </>
+                      ) : (
+                        'Register UPI ID on Blockchain'
+                      )}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Success Status */}
+                {registrationStatus === 'success' && (
+                  <Alert className="bg-blue-900/20 border-blue-700">
+                    <CheckCircle className="h-4 w-4 text-blue-500" />
+                    <AlertDescription className="text-blue-300">
+                      <strong>Successfully Registered! 🎉</strong>
+                      <p className="mt-2">
+                        Your UPI ID <span className="font-mono">{extractedUpiId}</span> is now mapped to your wallet address on the blockchain.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Error Status */}
+                {registrationStatus === 'error' && (
+                  <Alert className="bg-red-900/20 border-red-700">
+                    <XCircle className="h-4 w-4 text-red-500" />
+                    <AlertDescription className="text-red-300">
+                      <strong>Registration Failed</strong>
+                      <p className="mt-2">
+                        Could not register the UPI ID. Please try again or contact support.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Info Section */}
+                <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                  <p className="text-sm font-medium mb-2">How it works:</p>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                    <li>Upload an image of your UPI QR code</li>
+                    <li>We extract the UPI ID automatically</li>
+                    <li>Register it on the blockchain to link with your wallet</li>
+                    <li>Send/receive payments using your UPI ID</li>
+                  </ul>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}

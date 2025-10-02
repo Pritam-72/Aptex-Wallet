@@ -248,6 +248,12 @@ export const registerUpiId = async (
   upiId: string
 ): Promise<TransactionResult> => {
   try {
+    const senderAddress = account.accountAddress.toString();
+    console.log('=== REGISTERING UPI ID ===');
+    console.log('Sender Address:', senderAddress);
+    console.log('UPI ID:', upiId);
+    console.log('Contract Address:', CONTRACT_ADDRESS);
+    
     const transaction = await aptos.transaction.build.simple({
       sender: account.accountAddress,
       data: {
@@ -265,13 +271,17 @@ export const registerUpiId = async (
       transactionHash: pendingTxn.hash,
     });
 
+    console.log('✅ UPI ID Registration Success!');
+    console.log('Transaction Hash:', pendingTxn.hash);
+    console.log('Mapped:', upiId, '→', senderAddress);
+
     return {
       success: response.success,
       hash: pendingTxn.hash,
       vm_status: response.vm_status,
     };
   } catch (error) {
-    console.error("Error registering UPI ID:", error);
+    console.error("❌ Error registering UPI ID:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to register UPI ID",
@@ -994,22 +1004,51 @@ export const getWalletIdByAddress = async (userAddress: string): Promise<string 
  */
 export const getUpiIdByAddress = async (userAddress: string): Promise<string | null> => {
   try {
+    // Normalize the address to ensure consistent format
+    const normalizedAddress = AccountAddress.fromString(userAddress).toString();
+    
+    console.log('=== FETCHING UPI ID ===');
+    console.log('Original Address:', userAddress);
+    console.log('Normalized Address:', normalizedAddress);
+    console.log('Contract Address:', CONTRACT_ADDRESS);
+    console.log('Function:', `${MODULE_ID}::get_upi_id_by_address`);
+    
     const result = await aptos.view({
       payload: {
         function: `${MODULE_ID}::get_upi_id_by_address`,
-        functionArguments: [CONTRACT_ADDRESS, userAddress],
+        functionArguments: [CONTRACT_ADDRESS, normalizedAddress],
       },
     });
 
+    console.log('Raw blockchain result:', JSON.stringify(result, null, 2));
+
     if (result && Array.isArray(result) && result.length > 0) {
       const option = result[0] as Record<string, unknown>;
-      if (option.vec && Array.isArray(option.vec) && option.vec.length > 0) {
-        return option.vec[0];
+      console.log('Option object:', JSON.stringify(option, null, 2));
+      
+      // Check if vec exists and has content
+      if (option && typeof option === 'object' && 'vec' in option) {
+        const vec = option.vec;
+        console.log('Vec array:', vec);
+        
+        if (Array.isArray(vec) && vec.length > 0) {
+          const upiId = String(vec[0]);
+          console.log('✅ Found UPI ID:', upiId, 'for address:', userAddress);
+          return upiId;
+        } else {
+          console.log('❌ Vec is empty - No UPI ID registered for this address');
+        }
+      } else {
+        console.log('❌ No vec property found - No UPI ID registered');
       }
+    } else {
+      console.log('❌ Invalid result format from blockchain');
     }
+    
+    console.log('=== NO UPI ID FOUND ===');
     return null;
   } catch (error) {
-    console.error("Error getting UPI ID by address:", error);
+    console.error("❌ Error getting UPI ID by address:", error);
     return null;
   }
 };
