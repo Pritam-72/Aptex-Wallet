@@ -25,7 +25,8 @@ import {
   getAccountFromPrivateKey,
   aptToOctas,
   resolveRecipient,
-  aptos
+  aptos,
+  CONTRACT_ADDRESS
 } from '@/utils/contractUtils';
 
 interface SplitBillModalProps {

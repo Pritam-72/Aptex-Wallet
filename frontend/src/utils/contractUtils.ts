@@ -482,7 +482,59 @@ export const createSplitBill = async (
 };
 
 /**
- * Create EMI agreement (Company function)
+ * Create EMI agreement - User initiates autopay agreement with a recipient
+ * This is the correct implementation matching the smart contract
+ */
+export const createEmiAgreementByUser = async (
+  account: Account,
+  recipientWalletId: string,
+  totalAmountOctas: string,
+  monthlyAmountOctas: string,
+  months: number,
+  description: string
+): Promise<TransactionResult> => {
+  try {
+    const transaction = await aptos.transaction.build.simple({
+      sender: account.accountAddress,
+      data: {
+        function: `${MODULE_ID}::create_emi_agreement`,
+        functionArguments: [
+          CONTRACT_ADDRESS,
+          recipientWalletId,
+          totalAmountOctas,
+          monthlyAmountOctas,
+          months.toString(),
+          description,
+        ],
+      },
+    });
+
+    const pendingTxn = await aptos.signAndSubmitTransaction({
+      signer: account,
+      transaction,
+    });
+
+    const response = await aptos.waitForTransaction({
+      transactionHash: pendingTxn.hash,
+    });
+
+    return {
+      success: response.success,
+      hash: pendingTxn.hash,
+      vm_status: response.vm_status,
+    };
+  } catch (error) {
+    console.error("Error creating EMI agreement:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create EMI agreement",
+    };
+  }
+};
+
+/**
+ * Create EMI agreement (Company function) - DEPRECATED
+ * @deprecated This function signature doesn't match the smart contract. Use createEmiAgreementByUser instead.
  */
 export const createEmiAgreement = async (
   account: Account,

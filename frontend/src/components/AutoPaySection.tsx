@@ -70,15 +70,15 @@ export const AutoPaySection: React.FC<AutoPaySectionProps> = ({ userAddress }) =
     return () => clearTimeout(timer);
   }, []);
 
+  const loadAutoPays = React.useCallback(() => {
+    const existingAutoPays = JSON.parse(localStorage.getItem(`autopay_${userAddress}`) || '[]');
+    setAutoPays(existingAutoPays);
+  }, [userAddress]);
+
   // Load existing autopays on component mount
   React.useEffect(() => {
     loadAutoPays();
-  }, [userAddress]);
-
-  const loadAutoPays = () => {
-    const existingAutoPays = JSON.parse(localStorage.getItem(`autopay_${userAddress}`) || '[]');
-    setAutoPays(existingAutoPays);
-  };
+  }, [loadAutoPays]);
 
   // Handle form field changes
   const handleInputChange = (field: keyof AutoPaySetup, value: string) => {
@@ -153,7 +153,7 @@ export const AutoPaySection: React.FC<AutoPaySectionProps> = ({ userAddress }) =
     };
   };
 
-  // Handle form submission
+  // Handle form submission - REAL BLOCKCHAIN IMPLEMENTATION
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -161,12 +161,58 @@ export const AutoPaySection: React.FC<AutoPaySectionProps> = ({ userAddress }) =
 
     setIsSubmitting(true);
     try {
+      // Import the smart contract utility
+      const { createEmiAgreementByUser, resolveRecipient, getWalletIdByAddress } = await import('@/utils/contractUtils');
+      const { Account, Ed25519PrivateKey } = await import('@aptos-labs/ts-sdk');
+
+      // Get private key from localStorage (correct structure with accounts array)
+      const storedData = localStorage.getItem('cryptal_wallet');
+      if (!storedData) {
+        throw new Error('Wallet not found. Please login first.');
+      }
+      
+      const walletData = JSON.parse(storedData);
+      const currentIndex = walletData.currentAccountIndex || 0;
+      const currentAccount = walletData.accounts?.[currentIndex];
+      
+      if (!currentAccount || !currentAccount.privateKey) {
+        throw new Error('Account not found. Please ensure your wallet is properly set up.');
+      }
+      
+      const account = Account.fromPrivateKey({
+        privateKey: new Ed25519PrivateKey(currentAccount.privateKey)
+      });
+
       const paymentInfo = calculatePaymentInfo();
-      
-      const autoPayId = `autopay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
+      // Step 1: Resolve recipient (get their address)
+      const resolvedRecipient = await resolveRecipient(formData.recipientAddress);
+      if (!resolvedRecipient || !resolvedRecipient.address) {
+        throw new Error('Recipient wallet not found on blockchain');
+      }
+
+      // Step 2: Get wallet ID from the resolved address
+      const recipientWalletId = await getWalletIdByAddress(resolvedRecipient.address);
+      if (!recipientWalletId) {
+        throw new Error('Recipient does not have a wallet ID registered on blockchain');
+      }
+
+      // Step 3: Create EMI agreement on blockchain
+      const totalAmountOctas = (paymentInfo.totalAmount * 100_000_000).toString();
+      const monthlyAmountOctas = (paymentInfo.monthlyAmount * 100_000_000).toString();
+
+      const result = await createEmiAgreementByUser(
+        account,
+        recipientWalletId,
+        totalAmountOctas,
+        monthlyAmountOctas,
+        paymentInfo.months,
+        `AutoPay Agreement: ${paymentInfo.monthlyAmount} APT/month for ${paymentInfo.months} months`
+      );
+
+      // Step 4: Store record locally for UI (blockchain is source of truth)
       const autoPaySetup: AutoPayRecord = {
-        id: autoPayId,
+        id: result.hash, // Use transaction hash as ID
         fromAddress: userAddress,
         toAddress: formData.recipientAddress,
         monthlyAmount: formData.amount,
@@ -186,8 +232,8 @@ export const AutoPaySection: React.FC<AutoPaySectionProps> = ({ userAddress }) =
       setAutoPays(existingAutoPays);
 
       toast({
-        title: "AutoPay Setup Complete! ⚡",
-        description: `Monthly payment of ${formData.amount} APT set up for ${formData.durationMonths} months`,
+        title: "AutoPay Created on Blockchain! ⚡",
+        description: `Transaction: ${result.hash.substring(0, 10)}... | Monthly: ${formData.amount} APT for ${formData.durationMonths} months`,
         duration: 5000,
       });
 
@@ -198,9 +244,17 @@ export const AutoPaySection: React.FC<AutoPaySectionProps> = ({ userAddress }) =
         startDate: new Date().toISOString().split('T')[0]
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error setting up autopay:', error);
-      setError('Failed to set up autopay. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to set up autopay. Please try again.';
+      setError(errorMessage);
+      
+      toast({
+        title: "Transaction Failed",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000,
+      });
     } finally {
       setIsSubmitting(false);
     }
