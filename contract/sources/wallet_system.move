@@ -827,6 +827,28 @@ module aptos_contract::wallet_system {
         request.status = STATUS_REJECTED;
     }
 
+    /// Transfer APT with transaction tracking (for loyalty NFT minting)
+    /// This function should be used instead of direct coin::transfer to ensure
+    /// user stats are updated and loyalty NFTs are minted when thresholds are reached
+    public entry fun transfer_with_tracking(
+        sender: &signer,
+        admin_addr: address,
+        recipient: address,
+        amount: u64
+    ) acquires WalletRegistry {
+        let sender_addr = signer::address_of(sender);
+        
+        // Perform the actual APT transfer
+        coin::transfer<AptosCoin>(sender, recipient, amount);
+        
+        // Update sender's stats and check for loyalty NFT eligibility
+        let registry = borrow_global_mut<WalletRegistry>(admin_addr);
+        update_user_stats_and_check_loyalty(sender_addr, registry);
+        
+        // Randomly mint coupon NFT (20% chance)
+        maybe_mint_random_coupon_nft(sender_addr, registry);
+    }
+
     /// Create a split bill with custom amounts
     public entry fun create_split_bill(
         creator: &signer,
