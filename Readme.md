@@ -9,7 +9,45 @@
   [![Move](https://img.shields.io/badge/Smart%20Contract-Move-FF6B35?style=for-the-badge)](https://move-language.github.io/move/)
   [![React](https://img.shields.io/badge/Frontend-React-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
   [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+  [![Nodit](https://img.shields.io/badge/Infrastructure-Nodit-4A90E2?style=for-the-badge)](https://nodit.io/)
+  [![Kana Labs](https://img.shields.io/badge/Perps-Kana%20Labs-FF4785?style=for-the-badge)](https://kanalabs.io/)
 </div>
+
+---
+
+## 🆕 NEW: Nodit + Kana Labs Integration
+
+**Aptex Wallet now features advanced DeFi capabilities!**
+
+### 🚀 Perpetual Futures Trading (Kana Labs)
+- **Trade perp markets** with up to 125x leverage
+- **Long/Short positions** on APT, BTC, ETH, SOL
+- **Real-time P&L tracking** with liquidation monitoring
+- **Position management** with stop-loss/take-profit orders
+- **Combined portfolio view** showing spot + perps together
+
+### 🔷 Blockchain Data Infrastructure (Nodit)
+- **Real-time balance fetching** via Nodit API
+- **Transaction history** with filtering and search
+- **Token metadata** and multi-token support
+- **Unified data layer** for reliable blockchain queries
+
+### 📊 Key Features:
+- ✅ **Unified Portfolio Dashboard** - See total value across spot wallet and perps positions
+- ✅ **Professional Trading Interface** - Leverage slider, order types, risk calculations
+- ✅ **Testnet Ready** - Safe testing environment with free testnet APT
+- ✅ **Production Quality** - Clean architecture, TypeScript, comprehensive docs
+
+### 🎯 Bounty Tracks:
+- **Nodit Track**: Building with Aptos Infrastructure ($500)
+- **Kana Labs Track**: User Portfolio Dashboard ($1,000-$2,500)
+
+### 📚 Documentation:
+- [Quick Start Guide](QUICK_START.md) - Get started in 5 minutes
+- [Integration README](INTEGRATION_README.md) - Complete technical docs
+- [Testnet Setup](TESTNET_SETUP.md) - Testnet configuration guide
+- [Architecture Overview](ARCHITECTURE.md) - System design details
+- [Deployment Checklist](DEPLOYMENT_CHECKLIST.md) - Production deployment
 
 ---
 
